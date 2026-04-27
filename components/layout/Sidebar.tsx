@@ -23,6 +23,7 @@ type User = {
   _id: string;
   name: string;
   email: string;
+  role?: "user" | "admin";
 };
 
 const menuItems = [
@@ -81,25 +82,27 @@ export default function Sidebar() {
       </Link>
 
       <nav className="space-y-2 overflow-y-auto pr-1">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
+        {menuItems
+          .filter((item) => item.href !== "/admin" || user?.role === "admin")
+          .map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
 
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
-                isActive
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <Icon size={18} />
-              {item.label}
-            </Link>
-          );
-        })}
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
+                  isActive
+                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <Icon size={18} />
+                {item.label}
+              </Link>
+            );
+          })}
       </nav>
 
       <div className="mt-auto border-t border-slate-200 pt-5">

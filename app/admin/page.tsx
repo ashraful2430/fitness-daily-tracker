@@ -1,6 +1,22 @@
+import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
+import { connectDB } from "@/lib/mongodb";
+import { getCurrentUserId } from "@/lib/auth";
+import User from "@/models/Users";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  await connectDB();
+
+  const userId = await getCurrentUserId();
+
+  if (!userId) redirect("/auth");
+
+  const user = await User.findById(userId).select("-password");
+
+  if (!user || user.role !== "admin") {
+    redirect("/dashboard");
+  }
+
   return (
     <main className="min-h-screen bg-[#F7F7FB] text-slate-900">
       <div className="flex min-h-screen">

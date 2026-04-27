@@ -1,7 +1,13 @@
+import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import HabitTracker from "@/components/habits/Habits";
+import { getCurrentUserId } from "@/lib/auth";
 
-export default function HabitsPage() {
+export default async function HabitsPage() {
+  const userId = await getCurrentUserId();
+
+  if (!userId) redirect("/auth");
+
   return (
     <main className="min-h-screen bg-[#F7F7FB] text-slate-900">
       <div className="flex min-h-screen">
