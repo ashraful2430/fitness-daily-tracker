@@ -20,7 +20,6 @@ export default function ThemeToggle() {
 
   const toggleTheme = () => {
     const nextTheme = !darkMode;
-
     setDarkMode(nextTheme);
 
     if (nextTheme) {
@@ -35,10 +34,32 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition hover:scale-105 dark:bg-white/10 dark:text-white"
+      className="relative flex h-12 w-full items-center rounded-2xl bg-slate-100 p-1 dark:bg-white/10"
       aria-label="Toggle theme"
     >
-      {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+      <span
+        className={`absolute top-1 h-10 w-[calc(50%-4px)] rounded-xl bg-white shadow-md transition-all dark:bg-indigo-600 ${
+          darkMode ? "left-[50%]" : "left-1"
+        }`}
+      />
+
+      <span
+        className={`relative z-10 flex w-1/2 items-center justify-center gap-2 text-sm font-black ${
+          darkMode ? "text-slate-400" : "text-slate-950"
+        }`}
+      >
+        <Sun size={16} />
+        Light
+      </span>
+
+      <span
+        className={`relative z-10 flex w-1/2 items-center justify-center gap-2 text-sm font-black ${
+          darkMode ? "text-white" : "text-slate-500"
+        }`}
+      >
+        <Moon size={16} />
+        Dark
+      </span>
     </button>
   );
 }

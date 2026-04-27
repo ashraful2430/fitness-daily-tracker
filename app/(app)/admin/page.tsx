@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/mongodb";
 import { getCurrentUserId } from "@/lib/auth";
-import User from "@/models/User";
+import User from "@/models/Users";
 
 export default async function AdminPage() {
   await connectDB();

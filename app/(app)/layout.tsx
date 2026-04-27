@@ -14,8 +14,8 @@ export default async function AppLayout({
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F7FB] text-slate-900">
-      <div className="flex min-h-screen">
+    <main className="min-h-screen bg-[#F7F7FB] text-slate-900 dark:bg-slate-950 dark:text-white">
+      <div className="min-h-screen lg:flex">
         <Sidebar />
         <div className="flex-1">{children}</div>
       </div>

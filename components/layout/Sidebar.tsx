@@ -9,15 +9,17 @@ import {
   FolderKanban,
   LineChart,
   LogOut,
+  Menu,
   PiggyBank,
   Settings,
   Shield,
   Timer,
-  UserCircle,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 type User = {
   _id: string;
@@ -43,21 +45,16 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     async function getUser() {
       try {
-        const res = await fetch("/api/auth/me", {
-          cache: "no-store",
-        });
-
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
         const data = await res.json();
 
-        if (res.ok && data.user) {
-          setUser(data.user);
-        } else {
-          setUser(null);
-        }
+        if (res.ok && data.user) setUser(data.user);
+        else setUser(null);
       } catch {
         setUser(null);
       } finally {
@@ -69,31 +66,30 @@ export default function Sidebar() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-    });
-
+    await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/auth";
   };
 
   const getInitial = user?.name?.charAt(0)?.toUpperCase() || "U";
 
-  return (
-    <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-slate-200 bg-white p-6 lg:flex lg:flex-col">
-      <Link href="/" className="mb-8 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-100">
+  const SidebarContent = () => (
+    <>
+      <Link href="/" className="mb-5 flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
           <Activity size={22} />
         </div>
 
-        <div>
-          <h1 className="text-xl font-black text-slate-950">Planify Life</h1>
-          <p className="text-sm font-medium text-slate-500">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-black text-slate-950 dark:text-white">
+            Planify Life
+          </h1>
+          <p className="truncate text-sm font-semibold text-slate-500 dark:text-slate-400">
             Personal tracking system
           </p>
         </div>
       </Link>
 
-      <nav className="space-y-2 overflow-y-auto pr-1">
+      <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {menuItems
           .filter((item) => item.href !== "/admin" || user?.role === "admin")
           .map((item) => {
@@ -104,70 +100,119 @@ export default function Sidebar() {
               <Link
                 key={item.label}
                 href={item.href}
-                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                onClick={() => setMobileOpen(false)}
+                className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition-all ${
                   isActive
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                    ? "bg-gradient-to-r from-indigo-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-200 dark:shadow-none"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
                 }`}
               >
-                <Icon size={18} />
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-xl ${
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : "bg-slate-100 text-slate-500 group-hover:text-indigo-600 dark:bg-white/5 dark:text-slate-400"
+                  }`}
+                >
+                  <Icon size={17} />
+                </span>
                 {item.label}
               </Link>
             );
           })}
       </nav>
 
-      <div className="mt-auto border-t border-slate-200 pt-5">
+      <div className="mt-4 shrink-0">
+        <ThemeToggle />
+      </div>
+
+      <div className="mt-4 shrink-0 border-t border-slate-200 pt-4 dark:border-white/10">
         {loadingUser ? (
-          <div className="animate-pulse rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-slate-200" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-24 rounded bg-slate-200" />
-                <div className="h-3 w-32 rounded bg-slate-200" />
-              </div>
-            </div>
-          </div>
+          <div className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-white/10" />
         ) : user ? (
-          <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-            <Link href="/dashboard" className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-lg font-black text-white shadow-lg shadow-indigo-200">
-                {getInitial}
+          <>
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-3 dark:border-white/10 dark:bg-white/10"
+            >
+              <div className="relative">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-lg font-black text-white">
+                  {getInitial}
+                </div>
+                <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950" />
               </div>
 
               <div className="min-w-0">
-                <p className="truncate text-sm font-black text-slate-950">
+                <p className="truncate text-sm font-black text-slate-950 dark:text-white">
                   {user.name}
                 </p>
-                <p className="truncate text-xs font-semibold text-slate-500">
+                <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
                   {user.email}
                 </p>
-
-                <span className="mt-2 inline-flex rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-black capitalize text-indigo-600">
-                  {user.role || "user"}
-                </span>
               </div>
             </Link>
-          </div>
+
+            <button
+              onClick={handleLogout}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-red-50 hover:text-red-600 dark:bg-white/10 dark:text-white dark:hover:bg-red-500/10 dark:hover:text-red-300"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
+          </>
         ) : (
           <Link
             href="/auth"
-            className="block w-full rounded-2xl bg-indigo-600 px-4 py-3 text-center text-sm font-bold text-white shadow-lg shadow-indigo-200"
+            className="block w-full rounded-2xl bg-indigo-600 px-4 py-3 text-center text-sm font-bold text-white"
           >
             Login
           </Link>
         )}
-
-        {user && !loadingUser && (
-          <button
-            onClick={handleLogout}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-red-50 hover:text-red-600"
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
-        )}
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-slate-950 lg:hidden">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white">
+            <Activity size={20} />
+          </div>
+          <span className="font-black dark:text-white">Planify Life</span>
+        </Link>
+
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="rounded-2xl bg-slate-100 p-3 text-slate-700 dark:bg-white/10 dark:text-white"
+        >
+          <Menu size={22} />
+        </button>
+      </header>
+
+      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-[#070B18] lg:flex">
+        <SidebarContent />
+      </aside>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+          />
+
+          <aside className="relative flex h-full w-[85%] max-w-sm flex-col bg-white p-5 dark:bg-[#070B18]">
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute right-4 top-4 rounded-2xl bg-slate-100 p-2 dark:bg-white/10 dark:text-white"
+            >
+              <X size={20} />
+            </button>
+
+            <SidebarContent />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
