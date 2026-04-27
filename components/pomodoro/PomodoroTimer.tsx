@@ -29,7 +29,7 @@ export default function PomodoroTimer() {
             <p className="text-sm font-bold uppercase tracking-[0.25em] text-indigo-300">
               Focus
             </p>
-            <h2 className="text-3xl font-black">Pomodoro Timer</h2>
+            <h2 className="text-3xl font-black">Focus Timer</h2>
           </div>
         </div>
 

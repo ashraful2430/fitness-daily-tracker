@@ -1,0 +1,17 @@
+import Sidebar from "@/components/layout/Sidebar";
+
+export default function AdminPage() {
+  return (
+    <main className="min-h-screen bg-[#F7F7FB] text-slate-900">
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <section className="flex-1 p-6 lg:p-10">
+          <h1 className="text-4xl font-black">Admin Panel</h1>
+          <p className="mt-3 text-slate-600">
+            View users, activity, progress, and platform analytics.
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+}
