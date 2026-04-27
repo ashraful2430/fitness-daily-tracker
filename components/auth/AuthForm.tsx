@@ -34,13 +34,18 @@ export default function AuthForm() {
 
     setLoading(true);
 
-    const url = mode === "login" ? "/api/auth/login" : "/api/auth/register";
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
+    const url =
+      mode === "login"
+        ? `${API_URL}/api/auth/login`
+        : `${API_URL}/api/auth/register`;
     const payload =
       mode === "login" ? { email, password } : { name, email, password };
 
     try {
       const res = await fetch(url, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },

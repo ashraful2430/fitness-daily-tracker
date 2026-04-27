@@ -50,7 +50,13 @@ export default function Sidebar() {
   useEffect(() => {
     async function getUser() {
       try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`,
+          {
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
         const data = await res.json();
 
         if (res.ok && data.user) setUser(data.user);
@@ -66,7 +72,10 @@ export default function Sidebar() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
     window.location.href = "/auth";
   };
 

@@ -34,7 +34,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="relative flex h-12 w-full items-center rounded-2xl bg-slate-100 p-1 dark:bg-white/10"
+      className="relative flex h-12 w-[150px] items-center rounded-2xl bg-slate-100 p-1 dark:bg-white/10"
       aria-label="Toggle theme"
     >
       <span
@@ -44,7 +44,7 @@ export default function ThemeToggle() {
       />
 
       <span
-        className={`relative z-10 flex w-1/2 items-center justify-center gap-2 text-sm font-black ${
+        className={`relative z-10 flex w-1/2 items-center justify-center gap-1 text-sm font-black ${
           darkMode ? "text-slate-400" : "text-slate-950"
         }`}
       >
@@ -53,7 +53,7 @@ export default function ThemeToggle() {
       </span>
 
       <span
-        className={`relative z-10 flex w-1/2 items-center justify-center gap-2 text-sm font-black ${
+        className={`relative z-10 flex w-1/2 items-center justify-center gap-1 text-sm font-black ${
           darkMode ? "text-white" : "text-slate-500"
         }`}
       >

@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Dumbbell,
   LineChart,
-  Menu,
   Moon,
   PiggyBank,
   ShieldCheck,
@@ -75,19 +74,19 @@ export default function HomePage() {
             <a href="#security">Security</a>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
 
             <Link
               href="/auth"
-              className="hidden rounded-2xl px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10 sm:block"
+              className="hidden rounded-full px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10 sm:block"
             >
               Login
             </Link>
 
             <Link
               href="/auth"
-              className="rounded-2xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-indigo-200 transition hover:scale-105 dark:shadow-none sm:px-5 sm:text-sm"
+              className="whitespace-nowrap rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-500/20 transition hover:bg-indigo-700"
             >
               Get Started
             </Link>
@@ -121,14 +120,14 @@ export default function HomePage() {
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
               <Link
                 href="/auth"
-                className="rounded-2xl bg-indigo-600 px-6 py-4 text-center text-sm font-black text-white shadow-xl shadow-indigo-200 transition hover:scale-105 dark:shadow-none"
+                className="rounded-full bg-indigo-600 px-6 py-3.5 text-center text-sm font-black text-white shadow-xl shadow-indigo-200 transition hover:bg-indigo-700 hover:scale-105 dark:shadow-none"
               >
                 Start Tracking
               </Link>
 
               <Link
                 href="/dashboard"
-                className="rounded-2xl bg-white px-6 py-4 text-center text-sm font-black text-slate-800 shadow-xl shadow-slate-200 transition hover:scale-105 dark:bg-white/10 dark:text-white dark:shadow-none"
+                className="rounded-full bg-white px-6 py-3.5 text-center text-sm font-black text-slate-800 shadow-xl shadow-slate-200 transition hover:scale-105 dark:bg-white/10 dark:text-white dark:shadow-none"
               >
                 Open Dashboard
               </Link>
