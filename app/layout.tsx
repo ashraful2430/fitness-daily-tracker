@@ -8,8 +8,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Fitness Daily Tracker",
-  description: "Track fitness, habits, focus time, and daily progress.",
+  title: "Planify Life | Personal Productivity Tracker",
+  description:
+    "Track learning, fitness, habits, focus time, expenses, and progress reports in one personal productivity system.",
 };
 
 export default function RootLayout({
