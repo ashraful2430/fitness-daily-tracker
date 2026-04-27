@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Activity,
   BarChart3,
@@ -67,6 +69,7 @@ export default function Dashboard() {
           icon={Flame}
           tone="orange"
         />
+
         <StatCard
           title="Water Intake"
           value="6/8"
@@ -74,6 +77,7 @@ export default function Dashboard() {
           icon={Droplets}
           tone="blue"
         />
+
         <StatCard
           title="Focus Time"
           value="3h"
@@ -81,6 +85,7 @@ export default function Dashboard() {
           icon={Timer}
           tone="purple"
         />
+
         <StatCard
           title="Weekly Goal"
           value="74%"
