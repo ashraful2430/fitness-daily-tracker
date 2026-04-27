@@ -13,7 +13,7 @@ import StatCard from "@/components/ui/StateCard";
 
 export default function Dashboard() {
   return (
-    <section className="flex-1 p-6 lg:p-10">
+    <section id="dashboard" className="flex-1 scroll-mt-8 p-6 lg:p-10">
       <div className="mb-8 rounded-[2rem] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-500 p-8 text-white shadow-2xl shadow-indigo-200">
         <div className="grid gap-8 lg:grid-cols-[1.4fr_0.8fr] lg:items-center">
           <div>

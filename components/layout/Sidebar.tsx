@@ -18,10 +18,10 @@ type User = {
 };
 
 const menuItems = [
-  { label: "Dashboard", icon: BarChart3 },
-  { label: "Fitness", icon: Dumbbell },
-  { label: "Habits", icon: Flame },
-  { label: "Pomodoro", icon: Timer },
+  { label: "Dashboard", icon: BarChart3, href: "#dashboard" },
+  { label: "Fitness", icon: Dumbbell, href: "#fitness" },
+  { label: "Habits", icon: Flame, href: "#habits" },
+  { label: "Pomodoro", icon: Timer, href: "#pomodoro" },
 ];
 
 export default function Sidebar() {
@@ -70,8 +70,9 @@ export default function Sidebar() {
           const Icon = item.icon;
 
           return (
-            <button
+            <a
               key={item.label}
+              href={item.href}
               className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
                 index === 0
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
@@ -80,15 +81,15 @@ export default function Sidebar() {
             >
               <Icon size={18} />
               {item.label}
-            </button>
+            </a>
           );
         })}
       </nav>
 
       <div className="mt-auto border-t border-slate-200 pt-5">
         {user ? (
-          <button
-            onClick={() => (window.location.href = "/")}
+          <a
+            href="#dashboard"
             className="mb-3 flex w-full items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-indigo-50"
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white">
@@ -103,7 +104,7 @@ export default function Sidebar() {
                 {user.email}
               </p>
             </div>
-          </button>
+          </a>
         ) : (
           <button
             onClick={() => (window.location.href = "/auth")}

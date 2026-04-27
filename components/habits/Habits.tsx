@@ -9,7 +9,7 @@ const habits = [
 
 export default function HabitTracker() {
   return (
-    <section className="px-6 lg:px-10">
+    <section id="habits" className="scroll-mt-8 px-6 lg:px-10">
       <div className="rounded-[2rem] bg-white p-6 shadow-xl shadow-slate-200/70">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>

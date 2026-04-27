@@ -21,7 +21,7 @@ export default function PomodoroTimer() {
   const remainingSeconds = seconds % 60;
 
   return (
-    <section className="px-6 pb-10 lg:px-10">
+    <section id="pomodoro" className="scroll-mt-8 px-6 pb-10 lg:px-10">
       <div className="rounded-[2rem] bg-slate-950 p-8 text-white shadow-2xl shadow-slate-300">
         <div className="mb-8 flex items-center gap-3">
           <Timer className="text-indigo-300" />
