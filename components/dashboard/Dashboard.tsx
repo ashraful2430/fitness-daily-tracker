@@ -498,87 +498,125 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.07] dark:bg-[#0f0c1f] dark:shadow-black/20 xl:col-span-3"
+            className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
           >
-            <div className="mb-5 flex items-center justify-between">
+            <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/40 to-transparent" />
+
+            <div className="relative z-10 mb-6 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-sm font-bold text-slate-950 dark:text-white">
+                <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
+                  Fitness Log
+                </p>
+                <h3 className="text-xl font-black text-slate-950 dark:text-white">
                   Recent Workouts
                 </h3>
-                <p className="mt-0.5 text-[11px] text-slate-500">
-                  Last 5 sessions
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Your latest 5 fitness sessions
                 </p>
               </div>
-              <Activity className="h-4 w-4 text-slate-400" />
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-400">
+                <Activity className="h-5 w-5" />
+              </div>
             </div>
 
-            {data.recentWorkouts.length > 0 ? (
-              <div className="space-y-2">
-                {data.recentWorkouts
-                  .slice(0, 5)
-                  .map((w: Workout, i: number) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.44 + i * 0.05 }}
-                      className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:bg-slate-100 dark:border-white/[0.04] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/15">
-                        <Activity className="h-4 w-4 text-violet-400" />
-                      </div>
+            <div className="relative z-10">
+              {data.recentWorkouts.length > 0 ? (
+                <div className="space-y-3">
+                  {data.recentWorkouts
+                    .slice(0, 5)
+                    .map((w: Workout, i: number) => (
+                      <motion.div
+                        key={w._id || i}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.44 + i * 0.05 }}
+                        className="group flex items-center gap-4 rounded-[1.35rem] border border-slate-200 bg-slate-50 p-4 transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:bg-white hover:shadow-lg hover:shadow-violet-100/60 dark:border-white/[0.06] dark:bg-white/[0.035] dark:hover:border-violet-400/30 dark:hover:bg-white/[0.06] dark:hover:shadow-black/20"
+                      >
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-lg shadow-violet-950/25">
+                          <Activity className="h-5 w-5 text-white" />
+                        </div>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
-                          {w.exercise}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {w.duration} min ·{" "}
-                          {new Date(w.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-black text-slate-950 dark:text-white">
+                            {w.exercise}
+                          </p>
+                          <p className="mt-1 text-xs font-medium text-slate-500">
+                            {w.duration} min ·{" "}
+                            {new Date(w.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
 
-                      <span className="shrink-0 text-xs font-bold text-violet-500">
-                        {w.calories ?? 0} cal
-                      </span>
-                    </motion.div>
-                  ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/[0.06] dark:bg-white/[0.04]">
-                  <Activity className="h-5 w-5 text-slate-400" />
+                        <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right shadow-sm dark:border-white/[0.06] dark:bg-white/[0.05]">
+                          <p className="text-sm font-black text-violet-500">
+                            {w.calories ?? 0}
+                          </p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            cal
+                          </p>
+                        </div>
+                      </motion.div>
+                    ))}
                 </div>
-                <p className="text-sm font-semibold text-slate-500">
-                  No workouts yet
-                </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  Log your first session!
-                </p>
-              </div>
-            )}
+              ) : (
+                <div className="flex min-h-[270px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-slate-500 shadow-sm dark:bg-white/[0.06] dark:text-slate-400">
+                    <Activity className="h-7 w-7" />
+                  </div>
+
+                  <h4 className="text-lg font-black text-slate-950 dark:text-white">
+                    No workouts yet
+                  </h4>
+
+                  <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                    Log your first workout and start building your activity
+                    history.
+                  </p>
+
+                  <button
+                    onClick={() => router.push("/fitness")}
+                    className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-violet-950/30 transition hover:scale-[1.02]"
+                  >
+                    Log Workout
+                  </button>
+                </div>
+              )}
+            </div>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.46 }}
-            className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.07] dark:bg-[#0f0c1f] dark:shadow-black/20 xl:col-span-2"
+            className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
           >
-            <h3 className="mb-5 text-sm font-bold text-slate-950 dark:text-white">
-              Quick Actions
-            </h3>
+            <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="relative z-10 mb-6">
+              <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
+                Shortcuts
+              </p>
+              <h3 className="text-xl font-black text-slate-950 dark:text-white">
+                Quick Actions
+              </h3>
+              <p className="mt-1 text-sm font-medium text-slate-500">
+                Jump into your most useful daily tools
+              </p>
+            </div>
+
+            <div className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[
                 {
                   icon: Plus,
                   label: "Add Section",
+                  desc: "Create a daily goal",
                   color: "violet" as CK,
                   onClick: () =>
                     window.scrollTo({ top: 620, behavior: "smooth" }),
@@ -586,6 +624,7 @@ export default function Dashboard() {
                 {
                   icon: Target,
                   label: "Daily Score",
+                  desc: "Review today's score",
                   color: "cyan" as CK,
                   onClick: () =>
                     window.scrollTo({ top: 0, behavior: "smooth" }),
@@ -593,12 +632,14 @@ export default function Dashboard() {
                 {
                   icon: Clock,
                   label: "Start Focus",
+                  desc: "Begin focus timer",
                   color: "indigo" as CK,
                   onClick: () => router.push("/focus"),
                 },
                 {
                   icon: TrendingUp,
                   label: "View Reports",
+                  desc: "Analyze progress",
                   color: "emerald" as CK,
                   onClick: () => router.push("/reports"),
                 },
@@ -606,19 +647,30 @@ export default function Dashboard() {
                 <motion.button
                   key={i}
                   onClick={a.onClick}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="flex min-h-[90px] flex-col items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-slate-100 dark:border-white/[0.06] dark:bg-white/[0.03] dark:hover:bg-white/[0.07]"
+                  whileHover={{ y: -3, scale: 1.01 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="group relative min-h-[125px] overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4 text-left transition-all hover:border-violet-200 hover:bg-white hover:shadow-lg hover:shadow-violet-100/60 dark:border-white/[0.06] dark:bg-white/[0.035] dark:hover:border-violet-400/30 dark:hover:bg-white/[0.06] dark:hover:shadow-black/20"
                 >
                   <div
-                    className={`rounded-xl bg-gradient-to-br ${grad[a.color]} p-2.5 shadow-lg`}
-                  >
-                    <a.icon className="h-4 w-4 text-white" />
-                  </div>
+                    className={`absolute -right-8 -top-8 h-20 w-20 rounded-full bg-gradient-to-br ${grad[a.color]} opacity-10 blur-2xl transition group-hover:opacity-20`}
+                  />
 
-                  <span className="text-center text-[11px] font-semibold leading-tight text-slate-500">
-                    {a.label}
-                  </span>
+                  <div className="relative z-10 flex h-full flex-col justify-between">
+                    <div
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${grad[a.color]} shadow-lg shadow-violet-950/25`}
+                    >
+                      <a.icon className="h-5 w-5 text-white" />
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-sm font-black text-slate-950 dark:text-white">
+                        {a.label}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">
+                        {a.desc}
+                      </p>
+                    </div>
+                  </div>
                 </motion.button>
               ))}
             </div>
