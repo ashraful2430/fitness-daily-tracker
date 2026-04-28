@@ -1,13 +1,14 @@
+// app/layout.tsx
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Roboto_Serif } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 
-const inter = Inter({
+const robotoSerif = Roboto_Serif({
   subsets: ["latin"],
-  variable: "--font-inter", // ← add this
-  weight: ["400", "500", "600", "700", "800", "900"], // ← add this
-  display: "swap", // ← add this
+  variable: "--font-roboto-serif",
+  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -18,15 +19,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      {/* ← change className to use the variable */}
-      <body className={`${inter.variable} font-sans antialiased`}>
+    // ✅ add dark class here so entire app respects dark mode
+    <html lang="en" className="dark">
+      <body className={`${robotoSerif.variable} font-serif antialiased`}>
         {children}
-
         <Toaster
           position="top-right"
           toastOptions={{
@@ -37,19 +35,10 @@ export default function RootLayout({
               color: "#fff",
               padding: "14px 18px",
               fontWeight: "600",
+              fontFamily: "var(--font-roboto-serif)",
             },
-            success: {
-              iconTheme: {
-                primary: "#22c55e",
-                secondary: "#fff",
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: "#ef4444",
-                secondary: "#fff",
-              },
-            },
+            success: { iconTheme: { primary: "#22c55e", secondary: "#fff" } },
+            error: { iconTheme: { primary: "#ef4444", secondary: "#fff" } },
           }}
         />
       </body>

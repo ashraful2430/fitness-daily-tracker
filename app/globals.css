@@ -1,5 +1,12 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-roboto-serif: "Roboto Serif", serif;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -8,10 +15,12 @@ html {
   scroll-behavior: smooth;
 }
 
+html,
 body {
   margin: 0;
-  background: #f7f7fb;
-  color: #0f172a;
+  font-family: var(--font-roboto-serif), serif;
+  background-color: #09090f;
+  color: #ffffff;
 }
 
 button,
