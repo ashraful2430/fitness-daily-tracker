@@ -1,5 +1,3 @@
-// frontend/lib/api.ts
-
 import type { ApiResponse, DashboardData } from "@/types/dashboard";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -35,7 +33,6 @@ async function apiRequest<T = unknown>(
   return data;
 }
 
-// Dashboard API
 export const dashboardAPI = {
   getDashboard: () => apiRequest<DashboardData>("/api/dashboard"),
 
@@ -58,16 +55,17 @@ export const dashboardAPI = {
     }),
 };
 
-// Auth API
-export interface LoginResponse {
-  token: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  loginStreak: number;
+  longestLoginStreak: number;
+  lastLoginDate?: string | null;
 }
+
+export type LoginResponse = AuthUser;
 
 export const authAPI = {
   register: (name: string, email: string, password: string) =>
@@ -86,10 +84,9 @@ export const authAPI = {
 
   logout: () => apiRequest<null>("/api/auth/logout", { method: "POST" }),
 
-  getCurrentUser: () => apiRequest<LoginResponse["user"]>("/api/auth/me"),
+  getCurrentUser: () => apiRequest<AuthUser>("/api/auth/me"),
 };
 
-// Workout API
 export interface WorkoutInput {
   exercise: string;
   duration: number;
@@ -117,7 +114,6 @@ export const workoutAPI = {
     }),
 };
 
-// Score Section API
 export type ScoreGoalType = "count" | "duration" | "boolean";
 
 export interface ScoreSection {

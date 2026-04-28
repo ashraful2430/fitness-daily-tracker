@@ -21,7 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardSkeleton from "./DashboardSkeleton";
 import ScoreSections from "./ScoreSections";
-import type { ScoreSection } from "@/lib/api";
+import { authAPI, type AuthUser, type ScoreSection } from "@/lib/api";
 
 type CK = "orange" | "cyan" | "violet" | "emerald" | "indigo";
 
@@ -191,7 +191,21 @@ export default function Dashboard() {
   const { data, loading } = useDashboard();
   const [dynamicScore, setDynamicScore] = useState<number | null>(null);
   const [scoreSections, setScoreSections] = useState<ScoreSection[]>([]);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    async function loadCurrentUser() {
+      try {
+        const res = await authAPI.getCurrentUser();
+        setCurrentUser(res.data);
+      } catch {
+        setCurrentUser(null);
+      }
+    }
+
+    loadCurrentUser();
+  }, []);
 
   const sectionStats = useMemo(
     () => getSectionStats(scoreSections),
@@ -209,15 +223,17 @@ export default function Dashboard() {
   }
 
   const score = dynamicScore ?? 0;
+  const loginStreak = currentUser?.loginStreak ?? 0;
+  const longestLoginStreak = currentUser?.longestLoginStreak ?? 0;
 
   const dynamicCards = [
     {
       icon: Flame,
       title: "Login Streak",
       color: "orange" as CK,
-      value: String(data.workoutStreak.current),
+      value: String(loginStreak),
       unit: "days",
-      sub: `Longest active streak: ${data.workoutStreak.longest} days`,
+      sub: `Longest login streak: ${longestLoginStreak} days`,
       progress: undefined,
     },
     {
@@ -369,7 +385,7 @@ export default function Dashboard() {
 
               <div className="mt-4 grid w-full max-w-[350px] grid-cols-3 gap-3">
                 {[
-                  { v: `${data.workoutStreak.current}d`, l: "Login" },
+                  { v: `${loginStreak}d`, l: "Login" },
                   { v: `${sectionStats.totalDurationMinutes}m`, l: "Time" },
                   { v: `${sectionStats.overallCompletion}%`, l: "Progress" },
                 ].map((p, i) => (
