@@ -117,4 +117,51 @@ export const workoutAPI = {
     }),
 };
 
+// Score Section API
+export type ScoreGoalType = "count" | "duration" | "boolean";
+
+export interface ScoreSection {
+  _id: string;
+  name: string;
+  emoji: string;
+  goalType: ScoreGoalType;
+  goalValue: number;
+  currentValue: number;
+  order: number;
+}
+
+export interface ScoreSectionInput {
+  name: string;
+  emoji: string;
+  goalType: ScoreGoalType;
+  goalValue: number;
+}
+
+export const scoreSectionAPI = {
+  getSections: () => apiRequest<ScoreSection[]>("/api/score-sections"),
+
+  createSection: (section: ScoreSectionInput) =>
+    apiRequest<ScoreSection>("/api/score-sections", {
+      method: "POST",
+      body: JSON.stringify(section),
+    }),
+
+  updateSection: (id: string, section: Partial<ScoreSectionInput>) =>
+    apiRequest<ScoreSection>(`/api/score-sections/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(section),
+    }),
+
+  deleteSection: (id: string) =>
+    apiRequest<null>(`/api/score-sections/${id}`, {
+      method: "DELETE",
+    }),
+
+  updateProgress: (id: string, value: number) =>
+    apiRequest<ScoreSection>(`/api/score-sections/${id}/progress`, {
+      method: "PATCH",
+      body: JSON.stringify({ value }),
+    }),
+};
+
 export default apiRequest;
