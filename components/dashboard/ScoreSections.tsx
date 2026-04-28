@@ -1,8 +1,9 @@
+// frontend/components/dashboard/ScoreSections.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Minus, Pencil, Plus, Target, Trash2, X } from "lucide-react";
+import { Minus, Pencil, Plus, Target, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   scoreSectionAPI,
@@ -13,6 +14,7 @@ import {
 
 interface Props {
   onScoreChange?: (score: number) => void;
+  onSectionsChange?: (sections: ScoreSection[]) => void;
 }
 
 const MAX_SECTIONS = 10;
@@ -58,7 +60,10 @@ function getUnit(type: ScoreGoalType) {
   return "count";
 }
 
-export default function ScoreSections({ onScoreChange }: Props) {
+export default function ScoreSections({
+  onScoreChange,
+  onSectionsChange,
+}: Props) {
   const [sections, setSections] = useState<ScoreSection[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -88,6 +93,10 @@ export default function ScoreSections({ onScoreChange }: Props) {
   useEffect(() => {
     onScoreChange?.(score);
   }, [score, onScoreChange]);
+
+  useEffect(() => {
+    onSectionsChange?.(sections);
+  }, [sections, onSectionsChange]);
 
   const openAddModal = () => {
     setEditId(null);
@@ -189,11 +198,11 @@ export default function ScoreSections({ onScoreChange }: Props) {
 
   if (loading) {
     return (
-      <div className="rounded-[2rem] border border-white/10 bg-[#0f0c1f] p-6">
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/10 dark:bg-[#0f0c1f] dark:shadow-black/20">
         <div className="animate-pulse space-y-4">
-          <div className="h-5 w-36 rounded-full bg-white/10" />
-          <div className="h-20 rounded-3xl bg-white/10" />
-          <div className="h-20 rounded-3xl bg-white/10" />
+          <div className="h-5 w-36 rounded-full bg-slate-100 dark:bg-white/10" />
+          <div className="h-20 rounded-3xl bg-slate-100 dark:bg-white/10" />
+          <div className="h-20 rounded-3xl bg-slate-100 dark:bg-white/10" />
         </div>
       </div>
     );
@@ -201,48 +210,57 @@ export default function ScoreSections({ onScoreChange }: Props) {
 
   return (
     <>
-      <div className="rounded-[2rem] border border-white/10 bg-[#0f0c1f] p-5 shadow-xl shadow-black/20">
-        <div className="mb-5 flex items-start justify-between gap-4">
+      <div className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/10 dark:bg-[#0f0c1f] dark:shadow-black/20">
+        <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/40 to-transparent" />
+
+        <div className="relative z-10 mb-6 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-violet-300">
+            <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
               <Target size={14} />
               Daily Score
             </div>
 
-            <h3 className="text-xl font-black text-white">Daily Sections</h3>
+            <h3 className="text-xl font-black text-slate-950 dark:text-white">
+              Daily Sections
+            </h3>
 
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm font-medium text-slate-500">
               {sections.length
-                ? `${sections.length} section${sections.length > 1 ? "s" : ""} · ${pointsEach.toFixed(1)}% each`
+                ? `${sections.length} section${
+                    sections.length > 1 ? "s" : ""
+                  } · ${pointsEach.toFixed(1)}% each`
                 : "Create your own daily sections."}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-white/[0.06] px-4 py-3 text-center">
-              <p className="text-[11px] font-bold text-slate-500">Score</p>
-              <p className="text-xl font-black text-white">{score}%</p>
+            <div className="flex h-14 min-w-[110px] items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.06] px-4 dark:bg-white/[0.06]">
+              <p className="whitespace-nowrap text-xl font-black text-slate-950 dark:text-white">
+                Score {score}%
+              </p>
             </div>
-
             <button
               onClick={openAddModal}
               disabled={sections.length >= MAX_SECTIONS}
-              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-950/30 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-600 text-white shadow-[0_15px_45px_-12px_rgba(139,92,246,0.8)] transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Plus size={20} />
+              <Plus size={22} />
             </button>
           </div>
         </div>
 
         {sections.length === 0 ? (
-          <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.06] text-3xl">
+          <div className="relative z-10 flex min-h-[260px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm dark:bg-white/[0.06]">
               🎯
             </div>
 
-            <h4 className="text-lg font-black text-white">No sections yet</h4>
+            <h4 className="text-lg font-black text-slate-950 dark:text-white">
+              No sections yet
+            </h4>
 
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-400">
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
               Add Coding, Learning, Exercise, Meditation, or anything you want
               to track today.
             </p>
@@ -255,7 +273,7 @@ export default function ScoreSections({ onScoreChange }: Props) {
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="relative z-10 space-y-3">
             {sections.map((section) => (
               <SectionCard
                 key={section._id}
@@ -302,30 +320,31 @@ function SectionCard({
   const step = section.goalType === "duration" ? 5 : 1;
 
   return (
-    <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.035] p-4 transition hover:border-violet-400/30 hover:bg-white/[0.055]">
+    <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4 transition hover:border-violet-300 hover:bg-white dark:border-white/10 dark:bg-white/[0.035] dark:hover:border-violet-400/30 dark:hover:bg-white/[0.055]">
       <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/[0.07] text-2xl">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm dark:bg-white/[0.07]">
           {section.emoji}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <h4 className="truncate text-sm font-black text-white">
+              <h4 className="truncate text-sm font-black text-slate-950 dark:text-white">
                 {section.name}
               </h4>
+
               <p className="text-xs font-medium text-slate-500">
                 {section.currentValue}/{section.goalValue}{" "}
                 {getUnit(section.goalType)}
               </p>
             </div>
 
-            <div className="rounded-full bg-white/[0.07] px-3 py-1 text-[11px] font-black text-white">
+            <div className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black text-slate-700 shadow-sm dark:bg-white/[0.07] dark:text-white">
               {earned}/{Math.round(pointsEach)}
             </div>
           </div>
 
-          <div className="h-2 overflow-hidden rounded-full bg-white/[0.07]">
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/[0.07]">
             <motion.div
               initial={false}
               animate={{ width: `${progress}%` }}
@@ -340,14 +359,14 @@ function SectionCard({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 pl-16">
+      <div className="mt-4 flex flex-wrap gap-2 pl-0 sm:pl-16">
         {section.goalType === "boolean" ? (
           <button
             onClick={() => onProgress(completed ? 0 : 1)}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
               completed
                 ? "bg-gradient-to-r from-emerald-500 to-lime-400 text-white"
-                : "bg-white/[0.07] text-slate-300 hover:bg-white/[0.12]"
+                : "bg-white text-slate-600 shadow-sm hover:bg-slate-100 dark:bg-white/[0.07] dark:text-slate-300 dark:hover:bg-white/[0.12]"
             }`}
           >
             {completed ? "Completed" : "Mark Done"}
@@ -356,7 +375,7 @@ function SectionCard({
           <>
             <button
               onClick={() => onProgress(section.currentValue - step)}
-              className="rounded-xl bg-white/[0.07] px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.12]"
+              className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-white/[0.07] dark:text-slate-300 dark:hover:bg-white/[0.12]"
             >
               <Minus size={14} />
             </button>
@@ -372,14 +391,14 @@ function SectionCard({
 
         <button
           onClick={onEdit}
-          className="rounded-xl bg-white/[0.07] px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.12]"
+          className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-white/[0.07] dark:text-slate-300 dark:hover:bg-white/[0.12]"
         >
           <Pencil size={14} />
         </button>
 
         <button
           onClick={onDelete}
-          className="rounded-xl bg-red-500/[0.10] px-3 py-2 text-xs font-black text-red-300 transition hover:bg-red-500/20"
+          className="rounded-xl bg-red-50 px-3 py-2 text-xs font-black text-red-500 transition hover:bg-red-100 dark:bg-red-500/[0.10] dark:text-red-300 dark:hover:bg-red-500/20"
         >
           <Trash2 size={14} />
         </button>
@@ -421,32 +440,35 @@ function SectionModal({
             initial={{ opacity: 0, y: 20, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
-            className="relative w-full max-w-lg rounded-[2rem] border border-violet-400/20 bg-[#120f24] p-6 shadow-2xl shadow-violet-950/30"
+            className="relative w-full max-w-lg rounded-[2rem] border border-violet-200 bg-white p-6 shadow-2xl shadow-violet-200/50 dark:border-violet-400/20 dark:bg-[#120f24] dark:shadow-violet-950/30"
           >
             <button
               onClick={onClose}
-              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/[0.07] text-slate-400 transition hover:bg-white/[0.12] hover:text-white"
+              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-950 dark:bg-white/[0.07] dark:text-slate-400 dark:hover:bg-white/[0.12] dark:hover:text-white"
             >
               <X size={18} />
             </button>
 
             <div className="mb-6">
-              <p className="mb-2 text-xs font-black uppercase tracking-[0.25em] text-violet-300">
+              <p className="mb-2 text-xs font-black uppercase tracking-[0.25em] text-violet-500 dark:text-violet-300">
                 {editMode ? "Edit Section" : "New Section"}
               </p>
 
-              <h2 className="text-3xl font-black text-white">
+              <h2 className="text-3xl font-black text-slate-950 dark:text-white">
                 {editMode ? "Update section" : "Create section"}
               </h2>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="mt-2 text-sm leading-6 text-slate-500">
                 Add a goal like Coding, Meditation, Study, Workout, or Reading.
               </p>
             </div>
 
             <div className="space-y-5">
               <div>
-                <p className="mb-3 text-sm font-black text-white">Icon</p>
+                <p className="mb-3 text-sm font-black text-slate-950 dark:text-white">
+                  Icon
+                </p>
+
                 <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
                   {EMOJIS.map((emoji) => (
                     <button
@@ -455,7 +477,7 @@ function SectionModal({
                       className={`flex h-10 w-10 items-center justify-center rounded-2xl text-lg transition ${
                         form.emoji === emoji
                           ? "bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-950/30"
-                          : "bg-white/[0.06] hover:bg-white/[0.12]"
+                          : "bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]"
                       }`}
                     >
                       {emoji}
@@ -470,7 +492,7 @@ function SectionModal({
                   setForm((prev) => ({ ...prev, name: e.target.value }))
                 }
                 placeholder="Section name"
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-4 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-violet-400/50"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-950 outline-none placeholder:text-slate-400 focus:border-violet-400/50 dark:border-white/10 dark:bg-white/[0.07] dark:text-white dark:placeholder:text-slate-500"
               />
 
               <div className="grid gap-2 sm:grid-cols-3">
@@ -488,7 +510,7 @@ function SectionModal({
                     className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
                       form.goalType === type.value
                         ? "border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-950/30"
-                        : "border-white/10 bg-white/[0.05] text-white hover:bg-white/[0.10]"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:bg-white/[0.10]"
                     }`}
                   >
                     {type.label}
@@ -508,7 +530,7 @@ function SectionModal({
                     }))
                   }
                   placeholder="Daily goal value"
-                  className="w-full rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-4 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-violet-400/50"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-950 outline-none placeholder:text-slate-400 focus:border-violet-400/50 dark:border-white/10 dark:bg-white/[0.07] dark:text-white dark:placeholder:text-slate-500"
                 />
               )}
 

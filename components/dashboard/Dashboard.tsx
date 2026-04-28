@@ -1,3 +1,4 @@
+// frontend/components/dashboard/Dashboard.tsx
 "use client";
 
 import { useDashboard } from "@/hooks/useDashboard";
@@ -5,35 +6,35 @@ import type { Workout, WeeklyStat } from "@/types/dashboard";
 import {
   Activity,
   Flame,
-  Droplets,
   Target,
   Clock,
   TrendingUp,
   Plus,
   ArrowRight,
   Zap,
+  CheckCircle2,
+  Hash,
   type LucideIcon,
 } from "lucide-react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardSkeleton from "./DashboardSkeleton";
 import ScoreSections from "./ScoreSections";
+import type { ScoreSection } from "@/lib/api";
 
-/* ─── colour tokens ─────────────────────────────────────────────── */
 type CK = "orange" | "cyan" | "violet" | "emerald" | "indigo";
 
 const grad: Record<CK, string> = {
   orange: "from-orange-500 to-amber-400",
-  cyan: "from-cyan-500   to-teal-400",
+  cyan: "from-cyan-500 to-teal-400",
   violet: "from-violet-600 to-purple-500",
   emerald: "from-emerald-500 to-green-400",
   indigo: "from-indigo-500 to-blue-400",
 };
 
-/* ─── animated ring ─────────────────────────────────────────────── */
 function ScoreRing({ score }: { score: number }) {
-  const r = 80;
+  const r = 84;
   const circ = 2 * Math.PI * r;
   const raw = useMotionValue(0);
   const spr = useSpring(raw, { stiffness: 55, damping: 16 });
@@ -42,166 +43,346 @@ function ScoreRing({ score }: { score: number }) {
   useEffect(() => {
     raw.set(score);
   }, [score, raw]);
+
   useEffect(
     () =>
       spr.on("change", (v) => {
-        if (ref.current)
+        if (ref.current) {
           ref.current.style.strokeDashoffset = `${circ * (1 - v / 100)}`;
+        }
       }),
     [spr, circ],
   );
 
   return (
-    <svg className="-rotate-90 w-full h-full" viewBox="0 0 200 200">
+    <svg className="-rotate-90 h-full w-full" viewBox="0 0 220 220">
       <defs>
-        <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#a78bfa" />
+        <linearGradient
+          id="scoreRingGradient"
+          x1="0%"
+          y1="0%"
+          x2="100%"
+          y2="100%"
+        >
+          <stop offset="0%" stopColor="#c084fc" />
+          <stop offset="45%" stopColor="#8b5cf6" />
           <stop offset="100%" stopColor="#38bdf8" />
         </linearGradient>
+
+        <filter id="scoreGlow">
+          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
+
       <circle
-        cx="100"
-        cy="100"
+        cx="110"
+        cy="110"
         r={r}
-        stroke="rgba(255,255,255,0.06)"
-        strokeWidth="10"
+        stroke="rgba(255,255,255,0.08)"
+        strokeWidth="14"
         fill="none"
       />
+
+      <circle
+        cx="110"
+        cy="110"
+        r="68"
+        stroke="rgba(255,255,255,0.04)"
+        strokeWidth="24"
+        fill="none"
+      />
+
       <circle
         ref={ref}
-        cx="100"
-        cy="100"
+        cx="110"
+        cy="110"
         r={r}
-        stroke="url(#rg)"
-        strokeWidth="10"
+        stroke="url(#scoreRingGradient)"
+        strokeWidth="14"
         fill="none"
         strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={circ}
+        filter="url(#scoreGlow)"
       />
     </svg>
   );
 }
 
-/* ─── page ──────────────────────────────────────────────────────── */
-export default function Dashboard() {
-  const { data, loading, updateWaterIntake } = useDashboard();
-  const [dynamicScore, setDynamicScore] = useState<number | null>(null);
-  const router = useRouter();
+function getSectionProgress(section: ScoreSection) {
+  if (!section.goalValue) return 0;
 
-  if (loading) return <DashboardSkeleton />;
-  if (!data)
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#09090f]">
-        <p className="text-gray-500">No data available</p>
-      </div>
-    );
+  return Math.min(
+    Math.round((section.currentValue / section.goalValue) * 100),
+    100,
+  );
+}
 
-  const score = dynamicScore ?? 0;
-  const overHydrated = data.waterIntake.consumed > data.waterIntake.goal;
+function durationAverageProgress(sections: ScoreSection[]) {
+  if (!sections.length) return 0;
 
   return (
-    <div className="min-h-screen bg-[#09090f]">
-      {/* ambient orbs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-0">
-        <div className="absolute -top-40 left-1/4   w-[600px] h-[600px] rounded-full bg-violet-700/10 blur-[140px]" />
-        <div className="absolute top-1/2  -right-32  w-[400px] h-[400px] rounded-full bg-indigo-600/8  blur-[100px]" />
+    sections.reduce((sum, section) => sum + getSectionProgress(section), 0) /
+    sections.length
+  );
+}
+
+function countAverageProgress(sections: ScoreSection[]) {
+  if (!sections.length) return 0;
+
+  return (
+    sections.reduce((sum, section) => sum + getSectionProgress(section), 0) /
+    sections.length
+  );
+}
+
+function getSectionStats(sections: ScoreSection[]) {
+  const durationSections = sections.filter(
+    (section) => section.goalType === "duration",
+  );
+
+  const countSections = sections.filter(
+    (section) => section.goalType === "count",
+  );
+
+  const booleanSections = sections.filter(
+    (section) => section.goalType === "boolean",
+  );
+
+  const totalDurationMinutes = durationSections.reduce(
+    (sum, section) => sum + section.currentValue,
+    0,
+  );
+
+  const totalCountProgress = countSections.reduce(
+    (sum, section) => sum + section.currentValue,
+    0,
+  );
+
+  const doneCompleted = booleanSections.filter(
+    (section) => section.currentValue >= section.goalValue,
+  ).length;
+
+  const overallCompletion = sections.length
+    ? Math.round(
+        sections.reduce(
+          (sum, section) => sum + getSectionProgress(section),
+          0,
+        ) / sections.length,
+      )
+    : 0;
+
+  return {
+    durationSections,
+    countSections,
+    booleanSections,
+    totalDurationMinutes,
+    totalCountProgress,
+    doneCompleted,
+    overallCompletion,
+  };
+}
+
+export default function Dashboard() {
+  const { data, loading } = useDashboard();
+  const [dynamicScore, setDynamicScore] = useState<number | null>(null);
+  const [scoreSections, setScoreSections] = useState<ScoreSection[]>([]);
+  const router = useRouter();
+
+  const sectionStats = useMemo(
+    () => getSectionStats(scoreSections),
+    [scoreSections],
+  );
+
+  if (loading) return <DashboardSkeleton />;
+
+  if (!data) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-[#09090f]">
+        <p className="text-slate-500">No data available</p>
+      </div>
+    );
+  }
+
+  const score = dynamicScore ?? 0;
+
+  const dynamicCards = [
+    {
+      icon: Flame,
+      title: "Login Streak",
+      color: "orange" as CK,
+      value: String(data.workoutStreak.current),
+      unit: "days",
+      sub: `Longest active streak: ${data.workoutStreak.longest} days`,
+      progress: undefined,
+    },
+    {
+      icon: Clock,
+      title: "Time Progress",
+      color: "indigo" as CK,
+      value: `${sectionStats.totalDurationMinutes}`,
+      unit: "min",
+      sub: sectionStats.durationSections.length
+        ? `${sectionStats.durationSections.length} time-based goal${
+            sectionStats.durationSections.length > 1 ? "s" : ""
+          } active today`
+        : "No time-based goals added yet",
+      progress: sectionStats.durationSections.length
+        ? Math.round(durationAverageProgress(sectionStats.durationSections))
+        : 0,
+    },
+    {
+      icon: Hash,
+      title: "Count Progress",
+      color: "cyan" as CK,
+      value: String(sectionStats.totalCountProgress),
+      unit: "count",
+      sub: sectionStats.countSections.length
+        ? `${sectionStats.countSections.length} count-based goal${
+            sectionStats.countSections.length > 1 ? "s" : ""
+          } active today`
+        : "No count-based goals added yet",
+      progress: sectionStats.countSections.length
+        ? Math.round(countAverageProgress(sectionStats.countSections))
+        : 0,
+    },
+    {
+      icon: CheckCircle2,
+      title: "Done Progress",
+      color: "emerald" as CK,
+      value: `${sectionStats.doneCompleted}/${sectionStats.booleanSections.length}`,
+      unit: "done",
+      sub: sectionStats.booleanSections.length
+        ? `${sectionStats.doneCompleted} completed from ${
+            sectionStats.booleanSections.length
+          } done goal${sectionStats.booleanSections.length > 1 ? "s" : ""}`
+        : "No done/not-done goals added yet",
+      progress: sectionStats.booleanSections.length
+        ? Math.round(
+            (sectionStats.doneCompleted / sectionStats.booleanSections.length) *
+              100,
+          )
+        : 0,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-[#09090f] dark:text-white">
+      <div className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/4 h-[600px] w-[600px] rounded-full bg-violet-700/10 blur-[140px]" />
+        <div className="absolute top-1/2 -right-32 h-[400px] w-[400px] rounded-full bg-indigo-600/10 blur-[100px]" />
       </div>
 
-      <div className="relative z-10 max-w-[1200px] mx-auto px-5 sm:px-8 py-8 space-y-5">
-        {/* ══ HERO ══════════════════════════════════════════════════ */}
+      <div className="relative z-10 w-full max-w-none space-y-5 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="relative overflow-hidden rounded-[32px] border border-white/[0.07] bg-[#110d2e] p-8 md:p-10"
+          className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 dark:border-white/[0.07] dark:bg-[#110d2e] dark:shadow-black/30 md:p-10"
         >
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-500/50 to-transparent" />
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-500/60 to-transparent" />
+          <div className="absolute -right-20 top-10 h-72 w-72 rounded-full bg-violet-600/15 blur-[90px]" />
+          <div className="absolute right-0 top-1/2 h-px w-[60%] bg-gradient-to-r from-transparent via-violet-400/30 to-cyan-400/20 blur-sm" />
+          <div className="absolute bottom-0 right-[20%] h-40 w-40 rounded-full border border-violet-400/10" />
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-10 items-center">
-            {/* left */}
-            <div>
-              <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-full bg-white/[0.07] border border-white/[0.10] text-[11px] font-semibold tracking-widest uppercase text-violet-300">
-                <Zap className="w-3 h-3" /> Planify Life
+          <div className="relative z-10 grid grid-cols-1 items-center gap-10 xl:grid-cols-[1.25fr_480px]">
+            <div className="max-w-4xl">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.25em] text-violet-600 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-violet-300">
+                <Zap className="h-3.5 w-3.5" />
+                Planify Life
               </div>
 
-              <h1 className="font-black leading-[1.1] tracking-tight mb-5">
-                <span className="block text-[clamp(2rem,4.5vw,3.25rem)] text-white">
+              <h1 className="mb-6 font-black leading-[0.95] tracking-[-0.03em]">
+                <span className="block text-[clamp(2.8rem,6vw,5.5rem)] text-slate-950 dark:text-white">
                   Build habits,
                 </span>
-                <span className="block text-[clamp(2rem,4.5vw,3.25rem)] text-white">
+                <span className="block text-[clamp(2.8rem,6vw,5.5rem)] text-slate-950 dark:text-white">
                   track fitness,
                 </span>
-                <span className="block text-[clamp(2rem,4.5vw,3.25rem)] bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">
+                <span className="block bg-gradient-to-r from-violet-500 via-purple-500 to-cyan-500 bg-clip-text text-[clamp(2.8rem,6vw,5.5rem)] text-transparent">
                   protect your focus.
                 </span>
               </h1>
 
-              <p className="text-gray-400 text-sm leading-relaxed max-w-sm mb-7">
-                Your personal OS for workouts, habits, water, focus sessions,
-                and weekly analytics.
+              <p className="mb-8 max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg dark:text-slate-300/80">
+                Your premium personal operating system for habits, learning,
+                focus, wellness, and measurable life optimization.
               </p>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-4">
                 <button
                   onClick={() => router.push("/fitness")}
-                  className="group flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-bold shadow-lg shadow-violet-700/25 hover:shadow-violet-700/40 hover:-translate-y-0.5 transition-all active:scale-95"
+                  className="group flex items-center gap-3 rounded-3xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-7 py-4 text-base font-black text-white shadow-[0_20px_60px_-15px_rgba(139,92,246,0.65)] transition-all hover:scale-[1.02] active:scale-95"
                 >
                   Start today
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                 </button>
+
                 <button
                   onClick={() => router.push("/reports")}
-                  className="px-5 py-2.5 rounded-2xl border border-white/[0.12] bg-white/[0.05] text-sm font-semibold text-gray-300 hover:bg-white/[0.10] hover:-translate-y-0.5 transition-all active:scale-95"
+                  className="rounded-3xl border border-slate-200 bg-slate-50 px-7 py-4 text-base font-bold text-slate-700 transition-all hover:bg-slate-100 active:scale-95 dark:border-white/[0.10] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
                 >
                   View analytics
                 </button>
               </div>
             </div>
 
-            {/* right — ring */}
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative w-44 h-44">
-                <ScoreRing score={score} />
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-[11px] text-gray-400 mb-1">
-                    Today's score
-                  </span>
-                  <span className="text-5xl font-black tabular-nums leading-none text-white">
-                    {score}%
-                  </span>
-                  <span className="text-[11px] text-gray-500 mt-1.5">
-                    {score === 0
-                      ? "Add sections below 👇"
-                      : score < 40
-                        ? "Keep going 💪"
-                        : score < 70
-                          ? "Crushing it 🔥"
-                          : score < 100
-                            ? "Almost there ⚡"
-                            : "Perfect day 🏆"}
-                  </span>
+            <div className="relative flex flex-col items-center justify-center xl:pr-6">
+              <div className="absolute h-[360px] w-[360px] rounded-full bg-violet-600/20 blur-[105px]" />
+
+              <div className="relative flex h-[310px] w-[310px] items-center justify-center rounded-full">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white via-violet-50 to-slate-100 shadow-[inset_18px_18px_60px_rgba(255,255,255,0.55),inset_-24px_-24px_70px_rgba(15,23,42,0.08),0_35px_100px_-35px_rgba(139,92,246,0.9)] dark:from-white/[0.08] dark:via-white/[0.02] dark:to-black/20 dark:shadow-[inset_18px_18px_60px_rgba(255,255,255,0.035),inset_-24px_-24px_70px_rgba(0,0,0,0.45),0_35px_100px_-35px_rgba(139,92,246,0.9)]" />
+                <div className="absolute inset-5 rounded-full border border-violet-100 dark:border-white/[0.055]" />
+                <div className="absolute inset-10 rounded-full bg-white/80 shadow-[inset_0_20px_55px_rgba(15,23,42,0.08)] dark:bg-[#120b33]/70 dark:shadow-[inset_0_20px_55px_rgba(0,0,0,0.55)]" />
+                <div className="absolute left-1/2 top-4 h-4 w-4 -translate-x-1/2 rounded-full bg-gradient-to-br from-cyan-300 to-violet-500 shadow-[0_0_30px_rgba(56,189,248,0.8)]" />
+
+                <div className="relative h-[270px] w-[270px]">
+                  <ScoreRing score={score} />
+
+                  <div className="absolute inset-0 flex flex-col items-center justify-center px-10 text-center">
+                    <span className="mb-3 text-sm font-bold text-slate-500 dark:text-slate-300">
+                      Today's Score
+                    </span>
+
+                    <span className="text-6xl font-black leading-none text-slate-950 tabular-nums dark:text-white xl:text-7xl">
+                      {score}%
+                    </span>
+
+                    <span className="mt-5 max-w-[170px] text-sm font-semibold leading-relaxed text-slate-500 dark:text-slate-400">
+                      {score === 0
+                        ? "Add sections below 👇"
+                        : score < 40
+                          ? "Keep going 💪"
+                          : score < 70
+                            ? "Crushing it 🔥"
+                            : score < 100
+                              ? "Almost there ⚡"
+                              : "Perfect day 🏆"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* 3 pills — only streak, focus, weekly (water removed since it's in sections) */}
-              <div className="flex gap-2">
+              <div className="mt-4 grid w-full max-w-[350px] grid-cols-3 gap-3">
                 {[
-                  { v: `${data.workoutStreak.current}d`, l: "Streak" },
-                  {
-                    v: `${data.focusTime.hours}h${data.focusTime.minutes % 60}m`,
-                    l: "Focus",
-                  },
-                  { v: `${data.weeklyGoal.percentage}%`, l: "Weekly" },
+                  { v: `${data.workoutStreak.current}d`, l: "Login" },
+                  { v: `${sectionStats.totalDurationMinutes}m`, l: "Time" },
+                  { v: `${sectionStats.overallCompletion}%`, l: "Progress" },
                 ].map((p, i) => (
                   <div
                     key={i}
-                    className="rounded-2xl border border-white/[0.07] bg-white/[0.04] px-3 py-2 text-center min-w-[62px]"
+                    className="rounded-3xl border border-slate-200 bg-white px-3 py-3 text-center shadow-md shadow-slate-200/70 dark:border-white/[0.08] dark:bg-white/[0.055] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_20px_45px_-28px_rgba(139,92,246,0.7)]"
                   >
-                    <p className="text-sm font-bold text-white leading-none">
+                    <p className="text-xl font-black leading-none text-slate-950 dark:text-white">
                       {p.v}
                     </p>
-                    <p className="text-[10px] text-gray-500 mt-1">{p.l}</p>
+                    <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                      {p.l}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -209,54 +390,10 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* ══ STAT CARDS ══════════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {[
-            {
-              icon: Flame,
-              title: "Workout Streak",
-              color: "orange" as CK,
-              value: String(data.workoutStreak.current),
-              unit: "days",
-              sub: `Best: ${data.workoutStreak.longest} days`,
-              progress: undefined,
-              action: undefined,
-            },
-            {
-              icon: Droplets,
-              title: "Water Intake",
-              color: "cyan" as CK,
-              value: `${data.waterIntake.consumed}/${data.waterIntake.goal}`,
-              unit: "glasses",
-              sub: overHydrated
-                ? `${data.waterIntake.consumed - data.waterIntake.goal} extra 🏆 Overachiever!`
-                : `${Math.min(data.waterIntake.percentage, 100)}% of daily goal`,
-              progress: Math.min(data.waterIntake.percentage, 100),
-              action: () => updateWaterIntake(data.waterIntake.consumed + 1),
-            },
-            {
-              icon: Clock,
-              title: "Focus Time",
-              color: "violet" as CK,
-              value: `${data.focusTime.hours}h`,
-              unit: `${data.focusTime.minutes % 60}m`,
-              sub: `${data.focusTime.sessionsCount} session${data.focusTime.sessionsCount !== 1 ? "s" : ""} today`,
-              progress: undefined,
-              action: undefined,
-            },
-            {
-              icon: Target,
-              title: "Weekly Goal",
-              color: "emerald" as CK,
-              value: `${data.weeklyGoal.percentage}%`,
-              unit: "",
-              sub: `${data.weeklyGoal.completed} of ${data.weeklyGoal.goal} workouts`,
-              progress: data.weeklyGoal.percentage,
-              action: undefined,
-            },
-          ].map((c, i) => (
+        <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {dynamicCards.map((card, i) => (
             <motion.div
-              key={i}
+              key={card.title}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -264,78 +401,94 @@ export default function Dashboard() {
                 duration: 0.4,
                 ease: [0.22, 1, 0.36, 1],
               }}
+              className="h-full"
             >
-              <StatCard {...c} />
+              <StatCard {...card} />
             </motion.div>
           ))}
         </div>
 
-        {/* ══ SCORE SECTIONS + WEEKLY CHART ═══════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.28 }}
-            className="lg:col-span-2"
+            className="h-full"
           >
-            <ScoreSections onScoreChange={setDynamicScore} />
+            <ScoreSections
+              onScoreChange={setDynamicScore}
+              onSectionsChange={setScoreSections}
+            />
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.34 }}
-            className="lg:col-span-3 rounded-[28px] border border-white/[0.07] bg-[#0f0c1f] p-6"
+            className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
           >
-            <div className="flex items-center justify-between mb-5">
+            <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/40 to-transparent" />
+
+            <div className="relative z-10 mb-6 flex items-start justify-between gap-4">
               <div>
-                <h3 className="font-bold text-white text-sm">
+                <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
+                  Performance
+                </p>
+                <h3 className="text-xl font-black text-slate-950 dark:text-white">
                   Weekly Activity
                 </h3>
-                <p className="text-[11px] text-gray-500 mt-0.5">Last 7 days</p>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Last 7 days progress overview
+                </p>
               </div>
-              <div className="flex items-center gap-3 text-[11px] text-gray-500">
+
+              <div className="hidden items-center gap-3 text-[11px] font-bold text-slate-500 sm:flex">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-violet-500" />
+                  <span className="h-2 w-2 rounded-full bg-violet-500" />
                   Workouts
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-cyan-600" />
+                  <span className="h-2 w-2 rounded-full bg-cyan-500" />
                   Focus
                 </span>
               </div>
             </div>
-            <div className="space-y-2.5">
+
+            <div className="relative z-10 space-y-3">
               {data.weeklyStats.map((s: WeeklyStat, i: number) => {
                 const maxW = Math.max(
                   ...data.weeklyStats.map((x) => x.workouts),
                   1,
                 );
                 const pct = Math.round((s.workouts / maxW) * 100);
+
                 return (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="w-8 shrink-0 text-[11px] font-medium text-gray-500">
+                    <span className="w-9 shrink-0 text-xs font-bold text-slate-500">
                       {s.day}
                     </span>
-                    <div className="flex-1 h-8 rounded-xl bg-white/[0.04] overflow-hidden">
+
+                    <div className="h-9 flex-1 overflow-hidden rounded-2xl bg-slate-100 dark:bg-white/[0.05]">
                       <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
+                        animate={{ width: `${Math.max(pct, 2)}%` }}
                         transition={{
                           delay: 0.4 + i * 0.06,
                           duration: 0.6,
                           ease: "easeOut",
                         }}
-                        className="h-full rounded-xl bg-gradient-to-r from-violet-600/80 to-purple-500/80 flex items-center pl-3"
+                        className="flex h-full items-center rounded-2xl bg-gradient-to-r from-violet-600 to-purple-500 pl-3 shadow-[0_0_22px_rgba(139,92,246,0.35)]"
                       >
                         {s.workouts > 0 && (
-                          <span className="text-white text-xs font-bold">
+                          <span className="text-xs font-black text-white">
                             {s.workouts}
                           </span>
                         )}
                       </motion.div>
                     </div>
-                    <span className="w-10 shrink-0 text-[11px] text-gray-500 text-right">
+
+                    <span className="w-12 shrink-0 text-right text-xs font-bold text-slate-500">
                       {s.focusMinutes > 0 ? `${s.focusMinutes}m` : "—"}
                     </span>
                   </div>
@@ -345,25 +498,25 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
-        {/* ══ RECENT WORKOUTS + QUICK ACTIONS ═════════════════════════ */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="lg:col-span-3 rounded-[28px] border border-white/[0.07] bg-[#0f0c1f] p-6"
+            className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.07] dark:bg-[#0f0c1f] dark:shadow-black/20 xl:col-span-3"
           >
-            <div className="flex items-center justify-between mb-5">
+            <div className="mb-5 flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-white text-sm">
+                <h3 className="text-sm font-bold text-slate-950 dark:text-white">
                   Recent Workouts
                 </h3>
-                <p className="text-[11px] text-gray-500 mt-0.5">
+                <p className="mt-0.5 text-[11px] text-slate-500">
                   Last 5 sessions
                 </p>
               </div>
-              <Activity className="w-4 h-4 text-gray-600" />
+              <Activity className="h-4 w-4 text-slate-400" />
             </div>
+
             {data.recentWorkouts.length > 0 ? (
               <div className="space-y-2">
                 {data.recentWorkouts
@@ -374,21 +527,23 @@ export default function Dashboard() {
                       initial={{ opacity: 0, x: 10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.44 + i * 0.05 }}
-                      className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.04] transition-colors"
+                      className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 transition-colors hover:bg-slate-100 dark:border-white/[0.04] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
                     >
-                      <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center shrink-0">
-                        <Activity className="w-4 h-4 text-violet-400" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/15">
+                        <Activity className="h-4 w-4 text-violet-400" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
                           {w.exercise}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-slate-500">
                           {w.duration} min ·{" "}
                           {new Date(w.createdAt).toLocaleDateString()}
                         </p>
                       </div>
-                      <span className="text-xs font-bold text-violet-400 shrink-0">
+
+                      <span className="shrink-0 text-xs font-bold text-violet-500">
                         {w.calories ?? 0} cal
                       </span>
                     </motion.div>
@@ -396,13 +551,13 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mb-3">
-                  <Activity className="w-5 h-5 text-gray-600" />
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/[0.06] dark:bg-white/[0.04]">
+                  <Activity className="h-5 w-5 text-slate-400" />
                 </div>
-                <p className="text-sm font-semibold text-gray-400">
+                <p className="text-sm font-semibold text-slate-500">
                   No workouts yet
                 </p>
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="mt-1 text-xs text-slate-400">
                   Log your first session!
                 </p>
               </div>
@@ -413,23 +568,27 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.46 }}
-            className="lg:col-span-2 rounded-[28px] border border-white/[0.07] bg-[#0f0c1f] p-6"
+            className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.07] dark:bg-[#0f0c1f] dark:shadow-black/20 xl:col-span-2"
           >
-            <h3 className="font-bold text-white text-sm mb-5">Quick Actions</h3>
+            <h3 className="mb-5 text-sm font-bold text-slate-950 dark:text-white">
+              Quick Actions
+            </h3>
+
             <div className="grid grid-cols-2 gap-3">
               {[
                 {
                   icon: Plus,
-                  label: "Log Workout",
+                  label: "Add Section",
                   color: "violet" as CK,
-                  onClick: () => router.push("/fitness"),
+                  onClick: () =>
+                    window.scrollTo({ top: 620, behavior: "smooth" }),
                 },
                 {
-                  icon: Droplets,
-                  label: "Add Water",
+                  icon: Target,
+                  label: "Daily Score",
                   color: "cyan" as CK,
                   onClick: () =>
-                    updateWaterIntake(data.waterIntake.consumed + 1),
+                    window.scrollTo({ top: 0, behavior: "smooth" }),
                 },
                 {
                   icon: Clock,
@@ -449,14 +608,15 @@ export default function Dashboard() {
                   onClick={a.onClick}
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.95 }}
-                  className="flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.07] transition-colors p-4 min-h-[90px]"
+                  className="flex min-h-[90px] flex-col items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-slate-100 dark:border-white/[0.06] dark:bg-white/[0.03] dark:hover:bg-white/[0.07]"
                 >
                   <div
-                    className={`p-2.5 rounded-xl bg-gradient-to-br ${grad[a.color]} shadow-lg`}
+                    className={`rounded-xl bg-gradient-to-br ${grad[a.color]} p-2.5 shadow-lg`}
                   >
-                    <a.icon className="w-4 h-4 text-white" />
+                    <a.icon className="h-4 w-4 text-white" />
                   </div>
-                  <span className="text-[11px] font-semibold text-gray-400 text-center leading-tight">
+
+                  <span className="text-center text-[11px] font-semibold leading-tight text-slate-500">
                     {a.label}
                   </span>
                 </motion.button>
@@ -469,7 +629,6 @@ export default function Dashboard() {
   );
 }
 
-/* ─── StatCard ───────────────────────────────────────────────────── */
 interface SCP {
   icon: LucideIcon;
   title: string;
@@ -493,58 +652,98 @@ function StatCard({
 }: SCP) {
   return (
     <motion.div
-      whileHover={{ y: -2, transition: { duration: 0.15 } }}
-      className="rounded-[24px] border border-white/[0.07] bg-[#0f0c1f] p-5 flex flex-col gap-3"
+      whileHover={{ y: -4, scale: 1.01 }}
+      transition={{ duration: 0.18 }}
+      className="group relative flex h-full min-h-[210px] overflow-hidden rounded-[30px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#17122d] dark:via-[#100d1f] dark:to-[#0a0815] dark:shadow-[0_30px_80px_-40px_rgba(0,0,0,1)]"
     >
-      {/* icon row */}
-      <div className="flex items-center justify-between">
-        <div
-          className={`p-2.5 rounded-xl bg-gradient-to-br ${grad[color]} shadow-md w-fit`}
-        >
-          <Icon className="w-5 h-5 text-white" />
-        </div>
-        {action && (
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={action}
-            className="p-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/50 to-transparent dark:via-white/20" />
+
+      <div
+        className={`absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br ${grad[color]} opacity-[0.12] blur-3xl transition-all duration-500 group-hover:opacity-[0.22]`}
+      />
+
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.7),transparent_35%,transparent_65%,rgba(139,92,246,0.05))] dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_35%,transparent_65%,rgba(255,255,255,0.03))]" />
+
+      <div className="absolute bottom-2 right-3 opacity-[0.04] transition-all duration-500 group-hover:opacity-[0.08] dark:opacity-[0.035] dark:group-hover:opacity-[0.07]">
+        <Icon
+          className="h-28 w-28 text-slate-950 dark:text-white"
+          strokeWidth={1.2}
+        />
+      </div>
+
+      <div className="relative z-10 flex h-full w-full flex-col">
+        <div className="mb-5 flex items-start justify-between">
+          <div
+            className={`flex h-14 w-14 items-center justify-center rounded-[20px] bg-gradient-to-br ${grad[color]} shadow-[0_20px_40px_-18px_rgba(139,92,246,0.85)]`}
           >
-            <Plus className="w-3.5 h-3.5 text-gray-400" />
-          </motion.button>
-        )}
-      </div>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
 
-      {/* label */}
-      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-        {title}
-      </p>
-
-      {/* value */}
-      <div className="flex items-end gap-1">
-        <span className="text-[2.1rem] font-black leading-none text-white tabular-nums">
-          {value}
-        </span>
-        {unit && (
-          <span className="text-sm text-gray-500 pb-0.5 font-medium">
-            {unit}
-          </span>
-        )}
-      </div>
-
-      {/* sub */}
-      <p className="text-[11px] text-gray-500 truncate">{sub}</p>
-
-      {/* progress bar */}
-      {progress !== undefined && (
-        <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden mt-auto">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.min(progress, 100)}%` }}
-            transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-            className={`h-full rounded-full bg-gradient-to-r ${grad[color]}`}
-          />
+          {action ? (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={action}
+              className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 backdrop-blur-xl transition-all hover:bg-slate-100 hover:text-slate-950 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-slate-400 dark:hover:bg-white/[0.12] dark:hover:text-white"
+            >
+              <Plus className="h-4 w-4" />
+            </motion.button>
+          ) : (
+            <div className="h-9 w-9" />
+          )}
         </div>
-      )}
+
+        <p className="mb-3 text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
+          {title}
+        </p>
+
+        <div className="mb-3 flex min-h-[58px] items-end gap-1">
+          <span className="text-[2.6rem] font-black leading-none tracking-[-0.03em] text-slate-950 tabular-nums dark:text-white">
+            {value}
+          </span>
+
+          {unit && (
+            <span className="pb-1 text-sm font-semibold text-slate-500">
+              {unit}
+            </span>
+          )}
+        </div>
+
+        <p className="mb-5 min-h-[34px] text-xs leading-relaxed text-slate-500">
+          {sub}
+        </p>
+
+        <div className="mt-auto">
+          {progress !== undefined ? (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                  Progress
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  {Math.min(progress, 100)}%
+                </span>
+              </div>
+
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100 shadow-inner dark:bg-white/[0.06]">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(progress, 100)}%` }}
+                  transition={{
+                    duration: 0.9,
+                    ease: "easeOut",
+                    delay: 0.2,
+                  }}
+                  className={`relative h-full rounded-full bg-gradient-to-r ${grad[color]}`}
+                >
+                  <div className="absolute inset-0 bg-white/20 blur-[2px]" />
+                </motion.div>
+              </div>
+            </>
+          ) : (
+            <div className="h-2 rounded-full bg-slate-100 dark:bg-white/[0.035]" />
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }
