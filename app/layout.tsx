@@ -5,6 +5,9 @@ import { Toaster } from "react-hot-toast";
 
 const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter", // ← add this
+  weight: ["400", "500", "600", "700", "800", "900"], // ← add this
+  display: "swap", // ← add this
 });
 
 export const metadata: Metadata = {
@@ -20,7 +23,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      {/* ← change className to use the variable */}
+      <body className={`${inter.variable} font-sans antialiased`}>
         {children}
 
         <Toaster
