@@ -76,7 +76,7 @@ export default function Sidebar() {
       method: "POST",
       credentials: "include",
     });
-    window.location.href = "/auth";
+    window.location.href = "/auth"; // Redirect to login page after logout
   };
 
   const getInitial = user?.name?.charAt(0)?.toUpperCase() || "U";
