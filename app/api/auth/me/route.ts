@@ -10,14 +10,17 @@ export async function GET() {
     const userId = await getCurrentUserId();
 
     if (!userId) {
-      return NextResponse.json({ user: null }, { status: 401 });
+      return NextResponse.json(
+        { success: false, data: null, message: "Unauthorized" },
+        { status: 401 },
+      );
     }
 
     const user = await User.findById(userId).select("-password");
-    return NextResponse.json({ user });
+    return NextResponse.json({ success: true, data: user });
   } catch {
     return NextResponse.json(
-      { message: "Unable to get user." },
+      { success: false, message: "Unable to get user." },
       { status: 500 },
     );
   }

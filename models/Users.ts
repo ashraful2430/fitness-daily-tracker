@@ -24,6 +24,18 @@ const UserSchema = new Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+    loginStreak: {
+      type: Number,
+      default: 0,
+    },
+    longestLoginStreak: {
+      type: Number,
+      default: 0,
+    },
+    lastLoginDate: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

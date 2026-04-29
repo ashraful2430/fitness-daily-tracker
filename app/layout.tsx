@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Roboto_Serif } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 
 const robotoSerif = Roboto_Serif({
   subsets: ["latin"],
@@ -24,23 +25,25 @@ export default function RootLayout({
     // ✅ add dark class here so entire app respects dark mode
     <html lang="en" className="dark">
       <body className={`${robotoSerif.variable} font-serif antialiased`}>
-        {children}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              borderRadius: "16px",
-              background: "#0f172a",
-              color: "#fff",
-              padding: "14px 18px",
-              fontWeight: "600",
-              fontFamily: "var(--font-roboto-serif)",
-            },
-            success: { iconTheme: { primary: "#22c55e", secondary: "#fff" } },
-            error: { iconTheme: { primary: "#ef4444", secondary: "#fff" } },
-          }}
-        />
+        <AuthProvider>
+          {children}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                borderRadius: "16px",
+                background: "#0f172a",
+                color: "#fff",
+                padding: "14px 18px",
+                fontWeight: "600",
+                fontFamily: "var(--font-roboto-serif)",
+              },
+              success: { iconTheme: { primary: "#22c55e", secondary: "#fff" } },
+              error: { iconTheme: { primary: "#ef4444", secondary: "#fff" } },
+            }}
+          />
+        </AuthProvider>
       </body>
     </html>
   );

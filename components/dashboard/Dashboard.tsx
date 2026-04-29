@@ -1,19 +1,19 @@
-// frontend/components/dashboard/Dashboard.tsx
 "use client";
 
 import { useDashboard } from "@/hooks/useDashboard";
+import { useAuth } from "@/hooks/useAuth";
 import type { Workout, WeeklyStat } from "@/types/dashboard";
 import {
   Activity,
-  Flame,
-  Target,
-  Clock,
-  TrendingUp,
-  Plus,
   ArrowRight,
-  Zap,
   CheckCircle2,
+  Clock,
+  Flame,
   Hash,
+  Plus,
+  Target,
+  TrendingUp,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { motion, useMotionValue, useSpring } from "framer-motion";
@@ -21,7 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardSkeleton from "./DashboardSkeleton";
 import ScoreSections from "./ScoreSections";
-import { authAPI, type AuthUser, type ScoreSection } from "@/lib/api";
+import type { ScoreSection } from "@/lib/api";
 
 type CK = "orange" | "cyan" | "violet" | "emerald" | "indigo";
 
@@ -188,26 +188,11 @@ function getSectionStats(sections: ScoreSection[]) {
 }
 
 export default function Dashboard() {
-  const { data, loading } = useDashboard();
+  const { user } = useAuth();
+  const { data, weeklyStats, loading, error, refresh } = useDashboard();
   const [dynamicScore, setDynamicScore] = useState<number | null>(null);
   const [scoreSections, setScoreSections] = useState<ScoreSection[]>([]);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    async function loadCurrentUser() {
-      try {
-        const res = await authAPI.getCurrentUser();
-        const user =
-          (res.data as AuthUser & { user?: AuthUser }).user ?? res.data;
-        setCurrentUser(user);
-      } catch {
-        setCurrentUser(null);
-      }
-    }
-
-    loadCurrentUser();
-  }, []);
 
   const sectionStats = useMemo(
     () => getSectionStats(scoreSections),
@@ -216,17 +201,55 @@ export default function Dashboard() {
 
   if (loading) return <DashboardSkeleton />;
 
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-[#09090f]">
+        <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-xl shadow-slate-200/70 dark:border-white/[0.08] dark:bg-[#110d2e] dark:shadow-black/30">
+          <h2 className="text-2xl font-black text-slate-950 dark:text-white">
+            Unable to load dashboard
+          </h2>
+          <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400">
+            {error}
+          </p>
+          <button
+            onClick={refresh}
+            className="mt-6 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.02]"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!data) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-[#09090f]">
-        <p className="text-slate-500">No data available</p>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-[#09090f]">
+        <div className="w-full max-w-md rounded-[2rem] border border-dashed border-slate-200 bg-white p-8 text-center dark:border-white/[0.08] dark:bg-[#110d2e]">
+          <h2 className="text-2xl font-black text-slate-950 dark:text-white">
+            No dashboard data yet
+          </h2>
+          <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400">
+            Start logging activity and your summary cards will appear here.
+          </p>
+          <button
+            onClick={refresh}
+            className="mt-6 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.02]"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
     );
   }
 
   const score = dynamicScore ?? 0;
-  const loginStreak = currentUser?.loginStreak ?? 0;
-  const longestLoginStreak = currentUser?.longestLoginStreak ?? 0;
+  const loginStreak = user?.loginStreak ?? 0;
+  const longestLoginStreak = user?.longestLoginStreak ?? 0;
+  const maxWeeklyWorkouts = Math.max(
+    ...weeklyStats.map((stat) => stat.workouts),
+    1,
+  );
 
   const dynamicCards = [
     {
@@ -372,14 +395,14 @@ export default function Dashboard() {
 
                     <span className="mt-5 max-w-[170px] text-sm font-semibold leading-relaxed text-slate-500 dark:text-slate-400">
                       {score === 0
-                        ? "Add sections below 👇"
+                        ? "Add sections below."
                         : score < 40
-                          ? "Keep going 💪"
+                          ? "Keep going."
                           : score < 70
-                            ? "Crushing it 🔥"
+                            ? "Crushing it."
                             : score < 100
-                              ? "Almost there ⚡"
-                              : "Perfect day 🏆"}
+                              ? "Almost there."
+                              : "Perfect day."}
                     </span>
                   </div>
                 </div>
@@ -474,44 +497,50 @@ export default function Dashboard() {
             </div>
 
             <div className="relative z-10 space-y-3">
-              {data.weeklyStats.map((s: WeeklyStat, i: number) => {
-                const maxW = Math.max(
-                  ...data.weeklyStats.map((x) => x.workouts),
-                  1,
-                );
-                const pct = Math.round((s.workouts / maxW) * 100);
+              {weeklyStats.length > 0 ? (
+                weeklyStats.map((stat: WeeklyStat, index: number) => {
+                  const pct = Math.round(
+                    (stat.workouts / maxWeeklyWorkouts) * 100,
+                  );
 
-                return (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="w-9 shrink-0 text-xs font-bold text-slate-500">
-                      {s.day}
-                    </span>
+                  return (
+                    <div key={stat.date || index} className="flex items-center gap-3">
+                      <span className="w-9 shrink-0 text-xs font-bold text-slate-500">
+                        {stat.day}
+                      </span>
 
-                    <div className="h-9 flex-1 overflow-hidden rounded-2xl bg-slate-100 dark:bg-white/[0.05]">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.max(pct, 2)}%` }}
-                        transition={{
-                          delay: 0.4 + i * 0.06,
-                          duration: 0.6,
-                          ease: "easeOut",
-                        }}
-                        className="flex h-full items-center rounded-2xl bg-gradient-to-r from-violet-600 to-purple-500 pl-3 shadow-[0_0_22px_rgba(139,92,246,0.35)]"
-                      >
-                        {s.workouts > 0 && (
-                          <span className="text-xs font-black text-white">
-                            {s.workouts}
-                          </span>
-                        )}
-                      </motion.div>
+                      <div className="h-9 flex-1 overflow-hidden rounded-2xl bg-slate-100 dark:bg-white/[0.05]">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.max(pct, 2)}%` }}
+                          transition={{
+                            delay: 0.4 + index * 0.06,
+                            duration: 0.6,
+                            ease: "easeOut",
+                          }}
+                          className="flex h-full items-center rounded-2xl bg-gradient-to-r from-violet-600 to-purple-500 pl-3 shadow-[0_0_22px_rgba(139,92,246,0.35)]"
+                        >
+                          {stat.workouts > 0 && (
+                            <span className="text-xs font-black text-white">
+                              {stat.workouts}
+                            </span>
+                          )}
+                        </motion.div>
+                      </div>
+
+                      <span className="w-12 shrink-0 text-right text-xs font-bold text-slate-500">
+                        {stat.focusMinutes > 0 ? `${stat.focusMinutes}m` : "—"}
+                      </span>
                     </div>
-
-                    <span className="w-12 shrink-0 text-right text-xs font-bold text-slate-500">
-                      {s.focusMinutes > 0 ? `${s.focusMinutes}m` : "—"}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-white/[0.08] dark:bg-white/[0.03]">
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    No weekly stats available yet.
+                  </p>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -549,12 +578,12 @@ export default function Dashboard() {
                 <div className="space-y-3">
                   {data.recentWorkouts
                     .slice(0, 5)
-                    .map((w: Workout, i: number) => (
+                    .map((workout: Workout, index: number) => (
                       <motion.div
-                        key={w._id || i}
+                        key={workout._id || index}
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.44 + i * 0.05 }}
+                        transition={{ delay: 0.44 + index * 0.05 }}
                         className="group flex items-center gap-4 rounded-[1.35rem] border border-slate-200 bg-slate-50 p-4 transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:bg-white hover:shadow-lg hover:shadow-violet-100/60 dark:border-white/[0.06] dark:bg-white/[0.035] dark:hover:border-violet-400/30 dark:hover:bg-white/[0.06] dark:hover:shadow-black/20"
                       >
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-lg shadow-violet-950/25">
@@ -563,17 +592,17 @@ export default function Dashboard() {
 
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-black text-slate-950 dark:text-white">
-                            {w.exercise}
+                            {workout.exercise}
                           </p>
                           <p className="mt-1 text-xs font-medium text-slate-500">
-                            {w.duration} min ·{" "}
-                            {new Date(w.createdAt).toLocaleDateString()}
+                            {workout.duration} min ·{" "}
+                            {new Date(workout.createdAt).toLocaleDateString()}
                           </p>
                         </div>
 
                         <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right shadow-sm dark:border-white/[0.06] dark:bg-white/[0.05]">
                           <p className="text-sm font-black text-violet-500">
-                            {w.calories ?? 0}
+                            {workout.calories ?? 0}
                           </p>
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                             cal
@@ -644,8 +673,7 @@ export default function Dashboard() {
                   label: "Daily Score",
                   desc: "Review today's score",
                   color: "cyan" as CK,
-                  onClick: () =>
-                    window.scrollTo({ top: 0, behavior: "smooth" }),
+                  onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
                 },
                 {
                   icon: Clock,
@@ -661,31 +689,31 @@ export default function Dashboard() {
                   color: "emerald" as CK,
                   onClick: () => router.push("/reports"),
                 },
-              ].map((a, i) => (
+              ].map((action, index) => (
                 <motion.button
-                  key={i}
-                  onClick={a.onClick}
+                  key={index}
+                  onClick={action.onClick}
                   whileHover={{ y: -3, scale: 1.01 }}
                   whileTap={{ scale: 0.96 }}
                   className="group relative min-h-[125px] overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4 text-left transition-all hover:border-violet-200 hover:bg-white hover:shadow-lg hover:shadow-violet-100/60 dark:border-white/[0.06] dark:bg-white/[0.035] dark:hover:border-violet-400/30 dark:hover:bg-white/[0.06] dark:hover:shadow-black/20"
                 >
                   <div
-                    className={`absolute -right-8 -top-8 h-20 w-20 rounded-full bg-gradient-to-br ${grad[a.color]} opacity-10 blur-2xl transition group-hover:opacity-20`}
+                    className={`absolute -right-8 -top-8 h-20 w-20 rounded-full bg-gradient-to-br ${grad[action.color]} opacity-10 blur-2xl transition group-hover:opacity-20`}
                   />
 
                   <div className="relative z-10 flex h-full flex-col justify-between">
                     <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${grad[a.color]} shadow-lg shadow-violet-950/25`}
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${grad[action.color]} shadow-lg shadow-violet-950/25`}
                     >
-                      <a.icon className="h-5 w-5 text-white" />
+                      <action.icon className="h-5 w-5 text-white" />
                     </div>
 
                     <div className="mt-4">
                       <p className="text-sm font-black text-slate-950 dark:text-white">
-                        {a.label}
+                        {action.label}
                       </p>
                       <p className="mt-1 text-xs font-medium text-slate-500">
-                        {a.desc}
+                        {action.desc}
                       </p>
                     </div>
                   </div>

@@ -1,15 +1,44 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { dashboardAPI } from "@/lib/api";
-import type { DashboardData } from "@/types/dashboard";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { dashboardAPI, isUnauthorizedError } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import type { DashboardData, WeeklyStat } from "@/types/dashboard";
 
-let cache: { data: DashboardData; timestamp: number } | null = null;
+type DashboardCache = {
+  data: DashboardData;
+  weeklyStats: WeeklyStat[];
+  timestamp: number;
+};
+
+let cache: DashboardCache | null = null;
 const CACHE_TTL = 60 * 1000;
 
+function recalculateScore(data: DashboardData): number {
+  const sections = [
+    [Math.min(data.waterIntake.consumed / data.waterIntake.goal, 1), true],
+    [Math.min(data.focusTime.minutes / 120, 1), true],
+    [data.workoutStreak.current > 0 ? 1 : 0, true],
+    [Math.min(data.weeklyGoal.percentage / 100, 1), true],
+  ] as [number, boolean][];
+
+  const active = sections.filter(([, enabled]) => enabled);
+  const pointsPerSection = 100 / active.length;
+  const total = active.reduce(
+    (sum, [progress]) => sum + progress * pointsPerSection,
+    0,
+  );
+
+  return Math.min(Math.round(total), 100);
+}
+
 export function useDashboard() {
+  const { isAuthenticated, loading: authLoading, clearUser } = useAuth();
   const [data, setData] = useState<DashboardData | null>(cache?.data ?? null);
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>(
+    cache?.weeklyStats ?? [],
+  );
   const [loading, setLoading] = useState<boolean>(!cache);
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(true);
@@ -21,42 +50,91 @@ export function useDashboard() {
     };
   }, []);
 
-  const fetchDashboard = useCallback(async (force = false) => {
-    if (!force && cache && Date.now() - cache.timestamp < CACHE_TTL) {
-      setData(cache.data);
-      setLoading(false);
-      return;
-    }
-    try {
-      setLoading(true);
-      const result = await dashboardAPI.getDashboard();
+  const applyDashboardData = useCallback(
+    (summary: DashboardData, stats: WeeklyStat[]) => {
+      cache = {
+        data: summary,
+        weeklyStats: stats,
+        timestamp: Date.now(),
+      };
+
       if (!isMounted.current) return;
-      cache = { data: result.data, timestamp: Date.now() };
-      setData(result.data);
+
+      setData(summary);
+      setWeeklyStats(stats);
       setError(null);
-    } catch (err: unknown) {
-      if (!isMounted.current) return;
-      const message = err instanceof Error ? err.message : "Unknown error";
-      setError(message);
-      toast.error("Failed to load dashboard");
-    } finally {
-      if (isMounted.current) setLoading(false);
-    }
+    },
+    [],
+  );
+
+  const clearDashboard = useCallback(() => {
+    cache = null;
+
+    if (!isMounted.current) return;
+
+    setData(null);
+    setWeeklyStats([]);
+    setError(null);
+    setLoading(false);
   }, []);
 
+  const fetchDashboard = useCallback(
+    async (force = false) => {
+      if (authLoading) return;
+
+      if (!isAuthenticated) {
+        clearDashboard();
+        return;
+      }
+
+      if (!force && cache && Date.now() - cache.timestamp < CACHE_TTL) {
+        setData(cache.data);
+        setWeeklyStats(cache.weeklyStats);
+        setLoading(false);
+        setError(null);
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const [summary, stats] = await Promise.all([
+          dashboardAPI.getDashboard(),
+          dashboardAPI.getWeeklyStats(),
+        ]);
+
+        applyDashboardData(summary, stats);
+      } catch (error: unknown) {
+        if (!isMounted.current) return;
+
+        if (isUnauthorizedError(error)) {
+          clearUser();
+          clearDashboard();
+          return;
+        }
+
+        const message =
+          error instanceof Error ? error.message : "Failed to load dashboard";
+        setError(message);
+        toast.error(message);
+      } finally {
+        if (isMounted.current) setLoading(false);
+      }
+    },
+    [applyDashboardData, authLoading, clearDashboard, clearUser, isAuthenticated],
+  );
+
   const updateWaterIntake = useCallback(
-    async (glasses: number) => {
+    async (glassesConsumed: number) => {
       if (!data) return;
 
-      // ✅ No cap — user can drink as much as they want
       const optimisticData: DashboardData = {
         ...data,
         waterIntake: {
           ...data.waterIntake,
-          consumed: glasses,
-          // ✅ Percentage caps at 100 for score purposes, but consumed keeps going
+          consumed: glassesConsumed,
           percentage: Math.min(
-            Math.round((glasses / data.waterIntake.goal) * 100),
+            Math.round((glassesConsumed / data.waterIntake.goal) * 100),
             100,
           ),
         },
@@ -66,42 +144,15 @@ export function useDashboard() {
       setData(optimisticData);
       if (cache) cache = { ...cache, data: optimisticData };
 
-      // ✅ Funny overhydration messages
-      const overGoal = glasses - data.waterIntake.goal;
-      if (glasses === data.waterIntake.goal) {
-        toast.success("🎉 Goal reached! You're perfectly hydrated!", {
-          duration: 2500,
-        });
-      } else if (overGoal === 1) {
-        toast("💧 9 glasses? Look at you go! Fisherman energy.", {
-          icon: "🐟",
-          duration: 2500,
-        });
-      } else if (overGoal === 2) {
-        toast("🌊 10 glasses! Are you part dolphin?", {
-          icon: "🐬",
-          duration: 2500,
-        });
-      } else if (overGoal === 3) {
-        toast("🚿 11 glasses! At this point you ARE water.", {
-          icon: "💦",
-          duration: 2500,
-        });
-      } else if (overGoal >= 4) {
-        toast("🌊 Bro stop. Your kidneys filed a complaint.", {
-          icon: "😂",
-          duration: 3000,
-        });
-      } else {
-        toast.success("💧 Water updated!", { duration: 1500 });
-      }
-
       try {
-        await dashboardAPI.updateWaterIntake(glasses);
-      } catch (err: unknown) {
+        await dashboardAPI.updateWaterIntake(glassesConsumed);
+      } catch (error: unknown) {
         setData(data);
         if (cache) cache = { ...cache, data };
-        toast.error("Failed to update water intake");
+
+        if (!isUnauthorizedError(error)) {
+          toast.error("Failed to update water intake");
+        }
       }
     },
     [data],
@@ -114,14 +165,14 @@ export function useDashboard() {
       const addedMinutes = Math.round(
         (endTime.getTime() - startTime.getTime()) / 60000,
       );
-      const newMinutes = data.focusTime.minutes + addedMinutes;
+      const nextMinutes = data.focusTime.minutes + addedMinutes;
 
       const optimisticData: DashboardData = {
         ...data,
         focusTime: {
           ...data.focusTime,
-          minutes: newMinutes,
-          hours: Math.floor(newMinutes / 60),
+          minutes: nextMinutes,
+          hours: Math.floor(nextMinutes / 60),
           sessionsCount: data.focusTime.sessionsCount + 1,
         },
       };
@@ -132,44 +183,67 @@ export function useDashboard() {
 
       try {
         await dashboardAPI.logFocusSession(startTime, endTime, category);
-        toast.success("🎯 Focus session logged!", { duration: 1500 });
-      } catch (err: unknown) {
+        toast.success("Focus session logged");
+      } catch (error: unknown) {
         setData(data);
         if (cache) cache = { ...cache, data };
-        toast.error("Failed to log focus session");
+
+        if (!isUnauthorizedError(error)) {
+          toast.error("Failed to log focus session");
+        }
+      }
+    },
+    [data],
+  );
+
+  const updateWeeklyGoal = useCallback(
+    async (completedWorkouts: number, goalWorkouts: number) => {
+      if (!data) return;
+
+      const optimisticData: DashboardData = {
+        ...data,
+        weeklyGoal: {
+          completed: completedWorkouts,
+          goal: goalWorkouts,
+          percentage: Math.min(
+            Math.round((completedWorkouts / goalWorkouts) * 100),
+            100,
+          ),
+        },
+      };
+      optimisticData.todayScore = recalculateScore(optimisticData);
+
+      setData(optimisticData);
+      if (cache) cache = { ...cache, data: optimisticData };
+
+      try {
+        await dashboardAPI.updateWeeklyGoal(completedWorkouts, goalWorkouts);
+      } catch (error: unknown) {
+        setData(data);
+        if (cache) cache = { ...cache, data };
+
+        if (!isUnauthorizedError(error)) {
+          toast.error("Failed to update weekly goal");
+        }
       }
     },
     [data],
   );
 
   useEffect(() => {
-    fetchDashboard();
+    queueMicrotask(() => {
+      void fetchDashboard();
+    });
   }, [fetchDashboard]);
 
   return {
     data,
-    loading,
+    weeklyStats,
+    loading: loading || authLoading,
     error,
     refresh: () => fetchDashboard(true),
     updateWaterIntake,
     logFocusSession,
+    updateWeeklyGoal,
   };
-}
-
-// ✅ Fully dynamic score — each active section gets equal weight
-// Sections: water (capped at goal), focus (capped at 2h), streak, weekly goal
-// If you add more sections later, just add them here and weights auto-adjust
-function recalculateScore(d: DashboardData): number {
-  const sections = [
-    // [achieved_pct (0–1), is_active]
-    [Math.min(d.waterIntake.consumed / d.waterIntake.goal, 1), true],
-    [Math.min(d.focusTime.minutes / 120, 1), true],
-    [d.workoutStreak.current > 0 ? 1 : 0, true],
-    [Math.min(d.weeklyGoal.percentage / 100, 1), true],
-  ] as [number, boolean][];
-
-  const active = sections.filter(([, on]) => on);
-  const perSection = 100 / active.length; // e.g. 4 sections → 25pts each
-  const total = active.reduce((sum, [pct]) => sum + pct * perSection, 0);
-  return Math.min(Math.round(total), 100);
 }

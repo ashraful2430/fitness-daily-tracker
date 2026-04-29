@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   Activity,
@@ -15,10 +16,14 @@ import {
   User,
 } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import { useAuth } from "@/hooks/useAuth";
+import { ApiError } from "@/lib/api";
 
 type Mode = "login" | "register";
 
 export default function AuthForm() {
+  const router = useRouter();
+  const { login, register } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -34,40 +39,25 @@ export default function AuthForm() {
 
     setLoading(true);
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL;
-    const url =
-      mode === "login"
-        ? `${API_URL}/api/auth/login`
-        : `${API_URL}/api/auth/register`;
-    const payload =
-      mode === "login" ? { email, password } : { name, email, password };
-
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.message || "Something went wrong");
-        return;
+      if (mode === "login") {
+        await login({ email, password });
+      } else {
+        await register({ name, email, password });
       }
 
       toast.success(
         mode === "login" ? "Login successful" : "Account created successfully",
       );
 
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 800);
-    } catch {
-      toast.error("Unable to connect. Please try again.");
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+      } else {
+        toast.error("Unable to connect. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

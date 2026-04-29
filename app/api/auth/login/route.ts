@@ -38,11 +38,16 @@ export async function POST(req: Request) {
     const token = createToken(user._id.toString());
 
     const response = NextResponse.json({
+      success: true,
       message: "Login successful.",
-      user: {
+      data: {
         id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        loginStreak: user.loginStreak ?? 0,
+        longestLoginStreak: user.longestLoginStreak ?? 0,
+        lastLoginDate: user.lastLoginDate ?? null,
       },
     });
 
@@ -56,6 +61,9 @@ export async function POST(req: Request) {
 
     return response;
   } catch {
-    return NextResponse.json({ message: "Login failed." }, { status: 500 });
+    return NextResponse.json(
+      { success: false, message: "Login failed." },
+      { status: 500 },
+    );
   }
 }

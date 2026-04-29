@@ -17,6 +17,10 @@ export interface WeeklyStat {
   focusMinutes: number;
 }
 
+export interface DashboardAnalytics {
+  [key: string]: unknown;
+}
+
 export interface DashboardData {
   workoutStreak: {
     current: number;
@@ -40,10 +44,5 @@ export interface DashboardData {
   todayScore: number;
   recentWorkouts: Workout[];
   weeklyStats: WeeklyStat[];
-}
-
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
+  analytics: DashboardAnalytics;
 }

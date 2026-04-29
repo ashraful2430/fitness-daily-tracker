@@ -1,16 +1,55 @@
-import type { ApiResponse, DashboardData } from "@/types/dashboard";
+import type { AuthUser, LoginRequest, RegisterRequest } from "@/types/auth";
+import type { DashboardData, WeeklyStat } from "@/types/dashboard";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
 interface ApiOptions extends RequestInit {
   requireAuth?: boolean;
 }
 
+type ApiEnvelope<T> = {
+  success?: boolean;
+  data?: T;
+  user?: T;
+  message?: string;
+};
+
+export class ApiError extends Error {
+  status: number;
+  body?: unknown;
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function emitUnauthorized() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+  }
+}
+
+function getPayload<T>(body: unknown): T {
+  if (body && typeof body === "object") {
+    const envelope = body as ApiEnvelope<T>;
+
+    if (envelope.data !== undefined) return envelope.data;
+    if (envelope.user !== undefined) return envelope.user;
+  }
+
+  return body as T;
+}
+
 async function apiRequest<T = unknown>(
   endpoint: string,
   options: ApiOptions = {},
-): Promise<ApiResponse<T>> {
-  const { requireAuth: _requireAuth = true, ...fetchOptions } = options;
+): Promise<T> {
+  const { requireAuth = true, ...fetchOptions } = options;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -20,21 +59,56 @@ async function apiRequest<T = unknown>(
   const config: RequestInit = {
     ...fetchOptions,
     headers,
-    credentials: "include",
+    credentials: fetchOptions.credentials ?? "include",
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  const data = (await response.json()) as ApiResponse<T>;
+  const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
 
   if (!response.ok) {
-    throw new Error(data.message || "Something went wrong");
+    const message = body?.message || "Something went wrong";
+
+    if (response.status === 401 && requireAuth) {
+      emitUnauthorized();
+    }
+
+    throw new ApiError(message, response.status, body);
   }
 
-  return data;
+  return getPayload<T>(body);
 }
+
+export function isUnauthorizedError(error: unknown) {
+  return error instanceof ApiError && error.status === 401;
+}
+
+export const authAPI = {
+  register: (payload: RegisterRequest) =>
+    apiRequest<AuthUser>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      requireAuth: false,
+    }),
+
+  login: (payload: LoginRequest) =>
+    apiRequest<AuthUser>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      requireAuth: false,
+    }),
+
+  getCurrentUser: () => apiRequest<AuthUser>("/api/auth/me"),
+
+  logout: async () => {
+    await apiRequest("/api/auth/logout", { method: "POST" });
+  },
+};
 
 export const dashboardAPI = {
   getDashboard: () => apiRequest<DashboardData>("/api/dashboard"),
+
+  getWeeklyStats: () =>
+    apiRequest<WeeklyStat[]>("/api/dashboard/weekly-stats"),
 
   updateWaterIntake: (glassesConsumed: number) =>
     apiRequest<{ glassesConsumed: number }>("/api/dashboard/water", {
@@ -43,48 +117,16 @@ export const dashboardAPI = {
     }),
 
   logFocusSession: (startTime: Date, endTime: Date, category: string) =>
-    apiRequest("/api/dashboard/focus", {
+    apiRequest<void>("/api/dashboard/focus", {
       method: "POST",
       body: JSON.stringify({ startTime, endTime, category }),
     }),
 
   updateWeeklyGoal: (completedWorkouts: number, goalWorkouts: number) =>
-    apiRequest("/api/dashboard/weekly-goal", {
+    apiRequest<void>("/api/dashboard/weekly-goal", {
       method: "POST",
       body: JSON.stringify({ completedWorkouts, goalWorkouts }),
     }),
-};
-
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  loginStreak: number;
-  longestLoginStreak: number;
-  lastLoginDate?: string | null;
-}
-
-export type LoginResponse = AuthUser;
-
-export const authAPI = {
-  register: (name: string, email: string, password: string) =>
-    apiRequest<LoginResponse>("/api/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ name, email, password }),
-      requireAuth: false,
-    }),
-
-  login: (email: string, password: string) =>
-    apiRequest<LoginResponse>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-      requireAuth: false,
-    }),
-
-  logout: () => apiRequest<null>("/api/auth/logout", { method: "POST" }),
-
-  getCurrentUser: () => apiRequest<AuthUser>("/api/auth/me"),
 };
 
 export interface WorkoutInput {
@@ -109,7 +151,7 @@ export const workoutAPI = {
     }),
 
   deleteWorkout: (id: string) =>
-    apiRequest<null>(`/api/workouts/${id}`, {
+    apiRequest<void>(`/api/workouts/${id}`, {
       method: "DELETE",
     }),
 };
@@ -149,7 +191,7 @@ export const scoreSectionAPI = {
     }),
 
   deleteSection: (id: string) =>
-    apiRequest<null>(`/api/score-sections/${id}`, {
+    apiRequest<void>(`/api/score-sections/${id}`, {
       method: "DELETE",
     }),
 

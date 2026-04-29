@@ -18,18 +18,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
-import { authAPI } from "@/lib/api"; // Adjust path accordingly
-
-type User = {
-  _id: string;
-  name: string;
-  email: string;
-  role?: "user" | "admin";
-  loginStreak: number;
-  longestLoginStreak: number;
-};
+import { useAuth } from "@/hooks/useAuth";
+import type { AuthUser } from "@/types/auth";
 
 const menuItems = [
   { label: "Dashboard", icon: BarChart3, href: "/dashboard" },
@@ -44,49 +36,26 @@ const menuItems = [
   { label: "Admin", icon: Shield, href: "/admin" },
 ];
 
-export default function Sidebar() {
-  const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
-  const [loadingUser, setLoadingUser] = useState(true);
-  const [mobileOpen, setMobileOpen] = useState(false);
+interface SidebarContentProps {
+  loadingUser: boolean;
+  pathname: string;
+  user: AuthUser | null;
+  onLogout: () => Promise<void>;
+  onNavigate: () => void;
+}
 
-  useEffect(() => {
-    async function getUser() {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`,
-          {
-            cache: "no-store",
-            credentials: "include",
-          },
-        );
-        const data = await res.json();
-
-        if (res.ok && data.data) setUser(data.data);
-        else setUser(null);
-      } catch {
-        setUser(null);
-      } finally {
-        setLoadingUser(false);
-      }
-    }
-
-    getUser();
-  }, []);
-
-  const handleLogout = async () => {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
-    window.location.href = "/auth"; // Redirect to login page after logout
-  };
-
+function SidebarContent({
+  loadingUser,
+  pathname,
+  user,
+  onLogout,
+  onNavigate,
+}: SidebarContentProps) {
   const getInitial = user?.name?.charAt(0)?.toUpperCase() || "U";
 
-  const SidebarContent = () => (
+  return (
     <>
-      <Link href="/" className="mb-5 flex items-center gap-3">
+      <Link href="/" className="mb-5 flex items-center gap-3" onClick={onNavigate}>
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
           <Activity size={22} />
         </div>
@@ -112,7 +81,7 @@ export default function Sidebar() {
               <Link
                 key={item.label}
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={onNavigate}
                 className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition-all ${
                   isActive
                     ? "bg-gradient-to-r from-indigo-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-200 dark:shadow-none"
@@ -145,6 +114,7 @@ export default function Sidebar() {
           <>
             <Link
               href="/dashboard"
+              onClick={onNavigate}
               className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-3 dark:border-white/10 dark:bg-white/10"
             >
               <div className="relative">
@@ -168,7 +138,7 @@ export default function Sidebar() {
             </Link>
 
             <button
-              onClick={handleLogout}
+              onClick={onLogout}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-red-50 hover:text-red-600 dark:bg-white/10 dark:text-white dark:hover:bg-red-500/10 dark:hover:text-red-300"
             >
               <LogOut size={16} />
@@ -178,6 +148,7 @@ export default function Sidebar() {
         ) : (
           <Link
             href="/auth"
+            onClick={onNavigate}
             className="block w-full rounded-2xl bg-indigo-600 px-4 py-3 text-center text-sm font-bold text-white"
           >
             Login
@@ -186,6 +157,12 @@ export default function Sidebar() {
       </div>
     </>
   );
+}
+
+export default function Sidebar() {
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, loading, logout } = useAuth();
 
   return (
     <>
@@ -206,7 +183,13 @@ export default function Sidebar() {
       </header>
 
       <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-[#070B18] lg:flex">
-        <SidebarContent />
+        <SidebarContent
+          loadingUser={loading}
+          pathname={pathname}
+          user={user}
+          onLogout={logout}
+          onNavigate={() => setMobileOpen(false)}
+        />
       </aside>
 
       {mobileOpen && (
@@ -224,7 +207,13 @@ export default function Sidebar() {
               <X size={20} />
             </button>
 
-            <SidebarContent />
+            <SidebarContent
+              loadingUser={loading}
+              pathname={pathname}
+              user={user}
+              onLogout={logout}
+              onNavigate={() => setMobileOpen(false)}
+            />
           </aside>
         </div>
       )}

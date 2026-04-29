@@ -77,8 +77,8 @@ export default function ScoreSections({
   const loadSections = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await scoreSectionAPI.getSections();
-      setSections(res.data || []);
+      const nextSections = await scoreSectionAPI.getSections();
+      setSections(nextSections || []);
     } catch {
       toast.error("Failed to load daily sections");
     } finally {
@@ -87,7 +87,9 @@ export default function ScoreSections({
   }, []);
 
   useEffect(() => {
-    loadSections();
+    queueMicrotask(() => {
+      void loadSections();
+    });
   }, [loadSections]);
 
   useEffect(() => {
@@ -138,10 +140,15 @@ export default function ScoreSections({
       };
 
       if (editId) {
-        const res = await scoreSectionAPI.updateSection(editId, payload);
+        const updatedSection = await scoreSectionAPI.updateSection(
+          editId,
+          payload,
+        );
 
         setSections((prev) =>
-          prev.map((section) => (section._id === editId ? res.data : section)),
+          prev.map((section) =>
+            section._id === editId ? updatedSection : section,
+          ),
         );
 
         toast.success("Section updated");
@@ -151,8 +158,8 @@ export default function ScoreSections({
           return;
         }
 
-        const res = await scoreSectionAPI.createSection(payload);
-        setSections((prev) => [...prev, res.data]);
+        const createdSection = await scoreSectionAPI.createSection(payload);
+        setSections((prev) => [...prev, createdSection]);
         toast.success("Section added");
       }
 
@@ -185,10 +192,15 @@ export default function ScoreSections({
     );
 
     try {
-      const res = await scoreSectionAPI.updateProgress(section._id, safeValue);
+      const updatedSection = await scoreSectionAPI.updateProgress(
+        section._id,
+        safeValue,
+      );
 
       setSections((prev) =>
-        prev.map((item) => (item._id === section._id ? res.data : item)),
+        prev.map((item) =>
+          item._id === section._id ? updatedSection : item,
+        ),
       );
     } catch {
       setSections(previous);
@@ -210,7 +222,7 @@ export default function ScoreSections({
 
   return (
     <>
-      <div className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/10 dark:bg-[#0f0c1f] dark:shadow-black/20">
+      <div className="relative flex h-full flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/10 dark:bg-[#0f0c1f] dark:shadow-black/20">
         <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/40 to-transparent" />
 
@@ -273,7 +285,13 @@ export default function ScoreSections({
             </button>
           </div>
         ) : (
-          <div className="relative z-10 space-y-3">
+          <div
+            className={`relative z-10 space-y-3 ${
+              sections.length > 2
+                ? "max-h-[30rem] overflow-y-auto pr-2 [scrollbar-gutter:stable] [scrollbar-width:thin]"
+                : ""
+            }`}
+          >
             {sections.map((section) => (
               <SectionCard
                 key={section._id}
