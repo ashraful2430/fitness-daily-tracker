@@ -20,12 +20,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import { authAPI } from "@/lib/api"; // Adjust path accordingly
 
 type User = {
   _id: string;
   name: string;
   email: string;
   role?: "user" | "admin";
+  loginStreak: number;
+  longestLoginStreak: number;
 };
 
 const menuItems = [
@@ -59,7 +62,7 @@ export default function Sidebar() {
         );
         const data = await res.json();
 
-        if (res.ok && data.user) setUser(data.user);
+        if (res.ok && data.data) setUser(data.data);
         else setUser(null);
       } catch {
         setUser(null);
@@ -157,6 +160,9 @@ export default function Sidebar() {
                 </p>
                 <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
                   {user.email}
+                </p>
+                <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Login Streak: {user.loginStreak} days
                 </p>
               </div>
             </Link>

@@ -198,7 +198,9 @@ export default function Dashboard() {
     async function loadCurrentUser() {
       try {
         const res = await authAPI.getCurrentUser();
-        setCurrentUser(res.data);
+        const user =
+          (res.data as AuthUser & { user?: AuthUser }).user ?? res.data;
+        setCurrentUser(user);
       } catch {
         setCurrentUser(null);
       }
@@ -361,7 +363,7 @@ export default function Dashboard() {
 
                   <div className="absolute inset-0 flex flex-col items-center justify-center px-10 text-center">
                     <span className="mb-3 text-sm font-bold text-slate-500 dark:text-slate-300">
-                      Today's Score
+                      Today&apos;s Score
                     </span>
 
                     <span className="text-6xl font-black leading-none text-slate-950 tabular-nums dark:text-white xl:text-7xl">
