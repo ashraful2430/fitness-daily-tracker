@@ -3,10 +3,14 @@ import type { DashboardData, WeeklyStat } from "@/types/dashboard";
 import type {
   CreateCategoryRequest,
   CreateExpenseRequest,
+  ExpensesQuery,
+  ExpensesResponse,
   MostSpentCategory,
   MoneyCategory,
   MoneyExpense,
+  MoneySummary,
   SalaryRecord,
+  UpdateExpenseRequest,
   UpdateSalaryRequest,
 } from "@/types/money";
 
@@ -23,6 +27,10 @@ type ApiEnvelope<T> = {
   data?: T;
   user?: T;
   message?: string;
+};
+
+type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
+  pagination?: unknown;
 };
 
 export class ApiError extends Error {
@@ -85,6 +93,41 @@ async function apiRequest<T = unknown>(
   }
 
   return getPayload<T>(body);
+}
+
+async function apiRequestWithMeta<T = unknown>(
+  endpoint: string,
+  options: ApiOptions = {},
+): Promise<PaginatedApiEnvelope<T> | null> {
+  const { requireAuth = true, ...fetchOptions } = options;
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...fetchOptions.headers,
+  };
+
+  const config: RequestInit = {
+    ...fetchOptions,
+    headers,
+    credentials: fetchOptions.credentials ?? "include",
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  const body = (await response.json().catch(() => null)) as
+    | PaginatedApiEnvelope<T>
+    | null;
+
+  if (!response.ok) {
+    const message = body?.message || "Something went wrong";
+
+    if (response.status === 401 && requireAuth) {
+      emitUnauthorized();
+    }
+
+    throw new ApiError(message, response.status, body);
+  }
+
+  return body;
 }
 
 export function isUnauthorizedError(error: unknown) {
@@ -166,10 +209,17 @@ export const workoutAPI = {
 };
 
 export const moneyAPI = {
+  getCategories: () => apiRequest<MoneyCategory[]>("/api/money/categories"),
+
   createCategory: (payload: CreateCategoryRequest) =>
     apiRequest<MoneyCategory>("/api/money/category", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+
+  deleteCategory: (name: string) =>
+    apiRequest<void>(`/api/money/category/${encodeURIComponent(name)}`, {
+      method: "DELETE",
     }),
 
   createExpense: (payload: CreateExpenseRequest) =>
@@ -178,24 +228,60 @@ export const moneyAPI = {
       body: JSON.stringify(payload),
     }),
 
+  updateExpense: (id: string, payload: UpdateExpenseRequest) =>
+    apiRequest<MoneyExpense>(`/api/money/expense/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteExpense: (id: string) =>
+    apiRequest<void>(`/api/money/expense/${id}`, {
+      method: "DELETE",
+    }),
+
   updateSalary: (payload: UpdateSalaryRequest) =>
     apiRequest<SalaryRecord>("/api/money/salary", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
-  getSalary: (userId: string) =>
-    apiRequest<SalaryRecord | { salary: SalaryRecord } | number>(
-      `/api/money/salary/${userId}`,
-    ),
+  deleteSalary: () =>
+    apiRequest<void>("/api/money/salary", {
+      method: "DELETE",
+    }),
 
-  getExpenses: (startDate: string, endDate: string) =>
-    apiRequest<MoneyExpense[] | { expenses: MoneyExpense[] }>(
-      `/api/money/expenses?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
-    ),
+  getSalary: (userId: string) =>
+    apiRequest<SalaryRecord | null>(`/api/money/salary/${userId}`),
+
+  getExpenses: async (query: ExpensesQuery) => {
+    const params = new URLSearchParams();
+
+    if (query.startDate) params.set("startDate", query.startDate);
+    if (query.endDate) params.set("endDate", query.endDate);
+    if (query.category) params.set("category", query.category);
+    if (query.page) params.set("page", String(query.page));
+    if (query.limit) params.set("limit", String(query.limit));
+
+    const search = params.toString();
+    const response = await apiRequestWithMeta<MoneyExpense[]>(
+      `/api/money/expenses${search ? `?${search}` : ""}`,
+    );
+
+    return {
+      data: response?.data ?? [],
+      pagination: (response?.pagination as ExpensesResponse["pagination"]) ?? {
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+        total: response?.data?.length ?? 0,
+        totalPages: 1,
+      },
+    } satisfies ExpensesResponse;
+  },
+
+  getSummary: () => apiRequest<MoneySummary>("/api/money/summary"),
 
   getMostSpentCategory: (userId: string) =>
-    apiRequest<MostSpentCategory | { mostSpentCategory: MostSpentCategory } | null>(
+    apiRequest<MostSpentCategory | null>(
       `/api/money/most-spent-category/${userId}`,
     ),
 };

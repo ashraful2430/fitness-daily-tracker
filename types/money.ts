@@ -1,10 +1,14 @@
 export interface MoneyCategory {
+  _id: string;
+  userId: string;
   name: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MoneyExpense {
-  _id?: string;
-  id?: string;
+  _id: string;
+  userId?: string;
   amount: number;
   description: string;
   category: string;
@@ -14,13 +18,50 @@ export interface MoneyExpense {
 }
 
 export interface SalaryRecord {
+  _id: string;
+  userId: string;
   amount: number;
 }
 
+export interface MoneySummaryTopCategory {
+  _id: string;
+  totalSpent: number;
+  expenseCount: number;
+}
+
+export interface MoneySummary {
+  salaryAmount: number;
+  totalExpenses: number;
+  expenseCount: number;
+  averageExpense: number;
+  currentMonthSpent: number;
+  remainingSalary: number;
+  topCategories: MoneySummaryTopCategory[];
+}
+
 export interface MostSpentCategory {
-  category: string;
-  amount?: number;
-  totalAmount?: number;
+  _id: string;
+  totalSpent: number;
+}
+
+export interface MoneyPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ExpensesQuery {
+  startDate?: string;
+  endDate?: string;
+  category?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface ExpensesResponse {
+  data: MoneyExpense[];
+  pagination: MoneyPagination;
 }
 
 export interface CreateCategoryRequest {
@@ -28,6 +69,13 @@ export interface CreateCategoryRequest {
 }
 
 export interface CreateExpenseRequest {
+  amount: number;
+  description: string;
+  category: string;
+  date: string;
+}
+
+export interface UpdateExpenseRequest {
   amount: number;
   description: string;
   category: string;
