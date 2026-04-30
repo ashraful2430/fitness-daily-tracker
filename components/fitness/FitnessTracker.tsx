@@ -46,7 +46,7 @@ export default function FitnessTracker() {
       }
 
       setWorkouts(data.workouts);
-    } catch (error) {
+    } catch {
       toast.error("Failed to load workouts");
     } finally {
       setLoading(false);

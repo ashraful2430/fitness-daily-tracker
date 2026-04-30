@@ -6,10 +6,19 @@ if (!MONGODB_URI) {
   throw new Error("Please add MONGODB_URI to .env.local");
 }
 
-let cached = (global as any).mongoose;
+type MongooseCache = {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+};
+
+declare global {
+  var mongooseCache: MongooseCache | undefined;
+}
+
+let cached = global.mongooseCache;
 
 if (!cached) {
-  cached = (global as any).mongoose = {
+  cached = global.mongooseCache = {
     conn: null,
     promise: null,
   };

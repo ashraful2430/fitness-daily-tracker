@@ -1,5 +1,14 @@
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types/auth";
 import type { DashboardData, WeeklyStat } from "@/types/dashboard";
+import type {
+  CreateCategoryRequest,
+  CreateExpenseRequest,
+  MostSpentCategory,
+  MoneyCategory,
+  MoneyExpense,
+  SalaryRecord,
+  UpdateSalaryRequest,
+} from "@/types/money";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -154,6 +163,41 @@ export const workoutAPI = {
     apiRequest<void>(`/api/workouts/${id}`, {
       method: "DELETE",
     }),
+};
+
+export const moneyAPI = {
+  createCategory: (payload: CreateCategoryRequest) =>
+    apiRequest<MoneyCategory>("/api/money/category", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  createExpense: (payload: CreateExpenseRequest) =>
+    apiRequest<MoneyExpense>("/api/money/expense", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateSalary: (payload: UpdateSalaryRequest) =>
+    apiRequest<SalaryRecord>("/api/money/salary", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getSalary: (userId: string) =>
+    apiRequest<SalaryRecord | { salary: SalaryRecord } | number>(
+      `/api/money/salary/${userId}`,
+    ),
+
+  getExpenses: (startDate: string, endDate: string) =>
+    apiRequest<MoneyExpense[] | { expenses: MoneyExpense[] }>(
+      `/api/money/expenses?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
+    ),
+
+  getMostSpentCategory: (userId: string) =>
+    apiRequest<MostSpentCategory | { mostSpentCategory: MostSpentCategory } | null>(
+      `/api/money/most-spent-category/${userId}`,
+    ),
 };
 
 export type ScoreGoalType = "count" | "duration" | "boolean";
