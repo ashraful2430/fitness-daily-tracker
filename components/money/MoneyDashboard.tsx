@@ -20,7 +20,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
 import type { MoneyExpense } from "@/types/money";
 
@@ -57,7 +66,9 @@ function formatDate(value: string) {
 }
 
 function toLocalDateInputValue(date: Date) {
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  const offsetDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60000,
+  );
   return offsetDate.toISOString().slice(0, 10);
 }
 
@@ -163,9 +174,8 @@ export default function MoneyDashboard() {
   const [salaryErrors, setSalaryErrors] = useState<FormErrors>({});
   const [categoryName, setCategoryName] = useState("");
   const [categoryErrors, setCategoryErrors] = useState<FormErrors>({});
-  const [expenseForm, setExpenseForm] = useState<ExpenseFormState>(
-    emptyExpenseForm(),
-  );
+  const [expenseForm, setExpenseForm] =
+    useState<ExpenseFormState>(emptyExpenseForm());
   const [expenseErrors, setExpenseErrors] = useState<FormErrors>({});
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const expenseFormRef = useRef<HTMLDivElement | null>(null);
@@ -188,7 +198,9 @@ export default function MoneyDashboard() {
     setExpenseForm(emptyExpenseForm(categoryOptions[0] || ""));
   };
 
-  const handleSalarySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSalarySubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
     event.preventDefault();
     const result = await saveSalary(salaryAmount);
     setSalaryErrors(result.errors);
@@ -320,30 +332,33 @@ export default function MoneyDashboard() {
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
           <div className="absolute -right-14 top-10 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl" />
 
-          <div className="relative z-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
+          <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 flex-1">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-emerald-300">
                 <PiggyBank className="h-3.5 w-3.5" />
                 Money Management
               </div>
 
-              <h1 className="mt-5 text-[clamp(2.4rem,5vw,4.6rem)] font-black leading-[0.95] tracking-[-0.04em] text-slate-950 dark:text-white">
+              <h1 className="mt-5 text-[clamp(1.75rem,4vw,4.6rem)] font-black leading-[0.95] tracking-[-0.04em] text-slate-950 dark:text-white">
                 Budget with clarity,
                 <span className="block bg-gradient-to-r from-emerald-500 via-cyan-500 to-violet-500 bg-clip-text text-transparent">
                   track every move with confidence.
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300/85">
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300/85 sm:text-base">
                 Salary, categories, expenses, and insights now live together in
                 one production-ready flow built on your authenticated backend.
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 shrink-0">
               {[
                 { label: "Logged in as", value: user?.name ?? "Unknown user" },
-                { label: "Tracked categories", value: String(categories.length) },
+                {
+                  label: "Tracked categories",
+                  value: String(categories.length),
+                },
                 { label: "Total records", value: String(summary.expenseCount) },
               ].map((item) => (
                 <div
@@ -362,7 +377,7 @@ export default function MoneyDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <StatCard
             title="Current Salary"
             value={formatAmount(salaryDisplay)}
@@ -406,7 +421,7 @@ export default function MoneyDashboard() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr] xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-5">
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
               <div className="mb-6 flex items-start justify-between gap-4">
@@ -424,18 +439,25 @@ export default function MoneyDashboard() {
                   className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-400 dark:hover:bg-white/[0.10] dark:hover:text-white"
                   aria-label="Refresh money data"
                 >
-                  <RefreshCcw className={`h-4.5 w-4.5 ${summaryLoading ? "animate-spin" : ""}`} />
+                  <RefreshCcw
+                    className={`h-4.5 w-4.5 ${summaryLoading ? "animate-spin" : ""}`}
+                  />
                 </button>
               </div>
 
               <div className="mb-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                <p className="text-sm font-bold text-slate-500">Current salary</p>
+                <p className="text-sm font-bold text-slate-500">
+                  Current salary
+                </p>
                 <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
                   {formatAmount(salaryDisplay)}
                 </p>
               </div>
 
-              <form onSubmit={handleSalarySubmit} className="grid gap-4 sm:grid-cols-[1fr_auto_auto]">
+              <form
+                onSubmit={handleSalarySubmit}
+                className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
+              >
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
                     Salary amount
@@ -445,15 +467,26 @@ export default function MoneyDashboard() {
                     min="0"
                     step="0.01"
                     value={salaryAmount}
-                    placeholder={salaryDisplay ? String(salaryDisplay) : "50000"}
+                    placeholder={
+                      salaryDisplay ? String(salaryDisplay) : "50000"
+                    }
                     onChange={(event) => {
                       setSalaryAmount(event.target.value);
                       if (salaryErrors.amount) setSalaryErrors({});
                     }}
+                    aria-label="Monthly salary amount"
+                    aria-invalid={!!salaryErrors.amount}
+                    aria-describedby={
+                      salaryErrors.amount ? "salary-error" : undefined
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-emerald-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                   />
                   {salaryErrors.amount ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
+                    <p
+                      className="mt-2 text-sm font-semibold text-rose-500"
+                      id="salary-error"
+                      role="alert"
+                    >
                       {salaryErrors.amount}
                     </p>
                   ) : null}
@@ -462,7 +495,7 @@ export default function MoneyDashboard() {
                 <button
                   type="submit"
                   disabled={salarySaving}
-                  className="mt-[1.85rem] inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {salarySaving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -476,7 +509,7 @@ export default function MoneyDashboard() {
                   type="button"
                   onClick={handleSalaryReset}
                   disabled={salaryDeleting}
-                  className="mt-[1.85rem] inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
                 >
                   {salaryDeleting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -498,7 +531,10 @@ export default function MoneyDashboard() {
                 </h2>
               </div>
 
-              <form onSubmit={handleCategorySubmit} className="grid gap-4 sm:grid-cols-[1fr_auto]">
+              <form
+                onSubmit={handleCategorySubmit}
+                className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto]"
+              >
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
                     Category name
@@ -510,10 +546,19 @@ export default function MoneyDashboard() {
                       if (categoryErrors.name) setCategoryErrors({});
                     }}
                     placeholder="food"
+                    aria-label="New category name"
+                    aria-invalid={!!categoryErrors.name}
+                    aria-describedby={
+                      categoryErrors.name ? "category-error" : undefined
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-violet-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                   />
                   {categoryErrors.name ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
+                    <p
+                      className="mt-2 text-sm font-semibold text-rose-500"
+                      id="category-error"
+                      role="alert"
+                    >
                       {categoryErrors.name}
                     </p>
                   ) : null}
@@ -522,7 +567,7 @@ export default function MoneyDashboard() {
                 <button
                   type="submit"
                   disabled={categorySaving}
-                  className="mt-[1.85rem] inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-violet-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="mt-0 sm:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-violet-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {categorySaving ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -610,10 +655,19 @@ export default function MoneyDashboard() {
                       if (expenseErrors.amount) setExpenseErrors({});
                     }}
                     placeholder="250"
+                    aria-label="Expense amount"
+                    aria-invalid={!!expenseErrors.amount}
+                    aria-describedby={
+                      expenseErrors.amount ? "amount-error" : undefined
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                   />
                   {expenseErrors.amount ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
+                    <p
+                      className="mt-2 text-sm font-semibold text-rose-500"
+                      id="amount-error"
+                      role="alert"
+                    >
                       {expenseErrors.amount}
                     </p>
                   ) : null}
@@ -633,10 +687,19 @@ export default function MoneyDashboard() {
                       }));
                       if (expenseErrors.date) setExpenseErrors({});
                     }}
+                    aria-label="Expense date"
+                    aria-invalid={!!expenseErrors.date}
+                    aria-describedby={
+                      expenseErrors.date ? "date-error" : undefined
+                    }
                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                   />
                   {expenseErrors.date ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
+                    <p
+                      className="mt-2 text-sm font-semibold text-rose-500"
+                      id="date-error"
+                      role="alert"
+                    >
                       {expenseErrors.date}
                     </p>
                   ) : null}
@@ -657,10 +720,19 @@ export default function MoneyDashboard() {
                     if (expenseErrors.description) setExpenseErrors({});
                   }}
                   placeholder="Lunch"
+                  aria-label="Expense description"
+                  aria-invalid={!!expenseErrors.description}
+                  aria-describedby={
+                    expenseErrors.description ? "description-error" : undefined
+                  }
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                 />
                 {expenseErrors.description ? (
-                  <p className="mt-2 text-sm font-semibold text-rose-500">
+                  <p
+                    className="mt-2 text-sm font-semibold text-rose-500"
+                    id="description-error"
+                    role="alert"
+                  >
                     {expenseErrors.description}
                   </p>
                 ) : null}
@@ -679,6 +751,11 @@ export default function MoneyDashboard() {
                     }));
                     if (expenseErrors.category) setExpenseErrors({});
                   }}
+                  aria-label="Expense category"
+                  aria-invalid={!!expenseErrors.category}
+                  aria-describedby={
+                    expenseErrors.category ? "category-select-error" : undefined
+                  }
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                 >
                   <option value="">Select a category</option>
@@ -689,7 +766,11 @@ export default function MoneyDashboard() {
                   ))}
                 </select>
                 {expenseErrors.category ? (
-                  <p className="mt-2 text-sm font-semibold text-rose-500">
+                  <p
+                    className="mt-2 text-sm font-semibold text-rose-500"
+                    id="category-select-error"
+                    role="alert"
+                  >
                     {expenseErrors.category}
                   </p>
                 ) : null}
@@ -713,7 +794,7 @@ export default function MoneyDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="grid gap-5 lg:grid-cols-[1fr_0.85fr] xl:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
             <div className="mb-6 space-y-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -725,11 +806,12 @@ export default function MoneyDashboard() {
                     Review and refine your expense records
                   </h2>
                   <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
-                    Narrow the list by date or category, then edit or remove entries without leaving the page.
+                    Narrow the list by date or category, then edit or remove
+                    entries without leaving the page.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 shrink-0">
                   <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                       Visible
@@ -761,7 +843,7 @@ export default function MoneyDashboard() {
                 onSubmit={handleApplyFilters}
                 className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4 dark:border-white/[0.08] dark:bg-white/[0.035]"
               >
-                <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
                   <label className="space-y-2">
                     <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
                       From
@@ -924,7 +1006,8 @@ export default function MoneyDashboard() {
                     No expenses found
                   </h3>
                   <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                    Empty ranges and categories are valid. Adjust filters or add a new expense.
+                    Empty ranges and categories are valid. Adjust filters or add
+                    a new expense.
                   </p>
                 </div>
               )}
@@ -932,13 +1015,16 @@ export default function MoneyDashboard() {
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Page {pagination.page} of {pagination.totalPages} | {pagination.total} total expenses
+                Page {pagination.page} of {pagination.totalPages} |{" "}
+                {pagination.total} total expenses
               </p>
 
               <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                 <button
                   type="button"
-                  onClick={() => void goToPage(Math.max(1, pagination.page - 1))}
+                  onClick={() =>
+                    void goToPage(Math.max(1, pagination.page - 1))
+                  }
                   disabled={pagination.page <= 1 || expensesLoading}
                   className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
                 >
@@ -947,7 +1033,9 @@ export default function MoneyDashboard() {
                 <button
                   type="button"
                   onClick={() =>
-                    void goToPage(Math.min(pagination.totalPages, pagination.page + 1))
+                    void goToPage(
+                      Math.min(pagination.totalPages, pagination.page + 1),
+                    )
                   }
                   disabled={
                     pagination.page >= pagination.totalPages || expensesLoading
@@ -970,7 +1058,9 @@ export default function MoneyDashboard() {
               </h2>
 
               <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-5 dark:bg-white/[0.04]">
-                <p className="text-sm font-bold text-slate-500">Most spent category</p>
+                <p className="text-sm font-bold text-slate-500">
+                  Most spent category
+                </p>
                 <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
                   {mostSpentCategory?._id ?? "No data yet"}
                 </p>
@@ -985,17 +1075,28 @@ export default function MoneyDashboard() {
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.22)" />
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="rgba(148,163,184,0.22)"
+                      />
                       <XAxis
                         dataKey="name"
                         tickLine={false}
                         axisLine={false}
-                        tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }}
+                        tick={{
+                          fill: "#94a3b8",
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
                       />
                       <YAxis
                         tickLine={false}
                         axisLine={false}
-                        tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }}
+                        tick={{
+                          fill: "#94a3b8",
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
                       />
                       <Tooltip
                         cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
@@ -1050,7 +1151,8 @@ export default function MoneyDashboard() {
                             {category._id}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                            {category.expenseCount} expense{category.expenseCount === 1 ? "" : "s"}
+                            {category.expenseCount} expense
+                            {category.expenseCount === 1 ? "" : "s"}
                           </p>
                         </div>
                         <p className="text-lg font-black text-emerald-600 dark:text-emerald-300">

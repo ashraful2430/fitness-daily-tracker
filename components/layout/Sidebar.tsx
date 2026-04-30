@@ -55,7 +55,11 @@ function SidebarContent({
 
   return (
     <>
-      <Link href="/" className="mb-5 flex items-center gap-3" onClick={onNavigate}>
+      <Link
+        href="/"
+        className="mb-5 flex items-center gap-3"
+        onClick={onNavigate}
+      >
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-600 to-violet-600 text-white shadow-[0_20px_40px_rgba(59,130,246,0.28)]">
           <Activity size={22} />
         </div>
@@ -70,7 +74,10 @@ function SidebarContent({
         </div>
       </Link>
 
-      <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav
+        className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        aria-label="Navigation menu"
+      >
         {menuItems
           .filter((item) => item.href !== "/admin" || user?.role === "admin")
           .map((item) => {
@@ -177,12 +184,13 @@ export default function Sidebar() {
         <button
           onClick={() => setMobileOpen(true)}
           className="rounded-2xl bg-slate-100 p-3 text-slate-700 dark:bg-white/10 dark:text-white"
+          aria-label="Open navigation menu"
         >
           <Menu size={22} />
         </button>
       </header>
 
-      <aside className="relative sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(255,255,255,0.62))] p-5 shadow-[30px_0_80px_rgba(148,163,184,0.12)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.92),rgba(8,12,24,0.86))] dark:shadow-[30px_0_90px_rgba(0,0,0,0.28)] lg:flex">
+      <aside className="relative hidden h-screen w-72 shrink-0 flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(255,255,255,0.62))] p-5 shadow-[30px_0_80px_rgba(148,163,184,0.12)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.92),rgba(8,12,24,0.86))] dark:shadow-[30px_0_90px_rgba(0,0,0,0.28)] lg:flex">
         <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent dark:via-cyan-300/20" />
         <SidebarContent
           loadingUser={loading}
@@ -204,6 +212,7 @@ export default function Sidebar() {
             <button
               onClick={() => setMobileOpen(false)}
               className="absolute right-4 top-4 rounded-2xl bg-slate-100 p-2 dark:bg-white/10 dark:text-white"
+              aria-label="Close navigation menu"
             >
               <X size={20} />
             </button>

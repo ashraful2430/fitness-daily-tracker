@@ -21,6 +21,11 @@ body {
   font-family: var(--font-manrope), sans-serif;
   background-color: #09090f;
   color: #ffffff;
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
 }
 
 button,
@@ -28,4 +33,29 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/* Ensure proper scrolling on content areas — placed in base so Tailwind utilities (e.g. [scrollbar-width:none]) can override */
+@layer base {
+  [class*="overflow-y-auto"] {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+  }
+
+  [class*="overflow-y-auto"]::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  [class*="overflow-y-auto"]::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  [class*="overflow-y-auto"]::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+  }
+
+  [class*="overflow-y-auto"]::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
 }
