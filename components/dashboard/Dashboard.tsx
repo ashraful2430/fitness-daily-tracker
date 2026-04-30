@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardSkeleton from "./DashboardSkeleton";
 import ScoreSections from "./ScoreSections";
+import LearningSummaryPanel from "./LearningSummaryPanel";
 import type { ScoreSection } from "@/lib/api";
 
 type CK = "orange" | "cyan" | "violet" | "emerald" | "indigo";
@@ -312,7 +313,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-[#09090f] dark:text-white">
+    <div className="min-h-screen bg-transparent text-slate-950 dark:text-white">
       <div className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
         <div className="absolute -top-40 left-1/4 h-[600px] w-[600px] rounded-full bg-violet-700/10 blur-[140px]" />
         <div className="absolute top-1/2 -right-32 h-[400px] w-[400px] rounded-full bg-indigo-600/10 blur-[100px]" />
@@ -722,6 +723,8 @@ export default function Dashboard() {
             </div>
           </motion.div>
         </div>
+
+        <LearningSummaryPanel />
       </div>
     </div>
   );

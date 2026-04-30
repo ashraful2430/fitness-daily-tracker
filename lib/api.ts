@@ -1,6 +1,14 @@
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types/auth";
 import type { DashboardData, WeeklyStat } from "@/types/dashboard";
 import type {
+  CreateLearningSessionRequest,
+  LearningSession,
+  LearningSessionsQuery,
+  LearningSessionsResponse,
+  LearningSummary,
+  UpdateLearningSessionRequest,
+} from "@/types/learning";
+import type {
   CreateCategoryRequest,
   CreateExpenseRequest,
   ExpensesQuery,
@@ -284,6 +292,53 @@ export const moneyAPI = {
     apiRequest<MostSpentCategory | null>(
       `/api/money/most-spent-category/${userId}`,
     ),
+};
+
+export const learningAPI = {
+  getSummary: () => apiRequest<LearningSummary>("/api/learning/summary"),
+
+  getSessions: async (query: LearningSessionsQuery) => {
+    const params = new URLSearchParams();
+
+    if (query.page) params.set("page", String(query.page));
+    if (query.limit) params.set("limit", String(query.limit));
+    if (query.status) params.set("status", query.status);
+    if (query.subject) params.set("subject", query.subject);
+    if (query.startDate) params.set("startDate", query.startDate);
+    if (query.endDate) params.set("endDate", query.endDate);
+
+    const search = params.toString();
+    const response = await apiRequestWithMeta<LearningSession[]>(
+      `/api/learning/sessions${search ? `?${search}` : ""}`,
+    );
+
+    return {
+      data: response?.data ?? [],
+      pagination: (response?.pagination as LearningSessionsResponse["pagination"]) ?? {
+        page: query.page ?? 1,
+        limit: query.limit ?? 10,
+        total: response?.data?.length ?? 0,
+        totalPages: 1,
+      },
+    } satisfies LearningSessionsResponse;
+  },
+
+  createSession: (payload: CreateLearningSessionRequest) =>
+    apiRequest<LearningSession>("/api/learning/session", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateSession: (id: string, payload: UpdateLearningSessionRequest) =>
+    apiRequest<LearningSession>(`/api/learning/session/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteSession: (id: string) =>
+    apiRequest<void>(`/api/learning/session/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 export type ScoreGoalType = "count" | "duration" | "boolean";

@@ -56,7 +56,7 @@ function SidebarContent({
   return (
     <>
       <Link href="/" className="mb-5 flex items-center gap-3" onClick={onNavigate}>
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-600 to-violet-600 text-white shadow-[0_20px_40px_rgba(59,130,246,0.28)]">
           <Activity size={22} />
         </div>
 
@@ -84,15 +84,15 @@ function SidebarContent({
                 onClick={onNavigate}
                 className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition-all ${
                   isActive
-                    ? "bg-gradient-to-r from-indigo-600 to-fuchsia-500 text-white shadow-lg shadow-indigo-200 dark:shadow-none"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+                    ? "bg-[linear-gradient(90deg,rgba(14,165,233,0.95),rgba(124,58,237,0.95))] text-white shadow-[0_20px_45px_rgba(59,130,246,0.22)]"
+                    : "text-slate-600 hover:bg-white/70 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/[0.08] dark:hover:text-white"
                 }`}
               >
                 <span
                   className={`flex h-8 w-8 items-center justify-center rounded-xl ${
                     isActive
                       ? "bg-white/20 text-white"
-                      : "bg-slate-100 text-slate-500 group-hover:text-indigo-600 dark:bg-white/5 dark:text-slate-400"
+                      : "bg-slate-100 text-slate-500 group-hover:text-cyan-600 dark:bg-white/[0.04] dark:text-slate-400"
                   }`}
                 >
                   <Icon size={17} />
@@ -107,18 +107,18 @@ function SidebarContent({
         <ThemeToggle />
       </div>
 
-      <div className="mt-4 shrink-0 border-t border-slate-200 pt-4 dark:border-white/10">
+      <div className="mt-4 shrink-0 border-t border-slate-200/70 pt-4 dark:border-white/[0.08]">
         {loadingUser ? (
-          <div className="h-16 animate-pulse rounded-2xl bg-slate-100 dark:bg-white/10" />
+          <div className="h-16 animate-pulse rounded-2xl bg-slate-100/90 dark:bg-white/[0.08]" />
         ) : user ? (
           <>
             <Link
               href="/dashboard"
               onClick={onNavigate}
-              className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 p-3 dark:border-white/10 dark:bg-white/10"
+              className="flex items-center gap-3 rounded-[1.6rem] border border-white/60 bg-white/80 p-3 shadow-[0_16px_40px_rgba(148,163,184,0.18)] backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05] dark:shadow-[0_20px_50px_rgba(0,0,0,0.25)]"
             >
               <div className="relative">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-fuchsia-500 text-lg font-black text-white">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-violet-600 text-lg font-black text-white">
                   {getInitial}
                 </div>
                 <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-950" />
@@ -139,7 +139,7 @@ function SidebarContent({
 
             <button
               onClick={onLogout}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-red-50 hover:text-red-600 dark:bg-white/10 dark:text-white dark:hover:bg-red-500/10 dark:hover:text-red-300"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-100/90 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-red-50 hover:text-red-600 dark:bg-white/[0.06] dark:text-white dark:hover:bg-red-500/10 dark:hover:text-red-300"
             >
               <LogOut size={16} />
               Logout
@@ -182,7 +182,8 @@ export default function Sidebar() {
         </button>
       </header>
 
-      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-[#070B18] lg:flex">
+      <aside className="relative sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(255,255,255,0.62))] p-5 shadow-[30px_0_80px_rgba(148,163,184,0.12)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.92),rgba(8,12,24,0.86))] dark:shadow-[30px_0_90px_rgba(0,0,0,0.28)] lg:flex">
+        <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent dark:via-cyan-300/20" />
         <SidebarContent
           loadingUser={loading}
           pathname={pathname}
@@ -199,7 +200,7 @@ export default function Sidebar() {
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="relative flex h-full w-[85%] max-w-sm flex-col bg-white p-5 dark:bg-[#070B18]">
+          <aside className="relative flex h-full w-[85%] max-w-sm flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.8))] p-5 backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.96),rgba(8,12,24,0.92))]">
             <button
               onClick={() => setMobileOpen(false)}
               className="absolute right-4 top-4 rounded-2xl bg-slate-100 p-2 dark:bg-white/10 dark:text-white"

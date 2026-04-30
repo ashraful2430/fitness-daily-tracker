@@ -3,7 +3,7 @@
 
 @layer base {
   :root {
-    --font-roboto-serif: "Roboto Serif", serif;
+    --font-manrope: "Manrope", sans-serif;
   }
 }
 
@@ -18,7 +18,7 @@ html {
 html,
 body {
   margin: 0;
-  font-family: var(--font-roboto-serif), serif;
+  font-family: var(--font-manrope), sans-serif;
   background-color: #09090f;
   color: #ffffff;
 }

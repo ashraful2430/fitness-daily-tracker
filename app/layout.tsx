@@ -1,14 +1,14 @@
 // app/layout.tsx
 import type { Metadata } from "next";
-import { Roboto_Serif } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 
-const robotoSerif = Roboto_Serif({
+const manrope = Manrope({
   subsets: ["latin"],
-  variable: "--font-roboto-serif",
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  variable: "--font-manrope",
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
 });
 
@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     // ✅ add dark class here so entire app respects dark mode
     <html lang="en" className="dark">
-      <body className={`${robotoSerif.variable} font-serif antialiased`}>
+      <body className={`${manrope.variable} font-sans antialiased`}>
         <AuthProvider>
           {children}
           <Toaster
@@ -37,7 +37,7 @@ export default function RootLayout({
                 color: "#fff",
                 padding: "14px 18px",
                 fontWeight: "600",
-                fontFamily: "var(--font-roboto-serif)",
+                fontFamily: "var(--font-manrope)",
               },
               success: { iconTheme: { primary: "#22c55e", secondary: "#fff" } },
               error: { iconTheme: { primary: "#ef4444", secondary: "#fff" } },
