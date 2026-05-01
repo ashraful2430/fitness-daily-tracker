@@ -24,7 +24,9 @@ import type {
   UpdateAccountBalanceRequest,
 } from "@/types/money";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "NEXT_PUBLIC_API_URL=https://fitness-daily-tracker-backend-main.vercel.app";
 
 export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
@@ -90,7 +92,9 @@ async function apiRequest<T = unknown>(
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  const body = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+  const body = (await response
+    .json()
+    .catch(() => null)) as ApiEnvelope<T> | null;
 
   if (!response.ok) {
     const message = body?.message || "Something went wrong";
@@ -123,9 +127,9 @@ async function apiRequestWithMeta<T = unknown>(
   };
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  const body = (await response.json().catch(() => null)) as
-    | PaginatedApiEnvelope<T>
-    | null;
+  const body = (await response
+    .json()
+    .catch(() => null)) as PaginatedApiEnvelope<T> | null;
 
   if (!response.ok) {
     const message = body?.message || "Something went wrong";
@@ -169,8 +173,7 @@ export const authAPI = {
 export const dashboardAPI = {
   getDashboard: () => apiRequest<DashboardData>("/api/dashboard"),
 
-  getWeeklyStats: () =>
-    apiRequest<WeeklyStat[]>("/api/dashboard/weekly-stats"),
+  getWeeklyStats: () => apiRequest<WeeklyStat[]>("/api/dashboard/weekly-stats"),
 
   updateWaterIntake: (glassesConsumed: number) =>
     apiRequest<{ glassesConsumed: number }>("/api/dashboard/water", {
@@ -330,12 +333,13 @@ export const learningAPI = {
 
     return {
       data: response?.data ?? [],
-      pagination: (response?.pagination as LearningSessionsResponse["pagination"]) ?? {
-        page: query.page ?? 1,
-        limit: query.limit ?? 10,
-        total: response?.data?.length ?? 0,
-        totalPages: 1,
-      },
+      pagination:
+        (response?.pagination as LearningSessionsResponse["pagination"]) ?? {
+          page: query.page ?? 1,
+          limit: query.limit ?? 10,
+          total: response?.data?.length ?? 0,
+          totalPages: 1,
+        },
     } satisfies LearningSessionsResponse;
   },
 

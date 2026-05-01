@@ -1,11 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import HomeLanding from "@/components/home/HomeLanding";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  "https://fitness-daily-tracker.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Planify Life | Personal Growth Dashboard for Learning, Focus, Fitness, and Money",
+  title:
+    "Planify Life | Personal Growth Dashboard for Learning, Focus, Fitness, and Money",
   description:
     "Planify Life helps students, professionals, and creators track study sessions, focus blocks, fitness progress, habits, money, and reports in one modern dashboard.",
   keywords: [
