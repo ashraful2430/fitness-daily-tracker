@@ -11,12 +11,15 @@ type MongooseCache = {
   promise: Promise<typeof mongoose> | null;
 };
 
-// Declare global variable to avoid redundant connections
 declare global {
   var mongooseCache: MongooseCache | undefined;
 }
 
-let cached: MongooseCache = global.mongooseCache;
+// Add a fallback check when assigning from global
+let cached: MongooseCache = global.mongooseCache || {
+  conn: null,
+  promise: null,
+};
 
 if (!cached) {
   // Initialize cache if not already done
