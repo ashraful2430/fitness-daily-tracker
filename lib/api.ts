@@ -26,7 +26,7 @@ import type {
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "NEXT_PUBLIC_API_URL=https://fitness-daily-tracker-backend-main.vercel.app";
+  "https://fitness-daily-tracker-backend-main.vercel.app";
 
 export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
