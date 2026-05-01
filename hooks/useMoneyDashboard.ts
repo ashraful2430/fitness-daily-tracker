@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { ApiError, isUnauthorizedError, moneyAPI } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
+  AccountBalanceRecord,
   CreateExpenseRequest,
   ExpensesQuery,
   MoneyCategory,
@@ -13,6 +14,7 @@ import type {
   MoneySummary,
   MostSpentCategory,
   SalaryRecord,
+  UpdateAccountBalanceRequest,
   UpdateExpenseRequest,
 } from "@/types/money";
 
@@ -27,7 +29,9 @@ type FiltersState = {
 };
 
 function toLocalDateInputValue(date: Date) {
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  const offsetDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60000,
+  );
   return offsetDate.toISOString().slice(0, 10);
 }
 
@@ -59,6 +63,7 @@ function normalizeCategoryName(category: string) {
 function defaultSummary(): MoneySummary {
   return {
     salaryAmount: 0,
+    availableBalance: 0,
     totalExpenses: 0,
     expenseCount: 0,
     averageExpense: 0,
@@ -81,6 +86,8 @@ export function useMoneyDashboard() {
   const userId = user?.id ?? null;
   const [categories, setCategories] = useState<MoneyCategory[]>([]);
   const [salary, setSalary] = useState<SalaryRecord | null>(null);
+  const [accountBalance, setAccountBalance] =
+    useState<AccountBalanceRecord | null>(null);
   const [summary, setSummary] = useState<MoneySummary>(defaultSummary);
   const [mostSpentCategory, setMostSpentCategory] =
     useState<MostSpentCategory | null>(null);
@@ -99,12 +106,16 @@ export function useMoneyDashboard() {
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [salarySaving, setSalarySaving] = useState(false);
   const [salaryDeleting, setSalaryDeleting] = useState(false);
+  const [balanceSaving, setBalanceSaving] = useState(false);
+  const [balanceDeleting, setBalanceDeleting] = useState(false);
   const [categorySaving, setCategorySaving] = useState(false);
   const [deletingCategoryName, setDeletingCategoryName] = useState<
     string | null
   >(null);
   const [expenseSaving, setExpenseSaving] = useState(false);
-  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const isMounted = useRef(true);
   const lastToastMessage = useRef<string | null>(null);
@@ -158,18 +169,24 @@ export function useMoneyDashboard() {
       try {
         setSummaryLoading(true);
 
-        const [salaryResponse, summaryResponse, mostSpentResponse] =
-          await Promise.all([
-            moneyAPI.getSalary(userId),
-            moneyAPI.getSummary(),
-            moneyAPI.getMostSpentCategory(userId),
-          ]);
+        const [
+          salaryResponse,
+          summaryResponse,
+          mostSpentResponse,
+          balanceResponse,
+        ] = await Promise.all([
+          moneyAPI.getSalary(userId),
+          moneyAPI.getSummary(),
+          moneyAPI.getMostSpentCategory(userId),
+          moneyAPI.getAccountBalance(userId),
+        ]);
 
         if (!isMounted.current) return;
 
         setSalary(salaryResponse);
         setSummary(summaryResponse ?? defaultSummary());
         setMostSpentCategory(mostSpentResponse);
+        setAccountBalance(balanceResponse);
         setError(null);
         clearToastLock();
       } catch (error: unknown) {
@@ -307,9 +324,7 @@ export function useMoneyDashboard() {
 
       if (!normalized) {
         nextErrors.name = "Category name is required.";
-      } else if (
-        categories.some((category) => category.name === normalized)
-      ) {
+      } else if (categories.some((category) => category.name === normalized)) {
         nextErrors.name = "This category already exists.";
       }
 
@@ -336,7 +351,8 @@ export function useMoneyDashboard() {
       } else if (
         !categories.some((category) => category.name === normalizedCategory)
       ) {
-        nextErrors.category = "Create this category first before saving the expense.";
+        nextErrors.category =
+          "Create this category first before saving the expense.";
       }
 
       if (!payload.date) {
@@ -374,6 +390,45 @@ export function useMoneyDashboard() {
     [handleError, refreshAfterMutation, validateSalary],
   );
 
+  const saveAccountBalance = useCallback(
+    async (amount: string) => {
+      const errors: FormErrors = {};
+      if (!amount.trim()) {
+        errors.amount = "Available balance is required.";
+      } else if (!Number.isFinite(Number(amount)) || Number(amount) < 0) {
+        errors.amount = "Amount must be zero or greater.";
+      }
+
+      if (Object.keys(errors).length > 0) {
+        return { ok: false as const, errors };
+      }
+
+      try {
+        setBalanceSaving(true);
+        setError(null);
+        const balance = await moneyAPI.updateAccountBalance({
+          amount: Number(amount),
+        });
+
+        if (isMounted.current) {
+          setAccountBalance(balance);
+        }
+
+        await refreshAfterMutation();
+        toast.success("Available balance saved");
+        return { ok: true as const, errors: {} };
+      } catch (error: unknown) {
+        handleError(error, "Failed to save available balance", true);
+        return { ok: false as const, errors: {} };
+      } finally {
+        if (isMounted.current) {
+          setBalanceSaving(false);
+        }
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
   const resetSalary = useCallback(async () => {
     try {
       setSalaryDeleting(true);
@@ -388,6 +443,29 @@ export function useMoneyDashboard() {
     } finally {
       if (isMounted.current) {
         setSalaryDeleting(false);
+      }
+    }
+  }, [handleError, refreshAfterMutation]);
+
+  const resetAccountBalance = useCallback(async () => {
+    try {
+      setBalanceDeleting(true);
+      setError(null);
+      await moneyAPI.deleteAccountBalance();
+
+      if (isMounted.current) {
+        setAccountBalance(null);
+      }
+
+      await refreshAfterMutation();
+      toast.success("Available balance reset");
+      return true;
+    } catch (error: unknown) {
+      handleError(error, "Failed to reset available balance", true);
+      return false;
+    } finally {
+      if (isMounted.current) {
+        setBalanceDeleting(false);
       }
     }
   }, [handleError, refreshAfterMutation]);
@@ -429,7 +507,8 @@ export function useMoneyDashboard() {
         return { ok: true as const, message: "" };
       } catch (error: unknown) {
         if (isConflictError(error)) {
-          const message = "This category is already used by expenses and cannot be deleted.";
+          const message =
+            "This category is already used by expenses and cannot be deleted.";
           setError(message);
           toast.error(message);
           return { ok: false as const, message };
@@ -602,6 +681,7 @@ export function useMoneyDashboard() {
   return {
     user,
     salary,
+    accountBalance,
     summary,
     categories,
     categoryOptions,
@@ -614,6 +694,8 @@ export function useMoneyDashboard() {
     expensesLoading,
     salarySaving,
     salaryDeleting,
+    balanceSaving,
+    balanceDeleting,
     categorySaving,
     deletingCategoryName,
     expenseSaving,
@@ -623,6 +705,8 @@ export function useMoneyDashboard() {
     refreshExpenses,
     saveSalary,
     resetSalary,
+    saveAccountBalance,
+    resetAccountBalance,
     createCategory,
     deleteCategory,
     createExpense,

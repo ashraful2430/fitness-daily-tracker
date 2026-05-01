@@ -21,11 +21,7 @@ body {
   font-family: var(--font-manrope), sans-serif;
   background-color: #09090f;
   color: #ffffff;
-  height: 100%;
-}
-
-body {
-  overflow: hidden;
+  min-height: 100%;
 }
 
 button,

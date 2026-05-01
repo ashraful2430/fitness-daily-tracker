@@ -23,6 +23,14 @@ export interface SalaryRecord {
   amount: number;
 }
 
+export interface AccountBalanceRecord {
+  _id: string;
+  userId: string;
+  amount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface MoneySummaryTopCategory {
   _id: string;
   totalSpent: number;
@@ -31,6 +39,7 @@ export interface MoneySummaryTopCategory {
 
 export interface MoneySummary {
   salaryAmount: number;
+  availableBalance: number;
   totalExpenses: number;
   expenseCount: number;
   averageExpense: number;
@@ -83,5 +92,9 @@ export interface UpdateExpenseRequest {
 }
 
 export interface UpdateSalaryRequest {
+  amount: number;
+}
+
+export interface UpdateAccountBalanceRequest {
   amount: number;
 }

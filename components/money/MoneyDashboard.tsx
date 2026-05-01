@@ -140,6 +140,7 @@ export default function MoneyDashboard() {
   const {
     user,
     salary,
+    accountBalance,
     summary,
     categories,
     categoryOptions,
@@ -152,6 +153,8 @@ export default function MoneyDashboard() {
     expensesLoading,
     salarySaving,
     salaryDeleting,
+    balanceSaving,
+    balanceDeleting,
     categorySaving,
     deletingCategoryName,
     expenseSaving,
@@ -160,6 +163,8 @@ export default function MoneyDashboard() {
     refreshAll,
     saveSalary,
     resetSalary,
+    saveAccountBalance,
+    resetAccountBalance,
     createCategory,
     deleteCategory,
     createExpense,
@@ -172,6 +177,8 @@ export default function MoneyDashboard() {
 
   const [salaryAmount, setSalaryAmount] = useState("");
   const [salaryErrors, setSalaryErrors] = useState<FormErrors>({});
+  const [balanceAmount, setBalanceAmount] = useState("");
+  const [balanceErrors, setBalanceErrors] = useState<FormErrors>({});
   const [categoryName, setCategoryName] = useState("");
   const [categoryErrors, setCategoryErrors] = useState<FormErrors>({});
   const [expenseForm, setExpenseForm] =
@@ -191,6 +198,8 @@ export default function MoneyDashboard() {
 
   const activeCategory = expenseForm.category || categoryOptions[0] || "";
   const salaryDisplay = salary?.amount ?? summary.salaryAmount ?? 0;
+  const balanceDisplay =
+    accountBalance?.amount ?? summary.availableBalance ?? 0;
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -221,6 +230,32 @@ export default function MoneyDashboard() {
     if (ok) {
       setSalaryAmount("");
       setSalaryErrors({});
+    }
+  };
+
+  const handleBalanceSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    const result = await saveAccountBalance(balanceAmount);
+    setBalanceErrors(result.errors);
+
+    if (result.ok) {
+      setBalanceAmount("");
+    }
+  };
+
+  const handleBalanceReset = async () => {
+    const confirmed = window.confirm(
+      "Reset your available balance? This will remove the stored bank/cash amount.",
+    );
+
+    if (!confirmed) return;
+
+    const ok = await resetAccountBalance();
+    if (ok) {
+      setBalanceAmount("");
+      setBalanceErrors({});
     }
   };
 
@@ -386,6 +421,13 @@ export default function MoneyDashboard() {
             gradient="from-emerald-500 to-lime-400"
           />
           <StatCard
+            title="Available Balance"
+            value={formatAmount(balanceDisplay)}
+            subtitle="Bank/cash balance outside salary."
+            icon={CreditCard}
+            gradient="from-cyan-500 to-sky-400"
+          />
+          <StatCard
             title="Current Month Spent"
             value={formatAmount(summary.currentMonthSpent)}
             subtitle="Spending during the current month."
@@ -423,8 +465,8 @@ export default function MoneyDashboard() {
 
         <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr] xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-5">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-              <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
+              <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-500 dark:text-emerald-300">
                     Salary
@@ -445,7 +487,7 @@ export default function MoneyDashboard() {
                 </button>
               </div>
 
-              <div className="mb-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 dark:border-white/[0.08] dark:bg-white/[0.04]">
+              <div className="mb-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3.5 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
                 <p className="text-sm font-bold text-slate-500">
                   Current salary
                 </p>
@@ -521,8 +563,98 @@ export default function MoneyDashboard() {
               </form>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-              <div className="mb-6">
+            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
+              <div className="mb-5">
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
+                  Available Balance
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+                  Track bank/cash balance outside salary
+                </h2>
+              </div>
+
+              <div className="mb-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3.5 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
+                <p className="text-sm font-bold text-slate-500">
+                  Current available balance
+                </p>
+                <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
+                  {formatAmount(balanceDisplay)}
+                </p>
+              </div>
+
+              <form
+                onSubmit={handleBalanceSubmit}
+                className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
+              >
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                    Balance amount
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={balanceAmount}
+                    placeholder={String(balanceDisplay || 0)}
+                    onChange={(event) => {
+                      setBalanceAmount(event.target.value);
+                      if (balanceErrors.amount) setBalanceErrors({});
+                    }}
+                    aria-label="Available balance amount"
+                    aria-invalid={!!balanceErrors.amount}
+                    aria-describedby={
+                      balanceErrors.amount ? "balance-error" : undefined
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                  />
+                  {balanceErrors.amount ? (
+                    <p
+                      className="mt-2 text-sm font-semibold text-rose-500"
+                      id="balance-error"
+                      role="alert"
+                    >
+                      {balanceErrors.amount}
+                    </p>
+                  ) : null}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={balanceSaving}
+                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {balanceSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Coins className="h-4 w-4" />
+                  )}
+                  Save
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBalanceReset}
+                  disabled={balanceDeleting}
+                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                >
+                  {balanceDeleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Reset
+                </button>
+              </form>
+
+              <p className="mt-4 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
+                Use this to track your cash/bank balance separate from salary.
+                Expenses can be deducted from this balance and salary together
+                when both exist.
+              </p>
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
+              <div className="mb-5">
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
                   Categories
                 </p>
@@ -613,9 +745,9 @@ export default function MoneyDashboard() {
 
           <div
             ref={expenseFormRef}
-            className="scroll-mt-24 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
+            className="scroll-mt-24 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20"
           >
-            <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
                   Expense Management
@@ -636,8 +768,8 @@ export default function MoneyDashboard() {
               ) : null}
             </div>
 
-            <form onSubmit={handleExpenseSubmit} className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <form onSubmit={handleExpenseSubmit} className="grid gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
                     Amount
@@ -707,7 +839,7 @@ export default function MoneyDashboard() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                   Description
                 </label>
                 <input
@@ -739,7 +871,7 @@ export default function MoneyDashboard() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                   Category
                 </label>
                 <select
@@ -779,7 +911,7 @@ export default function MoneyDashboard() {
               <button
                 type="submit"
                 disabled={expenseSaving}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-500 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-cyan-950/30 transition hover:shadow-lg hover:shadow-cyan-600/40 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {expenseSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -795,8 +927,8 @@ export default function MoneyDashboard() {
         </section>
 
         <section className="grid gap-5 lg:grid-cols-[1fr_0.85fr] xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-            <div className="mb-6 space-y-4">
+          <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
+            <div className="mb-4 space-y-3">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
                   <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-500 dark:text-orange-300">
@@ -841,11 +973,11 @@ export default function MoneyDashboard() {
 
               <form
                 onSubmit={handleApplyFilters}
-                className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4 dark:border-white/[0.08] dark:bg-white/[0.035]"
+                className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 dark:border-white/[0.08] dark:bg-white/[0.03]"
               >
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
-                  <label className="space-y-2">
-                    <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
+                  <label className="space-y-1.5">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                       From
                     </span>
                     <input
@@ -854,12 +986,12 @@ export default function MoneyDashboard() {
                       onChange={(event) =>
                         updateFilterField("startDate", event.target.value)
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 dark:border-white/[0.08] dark:bg-[#171329] dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white"
                     />
                   </label>
 
-                  <label className="space-y-2">
-                    <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  <label className="space-y-1.5">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                       To
                     </span>
                     <input
@@ -868,12 +1000,12 @@ export default function MoneyDashboard() {
                       onChange={(event) =>
                         updateFilterField("endDate", event.target.value)
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 dark:border-white/[0.08] dark:bg-[#171329] dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white"
                     />
                   </label>
 
-                  <label className="space-y-2">
-                    <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  <label className="space-y-1.5">
+                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                       Category
                     </span>
                     <select
@@ -881,7 +1013,7 @@ export default function MoneyDashboard() {
                       onChange={(event) =>
                         updateFilterField("category", event.target.value)
                       }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 dark:border-white/[0.08] dark:bg-[#171329] dark:text-white"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white"
                     >
                       <option value="">All categories</option>
                       {categoryOptions.map((category) => (
@@ -896,7 +1028,7 @@ export default function MoneyDashboard() {
                     <button
                       type="submit"
                       disabled={expensesLoading}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70 dark:bg-white dark:text-slate-950 lg:w-auto lg:min-w-[120px]"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-2 text-sm font-bold text-white transition hover:shadow-lg hover:shadow-slate-900/30 hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-70 dark:from-white dark:to-slate-100 dark:text-slate-950 lg:w-auto lg:min-w-[100px]"
                     >
                       {expensesLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -910,8 +1042,8 @@ export default function MoneyDashboard() {
               </form>
             </div>
 
-            <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-white/[0.08]">
-              <div className="hidden grid-cols-[0.95fr_1.6fr_1fr_0.9fr_0.9fr] gap-4 bg-slate-50 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500 lg:grid dark:bg-white/[0.04]">
+            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-white/[0.08]">
+              <div className="hidden grid-cols-[0.95fr_1.6fr_1fr_0.9fr_0.9fr] gap-4 bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600 lg:grid dark:from-white/[0.04] dark:to-white/[0.02] dark:text-slate-500">
                 <span>Amount</span>
                 <span>Description</span>
                 <span>Category</span>
@@ -1057,7 +1189,7 @@ export default function MoneyDashboard() {
                 Most spent and top categories
               </h2>
 
-              <div className="mt-5 rounded-[1.5rem] bg-slate-50 p-5 dark:bg-white/[0.04]">
+              <div className="mt-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:from-white/[0.05] dark:to-white/[0.03]">
                 <p className="text-sm font-bold text-slate-500">
                   Most spent category
                 </p>
@@ -1071,7 +1203,7 @@ export default function MoneyDashboard() {
                 </p>
               </div>
 
-              <div className="mt-6 h-72 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]">
+              <div className="mt-5 h-64 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3.5 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
@@ -1130,7 +1262,7 @@ export default function MoneyDashboard() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
+            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-500 dark:text-emerald-300">
                 Top Categories
               </p>
@@ -1138,12 +1270,12 @@ export default function MoneyDashboard() {
                 Spend distribution
               </h2>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-4 space-y-2">
                 {summary.topCategories.length > 0 ? (
                   summary.topCategories.map((category) => (
                     <div
                       key={category._id}
-                      className="rounded-[1.3rem] border border-slate-200 bg-slate-50 px-4 py-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
+                      className="rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3.5 py-3 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]"
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div>

@@ -18,8 +18,10 @@ import type {
   MoneyExpense,
   MoneySummary,
   SalaryRecord,
+  AccountBalanceRecord,
   UpdateExpenseRequest,
   UpdateSalaryRequest,
+  UpdateAccountBalanceRequest,
 } from "@/types/money";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -260,6 +262,20 @@ export const moneyAPI = {
 
   getSalary: (userId: string) =>
     apiRequest<SalaryRecord | null>(`/api/money/salary/${userId}`),
+
+  updateAccountBalance: (payload: UpdateAccountBalanceRequest) =>
+    apiRequest<AccountBalanceRecord>("/api/money/balance", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteAccountBalance: () =>
+    apiRequest<void>("/api/money/balance", {
+      method: "DELETE",
+    }),
+
+  getAccountBalance: (userId: string) =>
+    apiRequest<AccountBalanceRecord | null>(`/api/money/balance/${userId}`),
 
   getExpenses: async (query: ExpensesQuery) => {
     const params = new URLSearchParams();
