@@ -3,7 +3,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
-  ChevronDown,
   CheckCircle,
   AlertCircle,
   Clock,
@@ -27,7 +26,14 @@ export default function LoanDetailsModal({
   onClose,
   onRepayClick,
 }: LoanDetailsModalProps) {
-  if (!loan) return null;
+  if (!isOpen || !loan) return null;
+
+  // Safe values
+  const amount = loan.amount ?? 0;
+  const totalRepaid = loan.totalRepaid ?? 0;
+  const remainingAmount = loan.remainingAmount ?? 0;
+
+  const percentagePaid = amount > 0 ? (totalRepaid / amount) * 100 : 0;
 
   const getStatusIcon = () => {
     switch (loan.status) {
@@ -51,7 +57,7 @@ export default function LoanDetailsModal({
       case "CLOSED":
         return "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20";
       default:
-        return "";
+        return "text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700";
     }
   };
 
@@ -67,8 +73,6 @@ export default function LoanDetailsModal({
         return loan.status;
     }
   };
-
-  const percentagePaid = (loan.totalRepaid / loan.amount) * 100;
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -88,39 +92,40 @@ export default function LoanDetailsModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/60 z-40"
           />
 
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] overflow-y-auto z-50"
-          >
-            <div className="relative bg-white/5 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-2xl shadow-cyan-500/5 border border-white/10 overflow-hidden">
+          {/* Modal wrapper */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-2xl flex flex-col"
+            >
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5 dark:bg-slate-800/60 backdrop-blur-xl sticky top-0">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                   Loan Details
                 </h2>
                 <button
                   onClick={onClose}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Content */}
-              <div className="p-6 space-y-6">
-                {/* Borrower & Status */}
+              <div className="p-5 overflow-y-auto space-y-5">
+                {/* Borrower */}
                 <div>
-                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                    {loan.borrowerName}
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {loan.borrower}
                   </h3>
+
                   <div
-                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${getStatusColor()}`}
+                    className={`inline-flex items-center gap-2 px-3 py-1 mt-2 rounded-full ${getStatusColor()}`}
                   >
                     {getStatusIcon()}
                     <span className="text-sm font-medium">
@@ -129,21 +134,18 @@ export default function LoanDetailsModal({
                   </div>
                 </div>
 
-                {/* Loan Amount Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <p className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                      Total Amount
-                    </p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                      ${loan.amount.toFixed(0)}
+                {/* Amounts */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <p className="text-xs text-slate-500">Total</p>
+                    <p className="text-lg font-bold text-slate-900 dark:text-white">
+                      ${amount.toFixed(0)}
                     </p>
                   </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <p className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                      Type
-                    </p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">
+
+                  <div className="p-3 rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <p className="text-xs text-slate-500">Type</p>
+                    <p className="text-lg font-bold text-slate-900 dark:text-white">
                       {loan.sourceType === "PERSONAL" ? "Personal" : "Borrowed"}
                     </p>
                   </div>
@@ -151,118 +153,61 @@ export default function LoanDetailsModal({
 
                 {/* Progress */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                      Repayment Progress
-                    </p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                  <div className="flex justify-between mb-1">
+                    <p className="text-sm text-slate-500">Progress</p>
+                    <p className="text-sm font-semibold">
                       {percentagePaid.toFixed(0)}%
                     </p>
                   </div>
-                  <div className="w-full h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${percentagePaid}%` }}
-                      transition={{ delay: 0.2, duration: 0.5 }}
-                      className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full"
+
+                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500"
+                      style={{ width: `${percentagePaid}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Repayment Summary */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">
-                      Repaid
-                    </p>
-                    <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                      ${loan.totalRepaid.toFixed(0)}
-                    </p>
+                {/* Summary */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded">
+                    <p className="text-xs">Repaid</p>
+                    <p className="font-bold">${totalRepaid.toFixed(0)}</p>
                   </div>
-                  <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                    <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">
-                      Remaining
-                    </p>
-                    <p className="text-lg font-bold text-orange-900 dark:text-orange-100">
-                      ${loan.remainingAmount.toFixed(0)}
-                    </p>
+
+                  <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded">
+                    <p className="text-xs">Remaining</p>
+                    <p className="font-bold">${remainingAmount.toFixed(0)}</p>
                   </div>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">
-                      Created
-                    </p>
-                    <p className="text-lg font-bold text-slate-900 dark:text-white">
+
+                  <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded">
+                    <p className="text-xs">Created</p>
+                    <p className="font-bold text-xs">
                       {formatDate(loan.createdAt)}
                     </p>
                   </div>
                 </div>
 
-                {/* Metadata */}
-                {loan.borrowedFromName && (
-                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                    <p className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                      Borrowed From
-                    </p>
-                    <p className="font-semibold text-slate-900 dark:text-white">
-                      {loan.borrowedFromName}
-                    </p>
-                  </div>
-                )}
-
-                {loan.note && (
-                  <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
-                    <p className="text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">
-                      Note
-                    </p>
-                    <p className="text-slate-900 dark:text-white">
-                      {loan.note}
-                    </p>
-                  </div>
-                )}
-
-                {/* Transaction History */}
+                {/* Transactions */}
                 <div>
-                  <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-3">
-                    Transaction History
-                  </h4>
+                  <h4 className="font-semibold mb-2">Transactions</h4>
+
                   <div className="space-y-2">
                     {transactions.length === 0 ? (
-                      <p className="text-sm text-slate-600 dark:text-slate-400 text-center py-4">
+                      <p className="text-sm text-slate-500">
                         No transactions yet
                       </p>
                     ) : (
-                      transactions.map((transaction) => (
+                      transactions.map((t) => (
                         <div
-                          key={transaction._id}
-                          className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600"
+                          key={t._id}
+                          className="flex justify-between p-2 rounded bg-slate-100 dark:bg-slate-800"
                         >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`p-2 rounded-full ${
-                                transaction.type === "DISBURSEMENT"
-                                  ? "bg-green-100 dark:bg-green-900/30"
-                                  : "bg-blue-100 dark:bg-blue-900/30"
-                              }`}
-                            >
-                              {transaction.type === "DISBURSEMENT" ? (
-                                <ArrowDownLeft className="w-4 h-4 text-green-600 dark:text-green-400" />
-                              ) : (
-                                <ArrowUpRight className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-slate-900 dark:text-white">
-                                {transaction.type === "DISBURSEMENT"
-                                  ? "Loan Disbursed"
-                                  : "Repayment"}
-                              </p>
-                              <p className="text-xs text-slate-600 dark:text-slate-400">
-                                {formatDate(transaction.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">
-                            ${transaction.amount.toFixed(0)}
+                          <p className="text-sm">
+                            {t.type === "DISBURSEMENT" ? "Loan" : "Repayment"}
+                          </p>
+                          <p className="font-semibold">
+                            ${t.amount.toFixed(0)}
                           </p>
                         </div>
                       ))
@@ -270,25 +215,21 @@ export default function LoanDetailsModal({
                   </div>
                 </div>
 
-                {/* Action Buttons */}
+                {/* Action */}
                 {loan.status !== "CLOSED" && (
-                  <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        onRepayClick();
-                        onClose();
-                      }}
-                      className="flex-1 px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
-                    >
-                      Process Repayment
-                    </motion.button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      onRepayClick();
+                      onClose();
+                    }}
+                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                  >
+                    Process Repayment
+                  </button>
                 )}
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
