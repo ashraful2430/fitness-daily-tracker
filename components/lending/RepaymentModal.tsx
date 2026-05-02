@@ -72,7 +72,7 @@ export default function RepaymentModal({
 
       try {
         await lendingAPI.repayLoan(loan._id, {
-          repaymentAmount: parseFloat(amount),
+          amount: parseFloat(amount),
         });
 
         toast.success("Repayment processed successfully!");
@@ -95,7 +95,8 @@ export default function RepaymentModal({
 
   if (!loan) return null;
 
-  const willBeClosed = parseFloat(amount) === loan.remainingAmount;
+  const entered = parseFloat(amount || "0");
+  const willBeClosed = entered === loan.remainingAmount;
 
   return (
     <AnimatePresence>
