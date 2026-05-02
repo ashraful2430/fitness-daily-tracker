@@ -68,8 +68,9 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white truncate">
-              {loan.borrowerName}
+              {loan.borrower}
             </h3>
+
             <div
               className={`flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 ${getStatusColor()}`}
             >
@@ -107,12 +108,14 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
                 ${totalRepaid.toFixed(0)}
               </p>
             </div>
+
             <div>
               <p className="text-slate-600 dark:text-slate-400">Remaining</p>
               <p className="font-semibold text-slate-900 dark:text-white">
                 ${remainingAmount.toFixed(0)}
               </p>
             </div>
+
             <div>
               <p className="text-slate-600 dark:text-slate-400">Type</p>
               <p className="font-semibold text-slate-900 dark:text-white">
