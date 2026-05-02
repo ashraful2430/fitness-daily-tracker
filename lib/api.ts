@@ -352,8 +352,7 @@ export const lendingAPI = {
   getExternalDebts: () => apiRequest<ExternalDebt[]>("/api/debts"),
 
   // Statistics
-  getLendingStats: () =>
-    apiRequest<LendingStats>("/api/lending-stats"),
+  getLendingStats: () => apiRequest<LendingStats>("/api/lending-stats"),
 };
 
 export const learningAPI = {

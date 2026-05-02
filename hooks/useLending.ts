@@ -179,24 +179,26 @@ export function useLending() {
           setState((prev) => ({
             ...prev,
             loans: [...prev.loans, response.loan],
-            summary: prev.summary ? {
-              ...prev.summary,
-              personalBalance:
-                data.sourceType === "PERSONAL"
-                  ? prev.summary.personalBalance - data.amount
-                  : prev.summary.personalBalance,
-              totalLent:
-                prev.summary.totalLent +
-                (data.sourceType === "PERSONAL" ? data.amount : 0),
-              totalOutstandingLoans:
-                data.sourceType === "PERSONAL"
-                  ? prev.summary.totalOutstandingLoans + data.amount
-                  : prev.summary.totalOutstandingLoans,
-              totalBorrowedLiability:
-                data.sourceType === "BORROWED"
-                  ? prev.summary.totalBorrowedLiability + data.amount
-                  : prev.summary.totalBorrowedLiability,
-            } : prev.summary,
+            summary: prev.summary
+              ? {
+                  ...prev.summary,
+                  personalBalance:
+                    data.sourceType === "PERSONAL"
+                      ? prev.summary.personalBalance - data.amount
+                      : prev.summary.personalBalance,
+                  totalLent:
+                    prev.summary.totalLent +
+                    (data.sourceType === "PERSONAL" ? data.amount : 0),
+                  totalOutstandingLoans:
+                    data.sourceType === "PERSONAL"
+                      ? prev.summary.totalOutstandingLoans + data.amount
+                      : prev.summary.totalOutstandingLoans,
+                  totalBorrowedLiability:
+                    data.sourceType === "BORROWED"
+                      ? prev.summary.totalBorrowedLiability + data.amount
+                      : prev.summary.totalBorrowedLiability,
+                }
+              : prev.summary,
             isCreatingLoan: false,
           }));
 
@@ -242,13 +244,15 @@ export function useLending() {
               ...prev,
               loans: updatedLoans,
               selectedLoan: response.loan,
-              summary: prev.summary ? {
-                ...prev.summary,
-                personalBalance: prev.summary.personalBalance + data.repaymentAmount,
-                totalOutstandingLoans:
-                  prev.summary.totalOutstandingLoans -
-                  data.repaymentAmount,
-              } : prev.summary,
+              summary: prev.summary
+                ? {
+                    ...prev.summary,
+                    personalBalance:
+                      prev.summary.personalBalance + data.repaymentAmount,
+                    totalOutstandingLoans:
+                      prev.summary.totalOutstandingLoans - data.repaymentAmount,
+                  }
+                : prev.summary,
               isProcessingRepayment: false,
             };
           });

@@ -3,6 +3,7 @@
 ## Overview
 
 A complete lending management frontend has been implemented for the Money Tracker. This feature allows users to:
+
 - Create and track loans with borrowers
 - Process loan repayments
 - Track external debts owed to creditors
@@ -39,13 +40,16 @@ app/(app)/lending/
 ### Key Components
 
 #### 1. **LendingDashboard** (Main Container)
+
 - Orchestrates all lending components
 - Manages modal states (create loan, view details, repayment)
 - Handles loan selection and navigation
 - Displays error banners and loading states
 
 #### 2. **FinancialSummaryPanel** (Quick Stats)
+
 Displays 5 key financial metrics:
+
 - **Personal Balance**: Available funds
 - **Total Lent**: Sum of all loans given
 - **Outstanding Loans**: Money still owed by borrowers
@@ -53,12 +57,14 @@ Displays 5 key financial metrics:
 - **Net Position**: Balance minus liability
 
 #### 3. **LoansList** (Main List View)
+
 - Displays all loans in card format
 - Shows status indicators (Active, Partially Paid, Closed)
 - Displays progress bars for repayment progress
 - Clickable to view loan details
 
 #### 4. **LoanCard** (Individual Loan)
+
 - Shows borrower name and amount
 - Progress bar showing repayment progress
 - Status badge (color-coded)
@@ -66,7 +72,9 @@ Displays 5 key financial metrics:
 - Clickable for details
 
 #### 5. **CreateLoanModal** (New Loan Form)
+
 Form fields:
+
 - Borrower name (required, 2-50 chars)
 - Amount (required, > 0)
 - Funding source (PERSONAL or BORROWED)
@@ -74,11 +82,13 @@ Form fields:
 - Note (optional, max 500 chars)
 
 Validation:
+
 - Client-side validation before submission
 - Server-side validation error handling
 - Real-time error display
 
 #### 6. **LoanDetailsModal** (Loan Details)
+
 - Shows full loan information
 - Displays transaction history
 - Shows repayment progress and remaining amount
@@ -86,6 +96,7 @@ Validation:
 - "Process Repayment" button for active loans
 
 #### 7. **RepaymentModal** (Repayment Form)
+
 - Shows borrower and remaining balance
 - Input field for repayment amount
 - Max value validation
@@ -93,12 +104,14 @@ Validation:
 - Success/error handling
 
 #### 8. **ExternalDebtsPanel** (Debts Owed)
+
 - Lists creditors you owe money to
 - Shows total liability and remaining amounts
 - Progress bars for repayment progress
 - Clear status for paid-off debts
 
 #### 9. **LendingSummaryPanel** (Money Dashboard Widget)
+
 - Quick summary card for money dashboard
 - Shows active loan count
 - Displays total lent and outstanding loans
@@ -107,6 +120,7 @@ Validation:
 ### State Management
 
 **useLending Hook** manages:
+
 ```typescript
 {
   loans: Loan[];                    // All loans
@@ -128,21 +142,22 @@ All API calls are wrapped in `lendingAPI` object:
 
 ```typescript
 // Loan Management
-lendingAPI.createLoan(payload)
-lendingAPI.getAllLoans()
-lendingAPI.getLoanDetails(id)
-lendingAPI.repayLoan(id, payload)
-lendingAPI.getLoanTransactions(id)
+lendingAPI.createLoan(payload);
+lendingAPI.getAllLoans();
+lendingAPI.getLoanDetails(id);
+lendingAPI.repayLoan(id, payload);
+lendingAPI.getLoanTransactions(id);
 
 // Financial Data
-lendingAPI.getFinancialSummary()
-lendingAPI.getExternalDebts()
-lendingAPI.getLendingStats()
+lendingAPI.getFinancialSummary();
+lendingAPI.getExternalDebts();
+lendingAPI.getLendingStats();
 ```
 
 ## Features
 
 ### 1. Create Loan
+
 ```typescript
 // Creates a new loan from personal balance or external borrowing
 POST /api/loans
@@ -156,6 +171,7 @@ POST /api/loans
 ```
 
 ### 2. Process Repayment
+
 ```typescript
 // Records a repayment for a loan
 POST /api/loans/:id/repay
@@ -165,6 +181,7 @@ POST /api/loans/:id/repay
 ```
 
 ### 3. View Financial Summary
+
 ```typescript
 // Gets all financial metrics
 GET /api/financial-summary
@@ -179,9 +196,10 @@ GET /api/financial-summary
 ```
 
 ### 4. Track External Debts
+
 ```typescript
 // Gets all debts owed to creditors
-GET /api/debts
+GET / api / debts;
 {
   creditorName: string;
   totalAmount: number;
@@ -193,6 +211,7 @@ GET /api/debts
 ## User Workflows
 
 ### Creating a Loan (Personal Balance)
+
 1. Click "Create Loan" button
 2. Fill in borrower name
 3. Enter amount
@@ -204,6 +223,7 @@ GET /api/debts
 9. ✓ Outstanding loans amount updates
 
 ### Creating a Loan (Borrowed Funds)
+
 1. Click "Create Loan" button
 2. Fill in borrower name
 3. Enter amount
@@ -216,6 +236,7 @@ GET /api/debts
 10. ✓ Loan appears in list
 
 ### Processing a Repayment
+
 1. Click on a loan to view details
 2. Click "Process Repayment"
 3. Enter repayment amount (≤ remaining)
@@ -227,6 +248,7 @@ GET /api/debts
 9. ✓ Summary refreshes
 
 ### Viewing Loan Details
+
 1. Click on a loan in the list
 2. See full loan information:
    - Total amount borrowed
@@ -241,21 +263,25 @@ GET /api/debts
 ## Data Types
 
 ### Loan Status
+
 - `ACTIVE`: No repayments made yet
 - `PARTIALLY_PAID`: Some repayments made, balance remains
 - `CLOSED`: Fully repaid
 
 ### Source Type
+
 - `PERSONAL`: Loaned from personal balance
 - `BORROWED`: Loaned from external funds (increases liability)
 
 ### Transaction Type
+
 - `DISBURSEMENT`: Initial loan creation
 - `REPAYMENT`: Loan repayment
 
 ## Error Handling
 
 All errors are handled gracefully:
+
 - Form validation errors show inline
 - API errors display in error banner
 - Toast notifications for success/failure
@@ -263,8 +289,9 @@ All errors are handled gracefully:
 - Unauthorized errors redirect to login
 
 ### Common Errors
+
 ```
-"Insufficient balance" 
+"Insufficient balance"
 → Personal balance not enough for loan
 
 "Creditor name is required for BORROWED source type"
@@ -280,6 +307,7 @@ All errors are handled gracefully:
 ## UI/UX Features
 
 ### Visual Indicators
+
 - **Status Badges**: Color-coded (blue, orange, green)
 - **Progress Bars**: Show repayment progress
 - **Icons**: Visual indicators for transaction types
@@ -287,11 +315,13 @@ All errors are handled gracefully:
 - **Animations**: Smooth transitions and interactions
 
 ### Responsive Design
+
 - Desktop: Full grid layout (loans on left, debts on right)
 - Tablet: Adjusted grid, stacked components
 - Mobile: Full-width, stacked layout
 
 ### Real-time Updates
+
 - Summary updates after loan creation
 - Loan list refreshes after repayment
 - Statistics update in real-time
@@ -309,6 +339,7 @@ import LendingSummaryPanel from "@/components/lending/LendingSummaryPanel";
 ```
 
 This displays:
+
 - Active loan count
 - Total lent amount
 - Outstanding loans amount
@@ -361,21 +392,25 @@ This displays:
 ## Troubleshooting
 
 ### Loans not loading?
+
 - Check authentication (user must be logged in)
 - Verify API endpoints are accessible
 - Check browser console for errors
 
 ### Balance not updating?
+
 - Refresh the page
 - Clear browser cache
 - Check API response in network tab
 
 ### Cannot create loan?
+
 - Verify personal balance is sufficient (for PERSONAL source)
 - Ensure all required fields are filled
 - Check creditor name field for BORROWED loans
 
 ### Modals not closing?
+
 - Try refreshing the page
 - Clear browser cache
 - Check browser console for errors

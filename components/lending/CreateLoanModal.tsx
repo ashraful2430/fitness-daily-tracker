@@ -83,7 +83,8 @@ export default function CreateLoanModal({
           borrowerName: borrowerName.trim(),
           amount: parseFloat(amount),
           sourceType,
-          borrowedFromName: sourceType === "BORROWED" ? creditorName.trim() : undefined,
+          borrowedFromName:
+            sourceType === "BORROWED" ? creditorName.trim() : undefined,
           note: note.trim() || undefined,
         };
 
@@ -100,7 +101,15 @@ export default function CreateLoanModal({
         setIsSubmitting(false);
       }
     },
-    [validateForm, borrowerName, amount, sourceType, creditorName, note, onSuccess],
+    [
+      validateForm,
+      borrowerName,
+      amount,
+      sourceType,
+      creditorName,
+      note,
+      onSuccess,
+    ],
   );
 
   const handleClose = useCallback(() => {
@@ -201,10 +210,17 @@ export default function CreateLoanModal({
                     Funding Source *
                   </label>
                   <div className="space-y-2">
-                    <label className="flex items-center gap-3 p-3 rounded-lg border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" style={{
-                      borderColor: sourceType === "PERSONAL" ? "#3b82f6" : undefined,
-                      backgroundColor: sourceType === "PERSONAL" ? "rgba(59, 130, 246, 0.05)" : undefined,
-                    }}>
+                    <label
+                      className="flex items-center gap-3 p-3 rounded-lg border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                      style={{
+                        borderColor:
+                          sourceType === "PERSONAL" ? "#3b82f6" : undefined,
+                        backgroundColor:
+                          sourceType === "PERSONAL"
+                            ? "rgba(59, 130, 246, 0.05)"
+                            : undefined,
+                      }}
+                    >
                       <input
                         type="radio"
                         name="sourceType"
@@ -220,10 +236,17 @@ export default function CreateLoanModal({
                       </span>
                     </label>
 
-                    <label className="flex items-center gap-3 p-3 rounded-lg border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors" style={{
-                      borderColor: sourceType === "BORROWED" ? "#3b82f6" : undefined,
-                      backgroundColor: sourceType === "BORROWED" ? "rgba(59, 130, 246, 0.05)" : undefined,
-                    }}>
+                    <label
+                      className="flex items-center gap-3 p-3 rounded-lg border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                      style={{
+                        borderColor:
+                          sourceType === "BORROWED" ? "#3b82f6" : undefined,
+                        backgroundColor:
+                          sourceType === "BORROWED"
+                            ? "rgba(59, 130, 246, 0.05)"
+                            : undefined,
+                      }}
+                    >
                       <input
                         type="radio"
                         name="sourceType"

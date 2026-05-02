@@ -78,7 +78,9 @@ export default function RepaymentModal({
         onSuccess();
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to process repayment";
+          error instanceof Error
+            ? error.message
+            : "Failed to process repayment";
         toast.error(errorMessage);
       } finally {
         setIsSubmitting(false);
@@ -203,7 +205,9 @@ export default function RepaymentModal({
                       Status After Repayment
                     </p>
                     <p className="font-semibold text-blue-900 dark:text-blue-100">
-                      {willBeClosed ? "Loan will be CLOSED" : "Loan will remain PARTIALLY_PAID"}
+                      {willBeClosed
+                        ? "Loan will be CLOSED"
+                        : "Loan will remain PARTIALLY_PAID"}
                     </p>
                   </div>
                 )}

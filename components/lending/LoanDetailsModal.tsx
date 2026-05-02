@@ -119,7 +119,9 @@ export default function LoanDetailsModal({
                   <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
                     {loan.borrowerName}
                   </h3>
-                  <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${getStatusColor()}`}>
+                  <div
+                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${getStatusColor()}`}
+                  >
                     {getStatusIcon()}
                     <span className="text-sm font-medium">
                       {getStatusLabel()}

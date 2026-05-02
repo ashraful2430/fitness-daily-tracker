@@ -79,8 +79,7 @@ export default function ExternalDebtsPanel({ debts }: ExternalDebtsPanelProps) {
           <div className="divide-y divide-slate-200 dark:divide-slate-700">
             {debts.map((debt) => {
               const percentagePaid = (
-                ((debt.totalAmount - debt.remainingAmount) /
-                  debt.totalAmount) *
+                ((debt.totalAmount - debt.remainingAmount) / debt.totalAmount) *
                 100
               ).toFixed(0);
 
