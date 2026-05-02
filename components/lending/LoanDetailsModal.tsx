@@ -98,9 +98,9 @@ export default function LoanDetailsModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg max-h-[90vh] overflow-y-auto z-50"
           >
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="relative bg-white/5 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-2xl shadow-cyan-500/5 border border-white/10 overflow-hidden">
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800">
+              <div className="flex items-center justify-between p-6 border-b border-white/10 bg-white/5 dark:bg-slate-800/60 backdrop-blur-xl sticky top-0">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                   Loan Details
                 </h2>

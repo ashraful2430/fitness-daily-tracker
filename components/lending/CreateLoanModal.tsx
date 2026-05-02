@@ -91,7 +91,13 @@ export default function CreateLoanModal({
         await lendingAPI.createLoan(payload);
 
         toast.success("Loan created successfully!");
-        handleClose();
+        setBorrowerName("");
+        setAmount("");
+        setSourceType("PERSONAL");
+        setCreditorName("");
+        setNote("");
+        setErrors({});
+        onClose();
         onSuccess();
       } catch (error) {
         const errorMessage =
@@ -142,10 +148,10 @@ export default function CreateLoanModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-50"
           >
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="relative bg-white/5 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-2xl shadow-cyan-500/5 border border-white/10 overflow-hidden">
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              <div className="flex items-center justify-between p-6 border-b border-white/10 bg-gradient-to-r from-cyan-400/10 via-blue-400/5 to-transparent">
+                <h2 className="text-xl font-bold text-white">
                   Create New Loan
                 </h2>
                 <button
@@ -319,7 +325,7 @@ export default function CreateLoanModal({
                     type="button"
                     onClick={handleClose}
                     disabled={isSubmitting}
-                    className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    className="flex-1 px-4 py-2 rounded-xl border border-white/10 text-white/90 font-medium hover:bg-white/5 transition-colors disabled:opacity-50"
                   >
                     Cancel
                   </motion.button>

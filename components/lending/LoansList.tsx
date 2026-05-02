@@ -18,8 +18,8 @@ export default function LoansList({
 }: LoansListProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 bg-white dark:bg-slate-800 rounded-lg">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <div className="flex items-center justify-center h-64 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-40px_rgba(34,211,238,0.35)]">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-300" />
       </div>
     );
   }
@@ -29,12 +29,10 @@ export default function LoansList({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-slate-800 rounded-lg p-12 text-center border border-slate-200 dark:border-slate-700"
+        className="relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-12 text-center shadow-[0_20px_80px_-40px_rgba(34,211,238,0.25)] overflow-hidden"
       >
-        <FileText className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-          No loans yet
-        </h3>
+        <FileText className="w-12 h-12 text-cyan-200 mx-auto mb-3" />
+        <h3 className="text-lg font-semibold text-white mb-2">No loans yet</h3>
         <p className="text-slate-600 dark:text-slate-400">
           Create your first loan to get started tracking lending activities
         </p>
@@ -57,7 +55,7 @@ export default function LoansList({
       variants={container}
       initial="hidden"
       animate="show"
-      className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden"
+      className="relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden shadow-[0_20px_80px_-40px_rgba(34,211,238,0.18)]"
     >
       <div className="p-6 border-b border-slate-200 dark:border-slate-700">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
