@@ -13,15 +13,15 @@ import type {
   CreateExpenseRequest,
   ExpensesQuery,
   ExpensesResponse,
-  MostSpentCategory,
   MoneyCategory,
   MoneyExpense,
   MoneySummary,
   SalaryRecord,
-  AccountBalanceRecord,
+  BalanceResponse,
+  BalanceSource,
+  MonthlyExpenseSummary,
   UpdateExpenseRequest,
   UpdateSalaryRequest,
-  UpdateAccountBalanceRequest,
   Loan,
   ExternalDebt,
   FinancialSummary,
@@ -244,50 +244,47 @@ export const moneyAPI = {
       method: "DELETE",
     }),
 
+  addBalanceSource: (payload: {
+    type: BalanceSource["type"];
+    amount: number;
+  }) =>
+    apiRequest<BalanceSource>("/api/money/balance/add", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateBalanceSource: (
+    id: string,
+    payload: { type: BalanceSource["type"]; amount: number },
+  ) =>
+    apiRequest<BalanceSource>(`/api/money/balance/update/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteBalanceSource: (id: string) =>
+    apiRequest<void>(`/api/money/balance/${id}`, {
+      method: "DELETE",
+    }),
+
+  getBalanceSources: () => apiRequest<BalanceResponse>("/api/money/balance"),
+
   createExpense: (payload: CreateExpenseRequest) =>
-    apiRequest<MoneyExpense>("/api/money/expense", {
+    apiRequest<MoneyExpense>("/api/money/expenses", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
   updateExpense: (id: string, payload: UpdateExpenseRequest) =>
-    apiRequest<MoneyExpense>(`/api/money/expense/${id}`, {
+    apiRequest<MoneyExpense>(`/api/money/expenses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
 
   deleteExpense: (id: string) =>
-    apiRequest<void>(`/api/money/expense/${id}`, {
+    apiRequest<void>(`/api/money/expenses/${id}`, {
       method: "DELETE",
     }),
-
-  updateSalary: (payload: UpdateSalaryRequest) =>
-    apiRequest<SalaryRecord>("/api/money/salary", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  deleteSalary: () =>
-    apiRequest<void>("/api/money/salary", {
-      method: "DELETE",
-    }),
-
-  getSalary: (userId: string) =>
-    apiRequest<SalaryRecord | null>(`/api/money/salary/${userId}`),
-
-  updateAccountBalance: (payload: UpdateAccountBalanceRequest) =>
-    apiRequest<AccountBalanceRecord>("/api/money/balance", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  deleteAccountBalance: () =>
-    apiRequest<void>("/api/money/balance", {
-      method: "DELETE",
-    }),
-
-  getAccountBalance: (userId: string) =>
-    apiRequest<AccountBalanceRecord | null>(`/api/money/balance/${userId}`),
 
   getExpenses: async (query: ExpensesQuery) => {
     const params = new URLSearchParams();
@@ -314,42 +311,56 @@ export const moneyAPI = {
     } satisfies ExpensesResponse;
   },
 
-  getSummary: () => apiRequest<MoneySummary>("/api/money/summary"),
+  getMonthlyExpenseSummary: () =>
+    apiRequest<MonthlyExpenseSummary[]>("/api/money/expenses/monthly-summary"),
 
-  getMostSpentCategory: (userId: string) =>
-    apiRequest<MostSpentCategory | null>(
-      `/api/money/most-spent-category/${userId}`,
-    ),
+  createSalary: (payload: UpdateSalaryRequest) =>
+    apiRequest<SalaryRecord>("/api/money/salary", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteSalary: () =>
+    apiRequest<void>("/api/money/salary", {
+      method: "DELETE",
+    }),
+
+  getCurrentSalary: () =>
+    apiRequest<SalaryRecord | null>("/api/money/salary/current"),
+
+  getSalaryHistory: () =>
+    apiRequest<SalaryRecord[]>("/api/money/salary/history"),
+
+  getSummary: () => apiRequest<MoneySummary>("/api/money/summary"),
 };
 
 export const lendingAPI = {
   // Loan Management
   createLoan: (payload: CreateLoanRequest) =>
-    apiRequest<CreateLoanResponse>("/api/loans", {
+    apiRequest<CreateLoanResponse>("/api/money/loans", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
-  getAllLoans: () => apiRequest<Loan[]>("/api/loans"),
+  getAllLoans: () => apiRequest<Loan[]>("/api/money/loans"),
 
   getLoanDetails: (id: string) =>
-    apiRequest<LoanDetailsResponse>(`/api/loans/${id}`),
+    apiRequest<LoanDetailsResponse>(`/api/money/loans/${id}`),
 
   repayLoan: (id: string, payload: RepaymentRequest) =>
-    apiRequest<RepaymentResponse>(`/api/loans/${id}/repay`, {
+    apiRequest<RepaymentResponse>(`/api/money/loans/${id}/repay`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
   getLoanTransactions: (id: string) =>
-    apiRequest<LoanDetailsResponse>(`/api/loans/${id}/transactions`),
+    apiRequest<LoanDetailsResponse>(`/api/money/loans/${id}/transactions`),
 
   // Financial Summary
-  getFinancialSummary: () =>
-    apiRequest<FinancialSummary>("/api/financial-summary"),
+  getFinancialSummary: () => apiRequest<FinancialSummary>("/api/money/summary"),
 
   // External Debts
-  getExternalDebts: () => apiRequest<ExternalDebt[]>("/api/debts"),
+  getExternalDebts: () => apiRequest<ExternalDebt[]>("/api/money/debts"),
 
   // Statistics
   getLendingStats: () => apiRequest<LendingStats>("/api/lending-stats"),

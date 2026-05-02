@@ -10,7 +10,7 @@ export interface MoneyExpense {
   _id: string;
   userId?: string;
   amount: number;
-  description: string;
+  note: string;
   category: string;
   date: string;
   createdAt?: string;
@@ -21,14 +21,21 @@ export interface SalaryRecord {
   _id: string;
   userId: string;
   amount: number;
+  date: string;
 }
 
-export interface AccountBalanceRecord {
+export interface BalanceSource {
   _id: string;
   userId: string;
+  type: "CASH" | "BANK" | "SALARY" | "EXTERNAL" | "OTHER";
   amount: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface BalanceResponse {
+  totalBalance: number;
+  sources: BalanceSource[];
 }
 
 export interface MoneySummaryTopCategory {
@@ -79,24 +86,32 @@ export interface CreateCategoryRequest {
 
 export interface CreateExpenseRequest {
   amount: number;
-  description: string;
+  note: string;
   category: string;
   date: string;
 }
 
 export interface UpdateExpenseRequest {
   amount: number;
-  description: string;
+  note: string;
   category: string;
   date: string;
 }
 
 export interface UpdateSalaryRequest {
   amount: number;
+  date: string;
 }
 
 export interface UpdateAccountBalanceRequest {
   amount: number;
+}
+
+// ===== BALANCE TYPES =====
+
+export interface MonthlyExpenseSummary {
+  month: string;
+  total: number;
 }
 
 // ===== LENDING TYPES =====
@@ -108,7 +123,7 @@ export type TransactionType = "DISBURSEMENT" | "REPAYMENT";
 export interface Loan {
   _id: string;
   userId: string;
-  borrowerName: string;
+  borrower: string;
   amount: number;
   sourceType: SourceType;
   borrowedFromName?: string;
@@ -142,12 +157,16 @@ export interface ExternalDebt {
 }
 
 export interface FinancialSummary {
-  personalBalance: number;
-  totalLent: number;
-  totalOutstandingLoans: number;
-  totalBorrowedLiability: number;
+  totalBalance: number;
+  totalExpenses: number;
+  totalLoansGiven: number;
+  totalDebt: number;
   netPosition: number;
-  activeDebts: ExternalDebt[];
+  activeDebts?: ExternalDebt[];
+  personalBalance?: number;
+  totalLent?: number;
+  totalOutstandingLoans?: number;
+  totalBorrowedLiability?: number;
 }
 
 export interface LendingStats {
@@ -160,7 +179,7 @@ export interface LendingStats {
 }
 
 export interface CreateLoanRequest {
-  borrowerName: string;
+  borrower: string;
   amount: number;
   sourceType: SourceType;
   borrowedFromName?: string;
@@ -168,19 +187,17 @@ export interface CreateLoanRequest {
 }
 
 export interface RepaymentRequest {
-  repaymentAmount: number;
+  amount: number;
 }
 
 export interface CreateLoanResponse {
   message: string;
   loan: Loan;
-  ledger: LendingTransaction;
 }
 
 export interface RepaymentResponse {
   message: string;
   loan: Loan;
-  ledger: LendingTransaction;
   remainingLoanAmount: number;
 }
 

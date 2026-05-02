@@ -80,7 +80,7 @@ export default function CreateLoanModal({
 
       try {
         const payload: CreateLoanRequest = {
-          borrowerName: borrowerName.trim(),
+          borrower: borrowerName.trim(),
           amount: parseFloat(amount),
           sourceType,
           borrowedFromName:

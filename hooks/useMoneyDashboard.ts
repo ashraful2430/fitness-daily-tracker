@@ -5,17 +5,18 @@ import toast from "react-hot-toast";
 import { ApiError, isUnauthorizedError, moneyAPI } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
-  AccountBalanceRecord,
+  BalanceResponse,
+  BalanceSource,
   CreateExpenseRequest,
   ExpensesQuery,
   MoneyCategory,
   MoneyExpense,
   MoneyPagination,
   MoneySummary,
-  MostSpentCategory,
+  MonthlyExpenseSummary,
   SalaryRecord,
-  UpdateAccountBalanceRequest,
   UpdateExpenseRequest,
+  UpdateSalaryRequest,
 } from "@/types/money";
 
 type FormErrors = Record<string, string>;
@@ -28,22 +29,19 @@ type FiltersState = {
   limit: number;
 };
 
-function toLocalDateInputValue(date: Date) {
-  const offsetDate = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000,
-  );
-  return offsetDate.toISOString().slice(0, 10);
+function toIsoDateValue(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function getMonthRange(date = new Date()) {
   const year = date.getFullYear();
   const month = date.getMonth();
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
+  const start = new Date(Date.UTC(year, month, 1));
+  const end = new Date(Date.UTC(year, month + 1, 0));
 
   return {
-    startDate: toLocalDateInputValue(start),
-    endDate: toLocalDateInputValue(end),
+    startDate: toIsoDateValue(start),
+    endDate: toIsoDateValue(end),
   };
 }
 
@@ -86,11 +84,12 @@ export function useMoneyDashboard() {
   const userId = user?.id ?? null;
   const [categories, setCategories] = useState<MoneyCategory[]>([]);
   const [salary, setSalary] = useState<SalaryRecord | null>(null);
-  const [accountBalance, setAccountBalance] =
-    useState<AccountBalanceRecord | null>(null);
+  const [salaryHistory, setSalaryHistory] = useState<SalaryRecord[]>([]);
+  const [balanceSources, setBalanceSources] = useState<BalanceSource[]>([]);
+  const [monthlyExpenseSummary, setMonthlyExpenseSummary] = useState<
+    MonthlyExpenseSummary[]
+  >([]);
   const [summary, setSummary] = useState<MoneySummary>(defaultSummary);
-  const [mostSpentCategory, setMostSpentCategory] =
-    useState<MostSpentCategory | null>(null);
   const [expenses, setExpenses] = useState<MoneyExpense[]>([]);
   const [pagination, setPagination] = useState<MoneyPagination>(
     createDefaultPagination(),
@@ -169,24 +168,18 @@ export function useMoneyDashboard() {
       try {
         setSummaryLoading(true);
 
-        const [
-          salaryResponse,
-          summaryResponse,
-          mostSpentResponse,
-          balanceResponse,
-        ] = await Promise.all([
-          moneyAPI.getSalary(userId),
-          moneyAPI.getSummary(),
-          moneyAPI.getMostSpentCategory(userId),
-          moneyAPI.getAccountBalance(userId),
-        ]);
+        const [salaryResponse, summaryResponse, balanceResponse] =
+          await Promise.all([
+            moneyAPI.getCurrentSalary(),
+            moneyAPI.getSummary(),
+            moneyAPI.getBalanceSources(),
+          ]);
 
         if (!isMounted.current) return;
 
         setSalary(salaryResponse);
         setSummary(summaryResponse ?? defaultSummary());
-        setMostSpentCategory(mostSpentResponse);
-        setAccountBalance(balanceResponse);
+        setBalanceSources(balanceResponse?.sources ?? []);
         setError(null);
         clearToastLock();
       } catch (error: unknown) {
@@ -214,6 +207,44 @@ export function useMoneyDashboard() {
         clearToastLock();
       } catch (error: unknown) {
         handleError(error, "Failed to load categories", notify);
+      }
+    },
+    [clearToastLock, handleError, userId],
+  );
+
+  const fetchSalaryHistory = useCallback(
+    async (notify = false) => {
+      if (!userId) return;
+
+      try {
+        const history = await moneyAPI.getSalaryHistory();
+
+        if (!isMounted.current) return;
+
+        setSalaryHistory(history ?? []);
+        setError(null);
+        clearToastLock();
+      } catch (error: unknown) {
+        handleError(error, "Failed to load salary history", notify);
+      }
+    },
+    [clearToastLock, handleError, userId],
+  );
+
+  const fetchMonthlySummary = useCallback(
+    async (notify = false) => {
+      if (!userId) return;
+
+      try {
+        const summary = await moneyAPI.getMonthlyExpenseSummary();
+
+        if (!isMounted.current) return;
+
+        setMonthlyExpenseSummary(summary ?? []);
+        setError(null);
+        clearToastLock();
+      } catch (error: unknown) {
+        handleError(error, "Failed to load monthly expense summary", notify);
       }
     },
     [clearToastLock, handleError, userId],
@@ -275,6 +306,8 @@ export function useMoneyDashboard() {
         await Promise.all([
           fetchCategories(notify),
           fetchSummaryBundle(notify),
+          fetchSalaryHistory(notify),
+          fetchMonthlySummary(notify),
           fetchExpenses(filtersRef.current, notify),
         ]);
       } finally {
@@ -283,7 +316,15 @@ export function useMoneyDashboard() {
         }
       }
     },
-    [authLoading, fetchCategories, fetchExpenses, fetchSummaryBundle, userId],
+    [
+      authLoading,
+      fetchCategories,
+      fetchExpenses,
+      fetchMonthlySummary,
+      fetchSalaryHistory,
+      fetchSummaryBundle,
+      userId,
+    ],
   );
 
   const refreshAfterMutation = useCallback(
@@ -293,10 +334,18 @@ export function useMoneyDashboard() {
       await Promise.all([
         fetchCategories(false),
         fetchSummaryBundle(false),
+        fetchSalaryHistory(false),
+        fetchMonthlySummary(false),
         fetchExpenses(targetFilters, false),
       ]);
     },
-    [fetchCategories, fetchExpenses, fetchSummaryBundle],
+    [
+      fetchCategories,
+      fetchExpenses,
+      fetchMonthlySummary,
+      fetchSalaryHistory,
+      fetchSummaryBundle,
+    ],
   );
 
   useEffect(() => {
@@ -305,13 +354,17 @@ export function useMoneyDashboard() {
     });
   }, [refreshAll]);
 
-  const validateSalary = useCallback((amount: string) => {
+  const validateSalary = useCallback((amount: string, date: string) => {
     const nextErrors: FormErrors = {};
 
     if (!amount.trim()) {
       nextErrors.amount = "Salary amount is required.";
     } else if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
       nextErrors.amount = "Salary must be greater than zero.";
+    }
+
+    if (!date) {
+      nextErrors.date = "Salary date is required.";
     }
 
     return nextErrors;
@@ -342,8 +395,8 @@ export function useMoneyDashboard() {
         nextErrors.amount = "Amount must be greater than zero.";
       }
 
-      if (!payload.description.trim()) {
-        nextErrors.description = "Description is required.";
+      if (!payload.note.trim()) {
+        nextErrors.note = "Note is required.";
       }
 
       if (!normalizedCategory) {
@@ -365,8 +418,8 @@ export function useMoneyDashboard() {
   );
 
   const saveSalary = useCallback(
-    async (amount: string) => {
-      const errors = validateSalary(amount);
+    async (amount: string, date: string) => {
+      const errors = validateSalary(amount, date);
       if (Object.keys(errors).length > 0) {
         return { ok: false as const, errors };
       }
@@ -374,7 +427,10 @@ export function useMoneyDashboard() {
       try {
         setSalarySaving(true);
         setError(null);
-        await moneyAPI.updateSalary({ amount: Number(amount) });
+        await moneyAPI.createSalary({
+          amount: Number(amount),
+          date,
+        });
         await refreshAfterMutation();
         toast.success("Salary saved");
         return { ok: true as const, errors: {} };
@@ -390,13 +446,17 @@ export function useMoneyDashboard() {
     [handleError, refreshAfterMutation, validateSalary],
   );
 
-  const saveAccountBalance = useCallback(
-    async (amount: string) => {
+  const addBalanceSource = useCallback(
+    async (type: BalanceSource["type"], amount: string) => {
       const errors: FormErrors = {};
+      if (!type) {
+        errors.type = "Source type is required.";
+      }
+
       if (!amount.trim()) {
-        errors.amount = "Available balance is required.";
-      } else if (!Number.isFinite(Number(amount)) || Number(amount) < 0) {
-        errors.amount = "Amount must be zero or greater.";
+        errors.amount = "Balance amount is required.";
+      } else if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+        errors.amount = "Amount must be greater than zero.";
       }
 
       if (Object.keys(errors).length > 0) {
@@ -406,23 +466,79 @@ export function useMoneyDashboard() {
       try {
         setBalanceSaving(true);
         setError(null);
-        const balance = await moneyAPI.updateAccountBalance({
+        await moneyAPI.addBalanceSource({
+          type,
           amount: Number(amount),
         });
-
-        if (isMounted.current) {
-          setAccountBalance(balance);
-        }
-
         await refreshAfterMutation();
-        toast.success("Available balance saved");
+        toast.success("Balance source added");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
-        handleError(error, "Failed to save available balance", true);
+        handleError(error, "Failed to add balance source", true);
         return { ok: false as const, errors: {} };
       } finally {
         if (isMounted.current) {
           setBalanceSaving(false);
+        }
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
+  const updateBalanceSource = useCallback(
+    async (id: string, type: BalanceSource["type"], amount: string) => {
+      const errors: FormErrors = {};
+      if (!type) {
+        errors.type = "Source type is required.";
+      }
+
+      if (!amount.trim()) {
+        errors.amount = "Balance amount is required.";
+      } else if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+        errors.amount = "Amount must be greater than zero.";
+      }
+
+      if (Object.keys(errors).length > 0) {
+        return { ok: false as const, errors };
+      }
+
+      try {
+        setBalanceSaving(true);
+        setError(null);
+        await moneyAPI.updateBalanceSource(id, {
+          type,
+          amount: Number(amount),
+        });
+        await refreshAfterMutation();
+        toast.success("Balance source updated");
+        return { ok: true as const, errors: {} };
+      } catch (error: unknown) {
+        handleError(error, "Failed to update balance source", true);
+        return { ok: false as const, errors: {} };
+      } finally {
+        if (isMounted.current) {
+          setBalanceSaving(false);
+        }
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
+  const deleteBalanceSource = useCallback(
+    async (id: string) => {
+      try {
+        setBalanceDeleting(true);
+        setError(null);
+        await moneyAPI.deleteBalanceSource(id);
+        await refreshAfterMutation();
+        toast.success("Balance source deleted");
+        return true;
+      } catch (error: unknown) {
+        handleError(error, "Failed to delete balance source", true);
+        return false;
+      } finally {
+        if (isMounted.current) {
+          setBalanceDeleting(false);
         }
       }
     },
@@ -443,29 +559,6 @@ export function useMoneyDashboard() {
     } finally {
       if (isMounted.current) {
         setSalaryDeleting(false);
-      }
-    }
-  }, [handleError, refreshAfterMutation]);
-
-  const resetAccountBalance = useCallback(async () => {
-    try {
-      setBalanceDeleting(true);
-      setError(null);
-      await moneyAPI.deleteAccountBalance();
-
-      if (isMounted.current) {
-        setAccountBalance(null);
-      }
-
-      await refreshAfterMutation();
-      toast.success("Available balance reset");
-      return true;
-    } catch (error: unknown) {
-      handleError(error, "Failed to reset available balance", true);
-      return false;
-    } finally {
-      if (isMounted.current) {
-        setBalanceDeleting(false);
       }
     }
   }, [handleError, refreshAfterMutation]);
@@ -533,7 +626,7 @@ export function useMoneyDashboard() {
       const normalizedPayload = {
         ...payload,
         category: normalizeCategoryName(payload.category),
-        description: payload.description.trim(),
+        note: payload.note.trim(),
       };
       const errors = validateExpense(normalizedPayload);
 
@@ -572,7 +665,7 @@ export function useMoneyDashboard() {
       const normalizedPayload = {
         ...payload,
         category: normalizeCategoryName(payload.category),
-        description: payload.description.trim(),
+        note: payload.note.trim(),
       };
       const errors = validateExpense(normalizedPayload);
 
@@ -681,11 +774,12 @@ export function useMoneyDashboard() {
   return {
     user,
     salary,
-    accountBalance,
+    salaryHistory,
+    balanceSources,
+    monthlyExpenseSummary,
     summary,
     categories,
     categoryOptions,
-    mostSpentCategory,
     expenses,
     filters,
     pagination,
@@ -705,8 +799,9 @@ export function useMoneyDashboard() {
     refreshExpenses,
     saveSalary,
     resetSalary,
-    saveAccountBalance,
-    resetAccountBalance,
+    addBalanceSource,
+    updateBalanceSource,
+    deleteBalanceSource,
     createCategory,
     deleteCategory,
     createExpense,

@@ -31,13 +31,13 @@ import {
   YAxis,
 } from "recharts";
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
-import type { MoneyExpense } from "@/types/money";
+import type { BalanceSource, MoneyExpense } from "@/types/money";
 
 type FormErrors = Record<string, string>;
 
 type ExpenseFormState = {
   amount: string;
-  description: string;
+  note: string;
   category: string;
   date: string;
 };
@@ -65,21 +65,14 @@ function formatDate(value: string) {
   });
 }
 
-function toLocalDateInputValue(date: Date) {
-  const offsetDate = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000,
-  );
-  return offsetDate.toISOString().slice(0, 10);
-}
-
 function getToday() {
-  return toLocalDateInputValue(new Date());
+  return new Date().toISOString().slice(0, 10);
 }
 
 function expenseToForm(expense: MoneyExpense): ExpenseFormState {
   return {
     amount: String(expense.amount),
-    description: expense.description,
+    note: expense.note,
     category: expense.category,
     date: expense.date.slice(0, 10),
   };
@@ -88,7 +81,7 @@ function expenseToForm(expense: MoneyExpense): ExpenseFormState {
 function emptyExpenseForm(defaultCategory = ""): ExpenseFormState {
   return {
     amount: "",
-    description: "",
+    note: "",
     category: defaultCategory,
     date: getToday(),
   };
@@ -140,11 +133,12 @@ export default function MoneyDashboard() {
   const {
     user,
     salary,
-    accountBalance,
+    salaryHistory,
+    balanceSources,
+    monthlyExpenseSummary,
     summary,
     categories,
     categoryOptions,
-    mostSpentCategory,
     expenses,
     filters,
     pagination,
@@ -163,8 +157,9 @@ export default function MoneyDashboard() {
     refreshAll,
     saveSalary,
     resetSalary,
-    saveAccountBalance,
-    resetAccountBalance,
+    addBalanceSource,
+    updateBalanceSource,
+    deleteBalanceSource,
     createCategory,
     deleteCategory,
     createExpense,
@@ -176,9 +171,17 @@ export default function MoneyDashboard() {
   } = useMoneyDashboard();
 
   const [salaryAmount, setSalaryAmount] = useState("");
+  const [salaryDate, setSalaryDate] = useState(getToday());
   const [salaryErrors, setSalaryErrors] = useState<FormErrors>({});
-  const [balanceAmount, setBalanceAmount] = useState("");
+  const [balanceForm, setBalanceForm] = useState<{
+    type: BalanceSource["type"];
+    amount: string;
+  }>({
+    type: "BANK",
+    amount: "",
+  });
   const [balanceErrors, setBalanceErrors] = useState<FormErrors>({});
+  const [editingBalanceId, setEditingBalanceId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [categoryErrors, setCategoryErrors] = useState<FormErrors>({});
   const [expenseForm, setExpenseForm] =
@@ -189,17 +192,32 @@ export default function MoneyDashboard() {
 
   const chartData = useMemo(
     () =>
-      summary.topCategories.map((category) => ({
+      (summary?.topCategories || []).map((category) => ({
         name: category._id,
         totalSpent: category.totalSpent,
       })),
-    [summary.topCategories],
+    [summary?.topCategories],
   );
 
   const activeCategory = expenseForm.category || categoryOptions[0] || "";
   const salaryDisplay = salary?.amount ?? summary.salaryAmount ?? 0;
-  const balanceDisplay =
-    accountBalance?.amount ?? summary.availableBalance ?? 0;
+  const mostSpentCategory = summary?.topCategories?.[0];
+  const totalBalance = balanceSources.reduce(
+    (sum, source) => sum + source.amount,
+    0,
+  );
+  const cashBalance = balanceSources
+    .filter((source) => source.type === "CASH")
+    .reduce((sum, source) => sum + source.amount, 0);
+  const bankBalance = balanceSources
+    .filter((source) => source.type === "BANK")
+    .reduce((sum, source) => sum + source.amount, 0);
+  const salarySourceBalance = balanceSources
+    .filter((source) => source.type === "SALARY")
+    .reduce((sum, source) => sum + source.amount, 0);
+  const externalBalance = balanceSources
+    .filter((source) => source.type === "EXTERNAL")
+    .reduce((sum, source) => sum + source.amount, 0);
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -211,7 +229,7 @@ export default function MoneyDashboard() {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
-    const result = await saveSalary(salaryAmount);
+    const result = await saveSalary(salaryAmount, salaryDate);
     setSalaryErrors(result.errors);
 
     if (result.ok) {
@@ -237,25 +255,51 @@ export default function MoneyDashboard() {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
-    const result = await saveAccountBalance(balanceAmount);
-    setBalanceErrors(result.errors);
+    const action = editingBalanceId
+      ? updateBalanceSource(
+          editingBalanceId,
+          balanceForm.type,
+          balanceForm.amount,
+        )
+      : addBalanceSource(balanceForm.type, balanceForm.amount);
+    const result = await action;
+    setBalanceErrors(result.errors || {});
 
     if (result.ok) {
-      setBalanceAmount("");
+      setBalanceForm({ type: "BANK", amount: "" });
+      setEditingBalanceId(null);
     }
   };
 
-  const handleBalanceReset = async () => {
+  const handleBalanceCancel = () => {
+    setEditingBalanceId(null);
+    setBalanceForm({ type: "BANK", amount: "" });
+    setBalanceErrors({});
+  };
+
+  const handleEditBalanceSource = (source: BalanceSource) => {
+    setEditingBalanceId(source._id);
+    setBalanceErrors({});
+    setBalanceForm({ type: source.type, amount: String(source.amount) });
+    requestAnimationFrame(() => {
+      document
+        .getElementById("balance-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const handleDeleteBalanceSource = async (source: BalanceSource) => {
     const confirmed = window.confirm(
-      "Reset your available balance? This will remove the stored bank/cash amount.",
+      `Remove ${source.type.toLowerCase()} source with ${formatAmount(
+        source.amount,
+      )}?`,
     );
 
     if (!confirmed) return;
 
-    const ok = await resetAccountBalance();
-    if (ok) {
-      setBalanceAmount("");
-      setBalanceErrors({});
+    const ok = await deleteBalanceSource(source._id);
+    if (ok && editingBalanceId === source._id) {
+      handleBalanceCancel();
     }
   };
 
@@ -288,7 +332,7 @@ export default function MoneyDashboard() {
 
     const payload = {
       amount: Number(expenseForm.amount),
-      description: expenseForm.description,
+      note: expenseForm.note,
       category: activeCategory,
       date: expenseForm.date,
     };
@@ -318,7 +362,7 @@ export default function MoneyDashboard() {
 
   const handleDeleteExpense = async (expense: MoneyExpense) => {
     const confirmed = window.confirm(
-      `Delete expense "${expense.description}" for ${formatAmount(expense.amount)}?`,
+      `Delete expense "${expense.note}" for ${formatAmount(expense.amount)}?`,
     );
 
     if (!confirmed) return;
@@ -422,8 +466,8 @@ export default function MoneyDashboard() {
           />
           <StatCard
             title="Available Balance"
-            value={formatAmount(balanceDisplay)}
-            subtitle="Bank/cash balance outside salary."
+            value={formatAmount(totalBalance)}
+            subtitle="Summed across all balance sources."
             icon={CreditCard}
             gradient="from-cyan-500 to-sky-400"
           />
@@ -500,38 +544,69 @@ export default function MoneyDashboard() {
                 onSubmit={handleSalarySubmit}
                 className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
               >
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Salary amount
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={salaryAmount}
-                    placeholder={
-                      salaryDisplay ? String(salaryDisplay) : "50000"
-                    }
-                    onChange={(event) => {
-                      setSalaryAmount(event.target.value);
-                      if (salaryErrors.amount) setSalaryErrors({});
-                    }}
-                    aria-label="Monthly salary amount"
-                    aria-invalid={!!salaryErrors.amount}
-                    aria-describedby={
-                      salaryErrors.amount ? "salary-error" : undefined
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-emerald-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                  />
-                  {salaryErrors.amount ? (
-                    <p
-                      className="mt-2 text-sm font-semibold text-rose-500"
-                      id="salary-error"
-                      role="alert"
-                    >
-                      {salaryErrors.amount}
-                    </p>
-                  ) : null}
+                <div className="grid gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Salary amount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={salaryAmount}
+                      placeholder={
+                        salaryDisplay ? String(salaryDisplay) : "50000"
+                      }
+                      onChange={(event) => {
+                        setSalaryAmount(event.target.value);
+                        if (salaryErrors.amount) setSalaryErrors({});
+                      }}
+                      aria-label="Monthly salary amount"
+                      aria-invalid={!!salaryErrors.amount}
+                      aria-describedby={
+                        salaryErrors.amount ? "salary-error" : undefined
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-emerald-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                    />
+                    {salaryErrors.amount ? (
+                      <p
+                        className="mt-2 text-sm font-semibold text-rose-500"
+                        id="salary-error"
+                        role="alert"
+                      >
+                        {salaryErrors.amount}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Salary date
+                    </label>
+                    <input
+                      type="date"
+                      value={salaryDate}
+                      onChange={(event) => {
+                        setSalaryDate(event.target.value);
+                        if (salaryErrors.date) setSalaryErrors({});
+                      }}
+                      aria-label="Salary date"
+                      aria-invalid={!!salaryErrors.date}
+                      aria-describedby={
+                        salaryErrors.date ? "salary-date-error" : undefined
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-emerald-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                    />
+                    {salaryErrors.date ? (
+                      <p
+                        className="mt-2 text-sm font-semibold text-rose-500"
+                        id="salary-date-error"
+                        role="alert"
+                      >
+                        {salaryErrors.date}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
 
                 <button
@@ -578,44 +653,72 @@ export default function MoneyDashboard() {
                   Current available balance
                 </p>
                 <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
-                  {formatAmount(balanceDisplay)}
+                  {formatAmount(totalBalance)}
                 </p>
               </div>
 
               <form
+                id="balance-form"
                 onSubmit={handleBalanceSubmit}
                 className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
               >
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Balance amount
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={balanceAmount}
-                    placeholder={String(balanceDisplay || 0)}
-                    onChange={(event) => {
-                      setBalanceAmount(event.target.value);
-                      if (balanceErrors.amount) setBalanceErrors({});
-                    }}
-                    aria-label="Available balance amount"
-                    aria-invalid={!!balanceErrors.amount}
-                    aria-describedby={
-                      balanceErrors.amount ? "balance-error" : undefined
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                  />
-                  {balanceErrors.amount ? (
-                    <p
-                      className="mt-2 text-sm font-semibold text-rose-500"
-                      id="balance-error"
-                      role="alert"
+                <div className="grid gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Balance amount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={balanceForm.amount}
+                      placeholder={String(totalBalance || 0)}
+                      onChange={(event) => {
+                        setBalanceForm((current) => ({
+                          ...current,
+                          amount: event.target.value,
+                        }));
+                        if (balanceErrors.amount) setBalanceErrors({});
+                      }}
+                      aria-label="Available balance amount"
+                      aria-invalid={!!balanceErrors.amount}
+                      aria-describedby={
+                        balanceErrors.amount ? "balance-error" : undefined
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                    />
+                    {balanceErrors.amount ? (
+                      <p
+                        className="mt-2 text-sm font-semibold text-rose-500"
+                        id="balance-error"
+                        role="alert"
+                      >
+                        {balanceErrors.amount}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Balance source type
+                    </label>
+                    <select
+                      value={balanceForm.type}
+                      onChange={(event) =>
+                        setBalanceForm((current) => ({
+                          ...current,
+                          type: event.target.value as BalanceSource["type"],
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                     >
-                      {balanceErrors.amount}
-                    </p>
-                  ) : null}
+                      <option value="BANK">Bank</option>
+                      <option value="CASH">Cash</option>
+                      <option value="SALARY">Salary</option>
+                      <option value="EXTERNAL">External</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
                 </div>
 
                 <button
@@ -628,23 +731,118 @@ export default function MoneyDashboard() {
                   ) : (
                     <Coins className="h-4 w-4" />
                   )}
-                  Save
+                  {editingBalanceId ? "Update" : "Save"}
                 </button>
 
                 <button
                   type="button"
-                  onClick={handleBalanceReset}
-                  disabled={balanceDeleting}
-                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                  onClick={handleBalanceCancel}
+                  disabled={balanceSaving}
+                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
                 >
-                  {balanceDeleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                  Reset
+                  <RefreshCcw className="h-4 w-4" />
+                  {editingBalanceId ? "Cancel" : "Clear"}
                 </button>
               </form>
+
+              {balanceSources.length > 0 ? (
+                <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">
+                        Balance sources
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Edit or remove individual balance sources.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
+                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                          Bank
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                          {formatAmount(bankBalance)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
+                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                          Cash
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                          {formatAmount(cashBalance)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
+                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                          Salary
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                          {formatAmount(salarySourceBalance)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
+                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                          External
+                        </p>
+                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
+                          {formatAmount(externalBalance)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {balanceSources.map((source) => (
+                      <div
+                        key={source._id}
+                        className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/[0.08] dark:bg-[#0b1020] sm:grid-cols-[1fr_1fr_auto] lg:grid-cols-[1fr_1fr_auto]"
+                      >
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                            {source.type}
+                          </p>
+                          <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
+                            {formatAmount(source.amount)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                            Created
+                          </p>
+                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                            {source.createdAt
+                              ? formatDate(source.createdAt)
+                              : "Unknown"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEditBalanceSource(source)}
+                            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBalanceSource(source)}
+                            className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-black text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-6 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
+                  No saved balance sources yet. Add one to track bank, cash,
+                  salary, or external balances.
+                </div>
+              )}
 
               <p className="mt-4 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
                 Use this to track your cash/bank balance separate from salary.
@@ -840,32 +1038,32 @@ export default function MoneyDashboard() {
 
               <div>
                 <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Description
+                  Note
                 </label>
                 <input
-                  value={expenseForm.description}
+                  value={expenseForm.note}
                   onChange={(event) => {
                     setExpenseForm((current) => ({
                       ...current,
-                      description: event.target.value,
+                      note: event.target.value,
                     }));
-                    if (expenseErrors.description) setExpenseErrors({});
+                    if (expenseErrors.note) setExpenseErrors({});
                   }}
                   placeholder="Lunch"
-                  aria-label="Expense description"
-                  aria-invalid={!!expenseErrors.description}
+                  aria-label="Expense note"
+                  aria-invalid={!!expenseErrors.note}
                   aria-describedby={
-                    expenseErrors.description ? "description-error" : undefined
+                    expenseErrors.note ? "note-error" : undefined
                   }
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
                 />
-                {expenseErrors.description ? (
+                {expenseErrors.note ? (
                   <p
                     className="mt-2 text-sm font-semibold text-rose-500"
-                    id="description-error"
+                    id="note-error"
                     role="alert"
                   >
-                    {expenseErrors.description}
+                    {expenseErrors.note}
                   </p>
                 ) : null}
               </div>
@@ -1081,7 +1279,7 @@ export default function MoneyDashboard() {
                           Description
                         </p>
                         <p className="break-words font-bold text-slate-700 dark:text-slate-200">
-                          {expense.description}
+                          {expense.note}
                         </p>
                       </div>
 
@@ -1271,8 +1469,8 @@ export default function MoneyDashboard() {
               </h2>
 
               <div className="mt-4 space-y-2">
-                {summary.topCategories.length > 0 ? (
-                  summary.topCategories.map((category) => (
+                {(summary?.topCategories?.length ?? 0) > 0 ? (
+                  (summary?.topCategories ?? []).map((category) => (
                     <div
                       key={category._id}
                       className="rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3.5 py-3 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]"
