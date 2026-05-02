@@ -50,8 +50,10 @@ export default function AuthForm() {
         mode === "login" ? "Login successful" : "Account created successfully",
       );
 
-      router.replace("/dashboard");
-      router.refresh();
+      setTimeout(() => {
+        router.replace("/dashboard");
+        router.refresh();
+      }, 100);
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         toast.error(error.message);
