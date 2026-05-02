@@ -2,17 +2,15 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  HandCoins,
-  TrendingUp,
-  TrendingDown,
-  ArrowRight,
-  Loader2,
-} from "lucide-react";
+import { HandCoins, ArrowRight, Loader2 } from "lucide-react";
 import { useLending } from "@/hooks/useLending";
 
 export default function LendingSummaryPanel() {
   const lending = useLending();
+
+  // Normalize values to strict numbers
+  const totalLent = lending.summary?.totalLent ?? 0;
+  const totalOutstanding = lending.summary?.totalOutstandingLoans ?? 0;
 
   if (lending.isLoading) {
     return (
@@ -46,6 +44,7 @@ export default function LendingSummaryPanel() {
             {lending.loans.length} Active
           </p>
         </div>
+
         <Link
           href="/lending"
           className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10 transition-colors"
@@ -61,15 +60,16 @@ export default function LendingSummaryPanel() {
             Total Lent
           </p>
           <p className="text-lg font-bold text-green-900 dark:text-green-100">
-            ${lending.summary?.totalLent.toFixed(0) || "0"}
+            ${totalLent.toFixed(0)}
           </p>
         </div>
+
         <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30">
           <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold mb-1">
             Outstanding
           </p>
           <p className="text-lg font-bold text-orange-900 dark:text-orange-100">
-            ${lending.summary?.totalOutstandingLoans.toFixed(0) || "0"}
+            ${totalOutstanding.toFixed(0)}
           </p>
         </div>
       </div>

@@ -10,6 +10,14 @@ interface LoanCardProps {
 }
 
 export default function LoanCard({ loan, onClick }: LoanCardProps) {
+  // Normalize numeric values
+  const amount = loan.amount ?? 0;
+  const totalRepaid = loan.totalRepaid ?? 0;
+  const remainingAmount = loan.remainingAmount ?? 0;
+
+  // Safe percentage calculation
+  const percentagePaid = amount > 0 ? (totalRepaid / amount) * 100 : 0;
+
   const getStatusIcon = () => {
     switch (loan.status) {
       case "ACTIVE":
@@ -49,8 +57,6 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
     }
   };
 
-  const percentagePaid = (loan.totalRepaid / loan.amount) * 100;
-
   return (
     <motion.button
       whileHover={{ backgroundColor: "rgba(255,255,255,0.04)" }}
@@ -76,7 +82,7 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
 
           <div className="flex items-baseline gap-2 mb-3">
             <span className="text-2xl font-bold text-slate-900 dark:text-white">
-              ${loan.amount.toFixed(0)}
+              ${amount.toFixed(0)}
             </span>
             <span className="text-sm text-slate-600 dark:text-slate-400">
               Loaned
@@ -98,13 +104,13 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
             <div>
               <p className="text-slate-600 dark:text-slate-400">Repaid</p>
               <p className="font-semibold text-slate-900 dark:text-white">
-                ${loan.totalRepaid.toFixed(0)}
+                ${totalRepaid.toFixed(0)}
               </p>
             </div>
             <div>
               <p className="text-slate-600 dark:text-slate-400">Remaining</p>
               <p className="font-semibold text-slate-900 dark:text-white">
-                ${loan.remainingAmount.toFixed(0)}
+                ${remainingAmount.toFixed(0)}
               </p>
             </div>
             <div>
