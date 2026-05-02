@@ -141,7 +141,7 @@ export default function RepaymentModal({
                     Borrower
                   </p>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
-                    {loan.borrowerName}
+                    {loan.borrower}
                   </h3>
 
                   <div className="grid grid-cols-2 gap-3">
