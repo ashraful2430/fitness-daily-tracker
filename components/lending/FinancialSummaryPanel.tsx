@@ -104,7 +104,7 @@ export default function FinancialSummaryPanel({
                   {stat.label}
                 </p>
                 <p className={`text-2xl font-bold mt-2 ${stat.textColor}`}>
-                  ${Math.abs(stat.value).toFixed(0)}
+                  ${Math.abs(stat.value ?? 0).toFixed(0)}
                 </p>
               </div>
               <Icon className={`w-5 h-5 ${stat.textColor} flex-shrink-0`} />
