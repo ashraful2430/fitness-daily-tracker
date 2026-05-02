@@ -1,18 +1,6 @@
-import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
-import { getCurrentUserId } from "@/lib/auth";
 
-export default async function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const userId = await getCurrentUserId();
-
-  if (!userId) {
-    redirect("/auth");
-  }
-
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <main className="relative h-screen bg-[#f3ede1] text-slate-900 dark:bg-[#070912] dark:text-white lg:flex">
       <div className="pointer-events-none fixed inset-0 -z-10 lg:static lg:h-auto">
@@ -23,6 +11,7 @@ export default async function AppLayout({
       </div>
 
       <Sidebar />
+
       <div className="relative z-10 flex-1 overflow-y-auto">
         <div className="pointer-events-none absolute inset-x-4 top-4 hidden h-px bg-gradient-to-r from-transparent via-slate-400/30 to-transparent dark:via-white/10 lg:block" />
         {children}
