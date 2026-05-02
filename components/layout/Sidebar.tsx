@@ -15,6 +15,7 @@ import {
   Shield,
   Timer,
   X,
+  HandCoins,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -30,6 +31,7 @@ const menuItems = [
   { label: "Habits", icon: Flame, href: "/habits" },
   { label: "Focus Timer", icon: Timer, href: "/focus" },
   { label: "Money", icon: PiggyBank, href: "/money" },
+  { label: "Lending", icon: HandCoins, href: "/lending" },
   { label: "Categories", icon: FolderKanban, href: "/categories" },
   { label: "Reports", icon: LineChart, href: "/reports" },
   { label: "Settings", icon: Settings, href: "/settings" },

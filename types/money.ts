@@ -98,3 +98,96 @@ export interface UpdateSalaryRequest {
 export interface UpdateAccountBalanceRequest {
   amount: number;
 }
+
+// ===== LENDING TYPES =====
+
+export type LoanStatus = "ACTIVE" | "PARTIALLY_PAID" | "CLOSED";
+export type SourceType = "PERSONAL" | "BORROWED";
+export type TransactionType = "DISBURSEMENT" | "REPAYMENT";
+
+export interface Loan {
+  _id: string;
+  userId: string;
+  borrowerName: string;
+  amount: number;
+  sourceType: SourceType;
+  borrowedFromName?: string;
+  status: LoanStatus;
+  totalDisbursed: number;
+  totalRepaid: number;
+  remainingAmount: number;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LendingTransaction {
+  _id: string;
+  loanId: string;
+  type: TransactionType;
+  amount: number;
+  createdAt: string;
+}
+
+export interface ExternalDebt {
+  _id: string;
+  userId: string;
+  creditorName: string;
+  totalAmount: number;
+  totalRepaid: number;
+  remainingAmount: number;
+  isCleared: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinancialSummary {
+  personalBalance: number;
+  totalLent: number;
+  totalOutstandingLoans: number;
+  totalBorrowedLiability: number;
+  netPosition: number;
+  activeDebts: ExternalDebt[];
+}
+
+export interface LendingStats {
+  totalActiveLoans: number;
+  totalPartiallyPaidLoans: number;
+  totalClosedLoans: number;
+  totalMoneyLent: number;
+  averageLoanAmount: number;
+  totalMoneyReceived: number;
+}
+
+export interface CreateLoanRequest {
+  borrowerName: string;
+  amount: number;
+  sourceType: SourceType;
+  borrowedFromName?: string;
+  note?: string;
+}
+
+export interface RepaymentRequest {
+  repaymentAmount: number;
+}
+
+export interface CreateLoanResponse {
+  message: string;
+  loan: Loan;
+  ledger: LendingTransaction;
+}
+
+export interface RepaymentResponse {
+  message: string;
+  loan: Loan;
+  ledger: LendingTransaction;
+  remainingLoanAmount: number;
+}
+
+export interface LoanDetailsResponse {
+  loan: Loan;
+  transactions: LendingTransaction[];
+  totalDisbursed: number;
+  totalRepaid: number;
+  remainingAmount: number;
+}

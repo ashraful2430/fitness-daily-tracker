@@ -22,6 +22,15 @@ import type {
   UpdateExpenseRequest,
   UpdateSalaryRequest,
   UpdateAccountBalanceRequest,
+  Loan,
+  ExternalDebt,
+  FinancialSummary,
+  LendingStats,
+  CreateLoanRequest,
+  RepaymentRequest,
+  CreateLoanResponse,
+  RepaymentResponse,
+  LoanDetailsResponse,
 } from "@/types/money";
 
 const API_BASE_URL =
@@ -311,6 +320,40 @@ export const moneyAPI = {
     apiRequest<MostSpentCategory | null>(
       `/api/money/most-spent-category/${userId}`,
     ),
+};
+
+export const lendingAPI = {
+  // Loan Management
+  createLoan: (payload: CreateLoanRequest) =>
+    apiRequest<CreateLoanResponse>("/api/loans", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getAllLoans: () => apiRequest<Loan[]>("/api/loans"),
+
+  getLoanDetails: (id: string) =>
+    apiRequest<LoanDetailsResponse>(`/api/loans/${id}`),
+
+  repayLoan: (id: string, payload: RepaymentRequest) =>
+    apiRequest<RepaymentResponse>(`/api/loans/${id}/repay`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getLoanTransactions: (id: string) =>
+    apiRequest<LoanDetailsResponse>(`/api/loans/${id}/transactions`),
+
+  // Financial Summary
+  getFinancialSummary: () =>
+    apiRequest<FinancialSummary>("/api/financial-summary"),
+
+  // External Debts
+  getExternalDebts: () => apiRequest<ExternalDebt[]>("/api/debts"),
+
+  // Statistics
+  getLendingStats: () =>
+    apiRequest<LendingStats>("/api/lending-stats"),
 };
 
 export const learningAPI = {
