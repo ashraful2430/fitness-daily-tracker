@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { ApiError, isUnauthorizedError, lendingAPI } from "@/lib/api";
+import { isUnauthorizedError, lendingAPI } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
   Loan,
@@ -14,13 +14,11 @@ import type {
   LendingTransaction,
 } from "@/types/money";
 
-type FormErrors = Record<string, string>;
-
 interface LendingState {
   loans: Loan[];
   debts: ExternalDebt[];
-  summary: FinancialSummary | null;
-  stats: LendingStats | null;
+  summary: FinancialSummary;
+  stats: LendingStats;
   selectedLoan: Loan | null;
   selectedLoanTransactions: LendingTransaction[];
   isLoading: boolean;
@@ -30,12 +28,11 @@ interface LendingState {
 }
 
 const defaultSummary: FinancialSummary = {
-  personalBalance: 0,
-  totalLent: 0,
-  totalOutstandingLoans: 0,
-  totalBorrowedLiability: 0,
+  totalBalance: 0,
+  totalExpenses: 0,
+  totalLoansGiven: 0,
+  totalDebt: 0,
   netPosition: 0,
-  activeDebts: [],
 };
 
 const defaultStats: LendingStats = {
@@ -47,83 +44,97 @@ const defaultStats: LendingStats = {
   totalMoneyReceived: 0,
 };
 
-function getMessage(error: unknown, fallbackMessage: string) {
-  return error instanceof Error ? error.message : fallbackMessage;
+const initialState: LendingState = {
+  loans: [],
+  debts: [],
+  summary: defaultSummary,
+  stats: defaultStats,
+  selectedLoan: null,
+  selectedLoanTransactions: [],
+  isLoading: true,
+  isCreatingLoan: false,
+  isProcessingRepayment: false,
+  error: null,
+};
+
+function getMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export function useLending() {
   const { user, loading: authLoading, clearUser } = useAuth();
-  const [state, setState] = useState<LendingState>({
-    loans: [],
-    debts: [],
-    summary: defaultSummary,
-    stats: defaultStats,
-    selectedLoan: null,
-    selectedLoanTransactions: [],
-    isLoading: true,
-    isCreatingLoan: false,
-    isProcessingRepayment: false,
-    error: null,
-  });
 
-  const isMounted = useRef(true);
-  const lastToastMessage = useRef<string | null>(null);
+  const [state, setState] = useState<LendingState>(initialState);
+
+  const isMounted = useRef(false);
+  const lastToast = useRef<string | null>(null);
+
+  const safeSetState = useCallback(
+    (updater: React.SetStateAction<LendingState>) => {
+      if (isMounted.current) {
+        setState(updater);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     isMounted.current = true;
+
     return () => {
       isMounted.current = false;
     };
   }, []);
 
-  const clearToastLock = useCallback(() => {
-    lastToastMessage.current = null;
-  }, []);
-
   const handleError = useCallback(
-    (error: unknown, fallbackMessage: string, notify = true) => {
+    (error: unknown, fallback: string, notify = true) => {
       if (isUnauthorizedError(error)) {
         clearUser();
         return;
       }
 
-      const message = getMessage(error, fallbackMessage);
+      const message = getMessage(error, fallback);
 
-      if (isMounted.current) {
-        setState((prev) => ({
-          ...prev,
-          error: message,
-        }));
-      }
+      safeSetState((prev) => ({
+        ...prev,
+        error: message,
+      }));
 
-      if (notify && message !== lastToastMessage.current) {
-        lastToastMessage.current = message;
+      if (notify && message !== lastToast.current) {
+        lastToast.current = message;
         toast.error(message);
       }
     },
-    [clearUser],
+    [clearUser, safeSetState],
   );
 
-  // Load all lending data
   const loadAllData = useCallback(async () => {
+    if (authLoading) return;
+
     if (!user?.id) {
-      if (isMounted.current) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-        }));
-      }
+      safeSetState((prev) => ({
+        ...prev,
+        loans: [],
+        debts: [],
+        summary: defaultSummary,
+        stats: defaultStats,
+        selectedLoan: null,
+        selectedLoanTransactions: [],
+        isLoading: false,
+      }));
       return;
     }
 
     try {
-      if (isMounted.current) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: true,
-          error: null,
-        }));
-      }
+      safeSetState((prev) => ({
+        ...prev,
+        isLoading: true,
+        error: null,
+      }));
 
       const [loans, debts, summary, stats] = await Promise.all([
         lendingAPI.getAllLoans(),
@@ -132,195 +143,160 @@ export function useLending() {
         lendingAPI.getLendingStats(),
       ]);
 
-      if (isMounted.current) {
-        setState((prev) => ({
-          ...prev,
-          loans,
-          debts,
-          summary,
-          stats,
-          isLoading: false,
-          error: null,
-        }));
-      }
+      safeSetState((prev) => ({
+        ...prev,
+        loans: loans ?? [],
+        debts: debts ?? [],
+        summary: summary ?? defaultSummary,
+        stats: stats ?? defaultStats,
+        isLoading: false,
+      }));
     } catch (error) {
       handleError(error, "Failed to load lending data", false);
-      if (isMounted.current) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-        }));
-      }
-    }
-  }, [user?.id, handleError]);
 
-  // Initial load
+      safeSetState((prev) => ({
+        ...prev,
+        isLoading: false,
+      }));
+    }
+  }, [authLoading, user?.id, handleError, safeSetState]);
+
   useEffect(() => {
-    if (!authLoading) {
-      loadAllData();
-    }
-  }, [authLoading, loadAllData]);
+    void loadAllData();
+  }, [loadAllData]);
 
-  // Create loan
   const createLoan = useCallback(
     async (data: CreateLoanRequest) => {
       try {
-        if (isMounted.current) {
-          setState((prev) => ({
-            ...prev,
-            isCreatingLoan: true,
-            error: null,
-          }));
-        }
+        safeSetState((prev) => ({
+          ...prev,
+          isCreatingLoan: true,
+          error: null,
+        }));
 
-        const response = await lendingAPI.createLoan(data);
+        const res = await lendingAPI.createLoan(data);
 
-        if (isMounted.current) {
-          setState((prev) => ({
+        safeSetState((prev) => {
+          const currentSummary = prev.summary ?? defaultSummary;
+
+          return {
             ...prev,
-            loans: [...prev.loans, response.loan],
-            summary: prev.summary
-              ? {
-                  ...prev.summary,
-                  personalBalance:
-                    data.sourceType === "PERSONAL"
-                      ? prev.summary.personalBalance - data.amount
-                      : prev.summary.personalBalance,
-                  totalLent:
-                    prev.summary.totalLent +
-                    (data.sourceType === "PERSONAL" ? data.amount : 0),
-                  totalOutstandingLoans:
-                    data.sourceType === "PERSONAL"
-                      ? prev.summary.totalOutstandingLoans + data.amount
-                      : prev.summary.totalOutstandingLoans,
-                  totalBorrowedLiability:
-                    data.sourceType === "BORROWED"
-                      ? prev.summary.totalBorrowedLiability + data.amount
-                      : prev.summary.totalBorrowedLiability,
-                }
-              : prev.summary,
+            loans: [...prev.loans, res.loan],
+            summary: {
+              ...currentSummary,
+              totalBalance:
+                data.sourceType === "PERSONAL"
+                  ? currentSummary.totalBalance - data.amount
+                  : currentSummary.totalBalance,
+              totalLoansGiven:
+                currentSummary.totalLoansGiven +
+                (data.sourceType === "PERSONAL" ? data.amount : 0),
+              totalDebt:
+                currentSummary.totalDebt +
+                (data.sourceType === "BORROWED" ? data.amount : 0),
+              netPosition:
+                data.sourceType === "PERSONAL"
+                  ? currentSummary.netPosition - data.amount
+                  : currentSummary.netPosition,
+            },
             isCreatingLoan: false,
-          }));
+          };
+        });
 
-          toast.success("Loan created successfully");
-        }
-
-        return response.loan;
+        toast.success("Loan created successfully");
+        return res.loan;
       } catch (error) {
         handleError(error, "Failed to create loan");
-        if (isMounted.current) {
-          setState((prev) => ({
-            ...prev,
-            isCreatingLoan: false,
-          }));
-        }
+
+        safeSetState((prev) => ({
+          ...prev,
+          isCreatingLoan: false,
+        }));
+
         throw error;
       }
     },
-    [handleError],
+    [handleError, safeSetState],
   );
 
-  // Process repayment
   const processRepayment = useCallback(
     async (loanId: string, data: RepaymentRequest) => {
       try {
-        if (isMounted.current) {
-          setState((prev) => ({
+        safeSetState((prev) => ({
+          ...prev,
+          isProcessingRepayment: true,
+          error: null,
+        }));
+
+        const res = await lendingAPI.repayLoan(loanId, data);
+
+        safeSetState((prev) => {
+          const currentSummary = prev.summary ?? defaultSummary;
+
+          return {
             ...prev,
-            isProcessingRepayment: true,
-            error: null,
-          }));
-        }
+            loans: prev.loans.map((loan) =>
+              loan._id === loanId ? res.loan : loan,
+            ),
+            selectedLoan: res.loan,
+            summary: {
+              ...currentSummary,
+              totalBalance: currentSummary.totalBalance + data.amount,
+              totalLoansGiven: Math.max(
+                currentSummary.totalLoansGiven - data.amount,
+                0,
+              ),
+              netPosition: currentSummary.netPosition + data.amount,
+            },
+            isProcessingRepayment: false,
+          };
+        });
 
-        const response = await lendingAPI.repayLoan(loanId, data);
-
-        if (isMounted.current) {
-          setState((prev) => {
-            const updatedLoans = prev.loans.map((loan) =>
-              loan._id === loanId ? response.loan : loan,
-            );
-
-            return {
-              ...prev,
-              loans: updatedLoans,
-              selectedLoan: response.loan,
-              summary: prev.summary
-                ? {
-                    ...prev.summary,
-                    personalBalance:
-                      prev.summary.personalBalance + data.repaymentAmount,
-                    totalOutstandingLoans:
-                      prev.summary.totalOutstandingLoans - data.repaymentAmount,
-                  }
-                : prev.summary,
-              isProcessingRepayment: false,
-            };
-          });
-
-          toast.success("Repayment processed successfully");
-        }
-
-        return response;
+        toast.success("Repayment processed successfully");
+        return res;
       } catch (error) {
         handleError(error, "Failed to process repayment");
-        if (isMounted.current) {
-          setState((prev) => ({
-            ...prev,
-            isProcessingRepayment: false,
-          }));
-        }
+
+        safeSetState((prev) => ({
+          ...prev,
+          isProcessingRepayment: false,
+        }));
+
         throw error;
       }
     },
-    [handleError],
+    [handleError, safeSetState],
   );
 
-  // Load loan details
   const loadLoanDetails = useCallback(
     async (loanId: string) => {
+      if (!loanId) return;
+
       try {
-        const details = await lendingAPI.getLoanDetails(loanId);
-        if (isMounted.current) {
-          setState((prev) => ({
-            ...prev,
-            selectedLoan: details.loan,
-            selectedLoanTransactions: details.transactions,
-          }));
-        }
+        const res = await lendingAPI.getLoanDetails(loanId);
+
+        safeSetState((prev) => ({
+          ...prev,
+          selectedLoan: res.loan,
+          selectedLoanTransactions: res.transactions ?? [],
+        }));
       } catch (error) {
         handleError(error, "Failed to load loan details", false);
       }
     },
-    [handleError],
+    [handleError, safeSetState],
   );
 
-  // Refresh summary
-  const refreshSummary = useCallback(async () => {
-    try {
-      const summary = await lendingAPI.getFinancialSummary();
-      if (isMounted.current) {
-        setState((prev) => ({
-          ...prev,
-          summary,
-        }));
-      }
-    } catch (error) {
-      handleError(error, "Failed to refresh summary", false);
-    }
-  }, [handleError]);
-
-  // Refresh all data
   const refresh = useCallback(async () => {
+    lastToast.current = null;
     await loadAllData();
-    clearToastLock();
-  }, [loadAllData, clearToastLock]);
+  }, [loadAllData]);
 
   return {
     ...state,
     createLoan,
     processRepayment,
     loadLoanDetails,
-    refreshSummary,
     refresh,
   };
 }
