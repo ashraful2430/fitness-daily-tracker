@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -38,85 +37,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
-  const authActionIdRef = useRef(0);
-
   const clearUser = useCallback(() => {
-    authActionIdRef.current += 1;
     setUser(null);
     setLoading(false);
     setInitialized(true);
   }, []);
 
   const refreshUser = useCallback(async () => {
-    const actionId = ++authActionIdRef.current;
-
     setLoading(true);
 
     try {
       const nextUser = await authAPI.getCurrentUser();
-
-      if (authActionIdRef.current === actionId) {
-        setUser(nextUser);
-      }
-
+      setUser(nextUser);
       return nextUser;
     } catch {
-      if (authActionIdRef.current === actionId) {
-        setUser(null);
-      }
-
+      setUser(null);
       return null;
     } finally {
-      if (authActionIdRef.current === actionId) {
-        setLoading(false);
-        setInitialized(true);
-      }
+      setLoading(false);
+      setInitialized(true);
     }
   }, []);
 
   const login = useCallback(async (payload: LoginRequest) => {
-    const actionId = ++authActionIdRef.current;
-
     setLoading(true);
 
     try {
-      await authAPI.login(payload);
-
-      const nextUser = await authAPI.getCurrentUser();
-
-      if (authActionIdRef.current === actionId) {
-        setUser(nextUser);
-        setInitialized(true);
-      }
-
+      const nextUser = await authAPI.login(payload);
+      setUser(nextUser);
+      setInitialized(true);
       return nextUser;
     } finally {
-      if (authActionIdRef.current === actionId) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, []);
 
   const register = useCallback(async (payload: RegisterRequest) => {
-    const actionId = ++authActionIdRef.current;
-
     setLoading(true);
 
     try {
-      await authAPI.register(payload);
-
-      const nextUser = await authAPI.getCurrentUser();
-
-      if (authActionIdRef.current === actionId) {
-        setUser(nextUser);
-        setInitialized(true);
-      }
-
+      const nextUser = await authAPI.register(payload);
+      setUser(nextUser);
+      setInitialized(true);
       return nextUser;
     } finally {
-      if (authActionIdRef.current === actionId) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, []);
 
@@ -125,17 +90,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authAPI.logout();
     } finally {
       clearUser();
-      router.replace("/auth");
-      router.refresh();
+      window.location.href = "/auth";
     }
-  }, [clearUser, router]);
+  }, [clearUser]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void refreshUser();
     }, 0);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [refreshUser]);
 
   useEffect(() => {

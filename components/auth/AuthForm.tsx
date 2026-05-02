@@ -50,10 +50,8 @@ export default function AuthForm() {
         mode === "login" ? "Login successful" : "Account created successfully",
       );
 
-      setTimeout(() => {
-        router.replace("/dashboard");
-        router.refresh();
-      }, 100);
+      window.location.href = "/dashboard";
+      return;
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         toast.error(error.message);
