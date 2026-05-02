@@ -19,50 +19,54 @@ export default function FinancialSummaryPanel({
 }: FinancialSummaryPanelProps) {
   if (!summary) return null;
 
+  // Normalize all values to strict numbers
+  const safeSummary = {
+    personalBalance: summary.personalBalance ?? 0,
+    totalLent: summary.totalLent ?? 0,
+    totalOutstandingLoans: summary.totalOutstandingLoans ?? 0,
+    totalBorrowedLiability: summary.totalBorrowedLiability ?? 0,
+    netPosition: summary.netPosition ?? 0,
+  };
+
   const statCards = [
     {
       label: "Personal Balance",
-      value: summary.personalBalance,
+      value: safeSummary.personalBalance,
       icon: Wallet,
-      color: "blue",
       textColor: "text-blue-600 dark:text-blue-400",
       bgColor: "bg-blue-50 dark:bg-blue-900/20",
     },
     {
       label: "Total Lent",
-      value: summary.totalLent,
+      value: safeSummary.totalLent,
       icon: TrendingUp,
-      color: "green",
       textColor: "text-green-600 dark:text-green-400",
       bgColor: "bg-green-50 dark:bg-green-900/20",
     },
     {
       label: "Outstanding Loans",
-      value: summary.totalOutstandingLoans,
+      value: safeSummary.totalOutstandingLoans,
       icon: TrendingDown,
-      color: "orange",
       textColor: "text-orange-600 dark:text-orange-400",
       bgColor: "bg-orange-50 dark:bg-orange-900/20",
     },
     {
       label: "Borrowed Liability",
-      value: summary.totalBorrowedLiability,
+      value: safeSummary.totalBorrowedLiability,
       icon: DollarSign,
-      color: "red",
       textColor: "text-red-600 dark:text-red-400",
       bgColor: "bg-red-50 dark:bg-red-900/20",
     },
     {
       label: "Net Position",
-      value: summary.netPosition,
+      value: safeSummary.netPosition,
       icon: BarChart3,
-      color: summary.netPosition >= 0 ? "green" : "red",
       textColor:
-        summary.netPosition >= 0
+        safeSummary.netPosition >= 0
           ? "text-green-600 dark:text-green-400"
           : "text-red-600 dark:text-red-400",
       bgColor:
-        summary.netPosition >= 0
+        safeSummary.netPosition >= 0
           ? "bg-green-50 dark:bg-green-900/20"
           : "bg-red-50 dark:bg-red-900/20",
     },
@@ -104,7 +108,7 @@ export default function FinancialSummaryPanel({
                   {stat.label}
                 </p>
                 <p className={`text-2xl font-bold mt-2 ${stat.textColor}`}>
-                  ${Math.abs(stat.value ?? 0).toFixed(0)}
+                  ${Math.abs(stat.value).toFixed(0)}
                 </p>
               </div>
               <Icon className={`w-5 h-5 ${stat.textColor} flex-shrink-0`} />
