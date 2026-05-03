@@ -540,10 +540,7 @@ export default function MoneyDashboard() {
                 </p>
               </div>
 
-              <form
-                onSubmit={handleSalarySubmit}
-                className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
-              >
+              <form onSubmit={handleSalarySubmit} className="space-y-4">
                 <div className="grid gap-4">
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
@@ -609,32 +606,34 @@ export default function MoneyDashboard() {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={salarySaving}
-                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {salarySaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CreditCard className="h-4 w-4" />
-                  )}
-                  Save
-                </button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="submit"
+                    disabled={salarySaving}
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {salarySaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4" />
+                    )}
+                    Save
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleSalaryReset}
-                  disabled={salaryDeleting}
-                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
-                >
-                  {salaryDeleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                  Reset
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleSalaryReset}
+                    disabled={salaryDeleting}
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                  >
+                    {salaryDeleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    Reset
+                  </button>
+                </div>
               </form>
             </div>
 
@@ -660,7 +659,7 @@ export default function MoneyDashboard() {
               <form
                 id="balance-form"
                 onSubmit={handleBalanceSubmit}
-                className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
+                className="space-y-4"
               >
                 <div className="grid gap-4">
                   <div>
@@ -721,28 +720,30 @@ export default function MoneyDashboard() {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={balanceSaving}
-                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {balanceSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Coins className="h-4 w-4" />
-                  )}
-                  {editingBalanceId ? "Update" : "Save"}
-                </button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="submit"
+                    disabled={balanceSaving}
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {balanceSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Coins className="h-4 w-4" />
+                    )}
+                    {editingBalanceId ? "Update" : "Save"}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleBalanceCancel}
-                  disabled={balanceSaving}
-                  className="mt-0 sm:mt-[1.85rem] lg:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                  {editingBalanceId ? "Cancel" : "Clear"}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleBalanceCancel}
+                    disabled={balanceSaving}
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    {editingBalanceId ? "Cancel" : "Clear"}
+                  </button>
+                </div>
               </form>
 
               {balanceSources.length > 0 ? (
