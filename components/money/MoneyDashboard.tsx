@@ -44,10 +44,23 @@ type ExpenseFormState = {
 
 const chartColors = ["#10b981", "#06b6d4", "#8b5cf6", "#f97316", "#ec4899"];
 
+const cardClass =
+  "h-fit rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0f0c1f]/90 dark:shadow-black/25 sm:p-6";
+
+const inputClass =
+  "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white dark:focus:bg-white/[0.07]";
+
+const buttonPrimary =
+  "inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto";
+
+const buttonSecondary =
+  "inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200 dark:hover:bg-white/[0.09] sm:w-auto";
+
+const buttonDanger =
+  "inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 sm:w-auto";
+
 function formatAmount(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "0";
-  }
+  if (value === null || value === undefined || Number.isNaN(value)) return "0";
 
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 0,
@@ -87,6 +100,32 @@ function emptyExpenseForm(defaultCategory = ""): ExpenseFormState {
   };
 }
 
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="mb-5">
+      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-500 dark:text-emerald-300">
+        {eyebrow}
+      </p>
+      <h2 className="mt-2 text-xl font-black tracking-[-0.03em] text-slate-950 dark:text-white sm:text-2xl">
+        {title}
+      </h2>
+      {description ? (
+        <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function StatCard({
   title,
   value,
@@ -102,29 +141,32 @@ function StatCard({
 }) {
   return (
     <motion.div
-      whileHover={{ y: -4, scale: 1.01 }}
-      className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#120d27] dark:shadow-black/30"
+      whileHover={{ y: -5, scale: 1.01 }}
+      transition={{ type: "spring", stiffness: 220, damping: 18 }}
+      className="group relative overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#120d27]/90 dark:shadow-black/30"
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/35 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
       <div
-        className={`absolute -right-10 -top-10 h-28 w-28 rounded-full bg-gradient-to-br ${gradient} opacity-15 blur-3xl`}
+        className={`absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br ${gradient} opacity-20 blur-3xl transition group-hover:opacity-30`}
       />
 
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[1.15rem] bg-gradient-to-br ${gradient} text-white shadow-lg shadow-slate-900/10`}
-      >
-        <Icon className="h-5 w-5" />
-      </div>
+      <div className="relative">
+        <div
+          className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${gradient} text-white shadow-lg shadow-slate-900/10`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
 
-      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-        {title}
-      </p>
-      <p className="mt-2 text-3xl font-black tracking-[-0.03em] text-slate-950 dark:text-white">
-        {value}
-      </p>
-      <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
-        {subtitle}
-      </p>
+        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+          {title}
+        </p>
+        <p className="mt-2 break-words text-2xl font-black tracking-[-0.04em] text-slate-950 dark:text-white sm:text-3xl">
+          {value}
+        </p>
+        <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
+          {subtitle}
+        </p>
+      </div>
     </motion.div>
   );
 }
@@ -133,9 +175,7 @@ export default function MoneyDashboard() {
   const {
     user,
     salary,
-    salaryHistory,
     balanceSources,
-    monthlyExpenseSummary,
     summary,
     categories,
     categoryOptions,
@@ -173,6 +213,7 @@ export default function MoneyDashboard() {
   const [salaryAmount, setSalaryAmount] = useState("");
   const [salaryDate, setSalaryDate] = useState(getToday());
   const [salaryErrors, setSalaryErrors] = useState<FormErrors>({});
+
   const [balanceForm, setBalanceForm] = useState<{
     type: BalanceSource["type"];
     amount: string;
@@ -180,14 +221,19 @@ export default function MoneyDashboard() {
     type: "BANK",
     amount: "",
   });
+
   const [balanceErrors, setBalanceErrors] = useState<FormErrors>({});
   const [editingBalanceId, setEditingBalanceId] = useState<string | null>(null);
+
   const [categoryName, setCategoryName] = useState("");
   const [categoryErrors, setCategoryErrors] = useState<FormErrors>({});
+
   const [expenseForm, setExpenseForm] =
     useState<ExpenseFormState>(emptyExpenseForm());
+
   const [expenseErrors, setExpenseErrors] = useState<FormErrors>({});
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+
   const expenseFormRef = useRef<HTMLDivElement | null>(null);
 
   const chartData = useMemo(
@@ -202,19 +248,24 @@ export default function MoneyDashboard() {
   const activeCategory = expenseForm.category || categoryOptions[0] || "";
   const salaryDisplay = salary?.amount ?? summary.salaryAmount ?? 0;
   const mostSpentCategory = summary?.topCategories?.[0];
+
   const totalBalance = balanceSources.reduce(
     (sum, source) => sum + source.amount,
     0,
   );
+
   const cashBalance = balanceSources
     .filter((source) => source.type === "CASH")
     .reduce((sum, source) => sum + source.amount, 0);
+
   const bankBalance = balanceSources
     .filter((source) => source.type === "BANK")
     .reduce((sum, source) => sum + source.amount, 0);
+
   const salarySourceBalance = balanceSources
     .filter((source) => source.type === "SALARY")
     .reduce((sum, source) => sum + source.amount, 0);
+
   const externalBalance = balanceSources
     .filter((source) => source.type === "EXTERNAL")
     .reduce((sum, source) => sum + source.amount, 0);
@@ -229,6 +280,7 @@ export default function MoneyDashboard() {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+
     const result = await saveSalary(salaryAmount, salaryDate);
     setSalaryErrors(result.errors);
 
@@ -245,6 +297,7 @@ export default function MoneyDashboard() {
     if (!confirmed) return;
 
     const ok = await resetSalary();
+
     if (ok) {
       setSalaryAmount("");
       setSalaryErrors({});
@@ -255,14 +308,15 @@ export default function MoneyDashboard() {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
-    const action = editingBalanceId
-      ? updateBalanceSource(
+
+    const result = editingBalanceId
+      ? await updateBalanceSource(
           editingBalanceId,
           balanceForm.type,
           balanceForm.amount,
         )
-      : addBalanceSource(balanceForm.type, balanceForm.amount);
-    const result = await action;
+      : await addBalanceSource(balanceForm.type, balanceForm.amount);
+
     setBalanceErrors(result.errors || {});
 
     if (result.ok) {
@@ -281,6 +335,7 @@ export default function MoneyDashboard() {
     setEditingBalanceId(source._id);
     setBalanceErrors({});
     setBalanceForm({ type: source.type, amount: String(source.amount) });
+
     requestAnimationFrame(() => {
       document
         .getElementById("balance-form")
@@ -298,6 +353,7 @@ export default function MoneyDashboard() {
     if (!confirmed) return;
 
     const ok = await deleteBalanceSource(source._id);
+
     if (ok && editingBalanceId === source._id) {
       handleBalanceCancel();
     }
@@ -307,6 +363,7 @@ export default function MoneyDashboard() {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+
     const result = await createCategory(categoryName);
     setCategoryErrors(result.errors);
 
@@ -352,6 +409,7 @@ export default function MoneyDashboard() {
     setEditingExpenseId(expense._id);
     setExpenseErrors({});
     setExpenseForm(expenseToForm(expense));
+
     requestAnimationFrame(() => {
       expenseFormRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -384,10 +442,10 @@ export default function MoneyDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 px-4 py-6 dark:bg-[#09090f] sm:px-6 lg:px-8 xl:px-10">
-        <div className="grid gap-5">
-          <div className="h-56 animate-pulse rounded-[2rem] bg-white shadow-xl shadow-slate-200/60 dark:bg-white/[0.04]" />
-          <div className="grid gap-4 xl:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, index) => (
+        <div className="mx-auto grid max-w-[1600px] gap-5">
+          <div className="h-64 animate-pulse rounded-[2rem] bg-white shadow-xl shadow-slate-200/60 dark:bg-white/[0.04]" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
                 className="h-40 animate-pulse rounded-[2rem] bg-white shadow-xl shadow-slate-200/60 dark:bg-white/[0.04]"
@@ -400,54 +458,55 @@ export default function MoneyDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-[#09090f] dark:text-white">
-      <div className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
-        <div className="absolute left-[8%] top-0 h-[420px] w-[420px] rounded-full bg-emerald-500/10 blur-[120px]" />
-        <div className="absolute bottom-0 right-[8%] h-[360px] w-[360px] rounded-full bg-cyan-500/10 blur-[110px]" />
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-950 dark:bg-[#09090f] dark:text-white">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute left-[4%] top-[-8%] h-[440px] w-[440px] rounded-full bg-emerald-500/10 blur-[120px]" />
+        <div className="absolute right-[4%] top-[18%] h-[400px] w-[400px] rounded-full bg-cyan-500/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[35%] h-[380px] w-[380px] rounded-full bg-violet-500/10 blur-[130px]" />
       </div>
 
-      <div className="relative z-10 space-y-5 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-        <section className="relative overflow-hidden rounded-[2.3rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 dark:border-white/[0.08] dark:bg-[#110d2e] dark:shadow-black/30 md:p-8">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
-          <div className="absolute -right-14 top-10 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8 xl:px-10">
+        <section className="relative overflow-hidden rounded-[2.4rem] border border-slate-200/80 bg-white/90 p-5 shadow-2xl shadow-slate-200/70 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#110d2e]/90 dark:shadow-black/35 sm:p-8">
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
+          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
 
-          <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0 flex-1">
+          <div className="relative z-10 grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
+            <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-emerald-300">
                 <PiggyBank className="h-3.5 w-3.5" />
                 Money Management
               </div>
 
-              <h1 className="mt-5 text-[clamp(1.75rem,4vw,4.6rem)] font-black leading-[0.95] tracking-[-0.04em] text-slate-950 dark:text-white">
+              <h1 className="mt-5 max-w-5xl text-[clamp(2rem,5vw,4.8rem)] font-black leading-[0.95] tracking-[-0.055em] text-slate-950 dark:text-white">
                 Budget with clarity,
                 <span className="block bg-gradient-to-r from-emerald-500 via-cyan-500 to-violet-500 bg-clip-text text-transparent">
                   track every move with confidence.
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300/85 sm:text-base">
-                Salary, categories, expenses, and insights now live together in
-                one production-ready flow built on your authenticated backend.
+              <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300/85 sm:text-base">
+                Manage salary, balance sources, categories, expenses, and
+                insights from one clean, responsive, premium dashboard.
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 shrink-0">
+            <div className="grid gap-3 sm:grid-cols-3 xl:w-[520px]">
               {[
                 { label: "Logged in as", value: user?.name ?? "Unknown user" },
+                { label: "Categories", value: String(categories.length) },
                 {
-                  label: "Tracked categories",
-                  value: String(categories.length),
+                  label: "Total records",
+                  value: String(summary.expenseCount ?? 0),
                 },
-                { label: "Total records", value: String(summary.expenseCount) },
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-[1.45rem] border border-slate-200 bg-slate-50 px-4 py-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
+                  className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 px-4 py-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
                 >
-                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
                     {item.label}
                   </p>
-                  <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
+                  <p className="mt-2 truncate text-lg font-black text-slate-950 dark:text-white">
                     {item.value}
                   </p>
                 </div>
@@ -456,7 +515,7 @@ export default function MoneyDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           <StatCard
             title="Current Salary"
             value={formatAmount(salaryDisplay)}
@@ -467,37 +526,37 @@ export default function MoneyDashboard() {
           <StatCard
             title="Available Balance"
             value={formatAmount(totalBalance)}
-            subtitle="Summed across all balance sources."
+            subtitle="Across all balance sources."
             icon={CreditCard}
             gradient="from-cyan-500 to-sky-400"
           />
           <StatCard
-            title="Current Month Spent"
+            title="Month Spent"
             value={formatAmount(summary.currentMonthSpent)}
-            subtitle="Spending during the current month."
+            subtitle="Spending this month."
             icon={TrendingDown}
             gradient="from-rose-500 to-orange-400"
           />
           <StatCard
-            title="Remaining Salary"
+            title="Remaining"
             value={formatAmount(summary.remainingSalary)}
-            subtitle="Salary minus recorded expenses."
+            subtitle="Salary minus expenses."
             icon={BadgeDollarSign}
             gradient="from-violet-600 to-fuchsia-500"
           />
           <StatCard
-            title="Average Expense"
+            title="Average"
             value={formatAmount(summary.averageExpense)}
-            subtitle="Average amount per expense."
+            subtitle="Average per expense."
             icon={Coins}
-            gradient="from-cyan-500 to-sky-400"
+            gradient="from-blue-500 to-indigo-400"
           />
           <StatCard
-            title="Expense Count"
+            title="Records"
             value={formatAmount(summary.expenseCount)}
-            subtitle="Total number of stored expenses."
+            subtitle="Stored expense entries."
             icon={ReceiptText}
-            gradient="from-indigo-500 to-blue-400"
+            gradient="from-slate-700 to-slate-500"
           />
         </section>
 
@@ -507,41 +566,39 @@ export default function MoneyDashboard() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr] xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-5">
-            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-500 dark:text-emerald-300">
-                    Salary
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    Set, update, or reset salary
-                  </h2>
-                </div>
+        <section className="grid gap-5">
+          <div className="grid gap-5">
+            <div className={cardClass}>
+              <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <SectionHeader
+                  eyebrow="Salary"
+                  title="Set, update, or reset salary"
+                />
 
                 <button
                   onClick={() => void refreshAll(true)}
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-400 dark:hover:bg-white/[0.10] dark:hover:text-white"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-400 dark:hover:bg-white/[0.10] dark:hover:text-white"
                   aria-label="Refresh money data"
                 >
                   <RefreshCcw
-                    className={`h-4.5 w-4.5 ${summaryLoading ? "animate-spin" : ""}`}
+                    className={`h-4 w-4 ${
+                      summaryLoading ? "animate-spin" : ""
+                    }`}
                   />
                 </button>
               </div>
 
-              <div className="mb-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3.5 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
+              <div className="mb-5 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
                 <p className="text-sm font-bold text-slate-500">
                   Current salary
                 </p>
-                <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
+                <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">
                   {formatAmount(salaryDisplay)}
                 </p>
               </div>
 
               <form onSubmit={handleSalarySubmit} className="space-y-4">
-                <div className="grid gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
                       Salary amount
@@ -558,19 +615,10 @@ export default function MoneyDashboard() {
                         setSalaryAmount(event.target.value);
                         if (salaryErrors.amount) setSalaryErrors({});
                       }}
-                      aria-label="Monthly salary amount"
-                      aria-invalid={!!salaryErrors.amount}
-                      aria-describedby={
-                        salaryErrors.amount ? "salary-error" : undefined
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-emerald-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                      className={inputClass}
                     />
                     {salaryErrors.amount ? (
-                      <p
-                        className="mt-2 text-sm font-semibold text-rose-500"
-                        id="salary-error"
-                        role="alert"
-                      >
+                      <p className="mt-2 text-sm font-semibold text-rose-500">
                         {salaryErrors.amount}
                       </p>
                     ) : null}
@@ -587,19 +635,10 @@ export default function MoneyDashboard() {
                         setSalaryDate(event.target.value);
                         if (salaryErrors.date) setSalaryErrors({});
                       }}
-                      aria-label="Salary date"
-                      aria-invalid={!!salaryErrors.date}
-                      aria-describedby={
-                        salaryErrors.date ? "salary-date-error" : undefined
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-emerald-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                      className={inputClass}
                     />
                     {salaryErrors.date ? (
-                      <p
-                        className="mt-2 text-sm font-semibold text-rose-500"
-                        id="salary-date-error"
-                        role="alert"
-                      >
+                      <p className="mt-2 text-sm font-semibold text-rose-500">
                         {salaryErrors.date}
                       </p>
                     ) : null}
@@ -610,21 +649,21 @@ export default function MoneyDashboard() {
                   <button
                     type="submit"
                     disabled={salarySaving}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                    className={buttonPrimary}
                   >
                     {salarySaving ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <CreditCard className="h-4 w-4" />
                     )}
-                    Save
+                    Save salary
                   </button>
 
                   <button
                     type="button"
                     onClick={handleSalaryReset}
                     disabled={salaryDeleting}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                    className={buttonDanger}
                   >
                     {salaryDeleting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -637,199 +676,166 @@ export default function MoneyDashboard() {
               </form>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
-              <div className="mb-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
-                  Available Balance
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  Track bank/cash balance outside salary
-                </h2>
-              </div>
+            <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-2">
+              <div className={cardClass}>
+                <SectionHeader
+                  eyebrow="Available Balance"
+                  title="Track bank, cash, salary, and external balance"
+                />
 
-              <div className="mb-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3.5 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
-                <p className="text-sm font-bold text-slate-500">
-                  Current available balance
-                </p>
-                <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
-                  {formatAmount(totalBalance)}
-                </p>
-              </div>
-
-              <form
-                id="balance-form"
-                onSubmit={handleBalanceSubmit}
-                className="space-y-4"
-              >
-                <div className="grid gap-4">
-                  <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                      Balance amount
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={balanceForm.amount}
-                      placeholder={String(totalBalance || 0)}
-                      onChange={(event) => {
-                        setBalanceForm((current) => ({
-                          ...current,
-                          amount: event.target.value,
-                        }));
-                        if (balanceErrors.amount) setBalanceErrors({});
-                      }}
-                      aria-label="Available balance amount"
-                      aria-invalid={!!balanceErrors.amount}
-                      aria-describedby={
-                        balanceErrors.amount ? "balance-error" : undefined
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                    />
-                    {balanceErrors.amount ? (
-                      <p
-                        className="mt-2 text-sm font-semibold text-rose-500"
-                        id="balance-error"
-                        role="alert"
-                      >
-                        {balanceErrors.amount}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                      Balance source type
-                    </label>
-                    <select
-                      value={balanceForm.type}
-                      onChange={(event) =>
-                        setBalanceForm((current) => ({
-                          ...current,
-                          type: event.target.value as BalanceSource["type"],
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                    >
-                      <option value="BANK">Bank</option>
-                      <option value="CASH">Cash</option>
-                      <option value="SALARY">Salary</option>
-                      <option value="EXTERNAL">External</option>
-                      <option value="OTHER">Other</option>
-                    </select>
-                  </div>
+                <div className="mb-5 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
+                  <p className="text-sm font-bold text-slate-500">
+                    Current available balance
+                  </p>
+                  <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">
+                    {formatAmount(totalBalance)}
+                  </p>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  <button
-                    type="submit"
-                    disabled={balanceSaving}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {balanceSaving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Coins className="h-4 w-4" />
-                    )}
-                    {editingBalanceId ? "Update" : "Save"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleBalanceCancel}
-                    disabled={balanceSaving}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm font-black text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                  >
-                    <RefreshCcw className="h-4 w-4" />
-                    {editingBalanceId ? "Cancel" : "Clear"}
-                  </button>
-                </div>
-              </form>
-
-              {balanceSources.length > 0 ? (
-                <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 shadow-sm dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200">
-                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <form
+                  id="balance-form"
+                  onSubmit={handleBalanceSubmit}
+                  className="space-y-4"
+                >
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
                     <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">
-                        Balance sources
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Edit or remove individual balance sources.
-                      </p>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                        Balance amount
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={balanceForm.amount}
+                        placeholder={String(totalBalance || 0)}
+                        onChange={(event) => {
+                          setBalanceForm((current) => ({
+                            ...current,
+                            amount: event.target.value,
+                          }));
+                          if (balanceErrors.amount) setBalanceErrors({});
+                        }}
+                        className={inputClass}
+                      />
+                      {balanceErrors.amount ? (
+                        <p className="mt-2 text-sm font-semibold text-rose-500">
+                          {balanceErrors.amount}
+                        </p>
+                      ) : null}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
-                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                          Bank
-                        </p>
-                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
-                          {formatAmount(bankBalance)}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
-                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                          Cash
-                        </p>
-                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
-                          {formatAmount(cashBalance)}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
-                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                          Salary
-                        </p>
-                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
-                          {formatAmount(salarySourceBalance)}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-white/[0.04]">
-                        <p className="font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                          External
-                        </p>
-                        <p className="mt-1 font-bold text-slate-900 dark:text-white">
-                          {formatAmount(externalBalance)}
-                        </p>
-                      </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                        Balance source type
+                      </label>
+                      <select
+                        value={balanceForm.type}
+                        onChange={(event) =>
+                          setBalanceForm((current) => ({
+                            ...current,
+                            type: event.target.value as BalanceSource["type"],
+                          }))
+                        }
+                        className={inputClass}
+                      >
+                        <option value="BANK">Bank</option>
+                        <option value="CASH">Cash</option>
+                        <option value="SALARY">Salary</option>
+                        <option value="EXTERNAL">External</option>
+                        <option value="OTHER">Other</option>
+                      </select>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="submit"
+                      disabled={balanceSaving}
+                      className={buttonPrimary}
+                    >
+                      {balanceSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Coins className="h-4 w-4" />
+                      )}
+                      {editingBalanceId ? "Update balance" : "Save balance"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleBalanceCancel}
+                      disabled={balanceSaving}
+                      className={buttonSecondary}
+                    >
+                      <RefreshCcw className="h-4 w-4" />
+                      {editingBalanceId ? "Cancel" : "Clear"}
+                    </button>
+                  </div>
+                </form>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  {[
+                    ["Bank", bankBalance],
+                    ["Cash", cashBalance],
+                    ["Salary", salarySourceBalance],
+                    ["External", externalBalance],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
+                    >
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                        {label}
+                      </p>
+                      <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
+                        {formatAmount(Number(value))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {balanceSources.length > 0 ? (
+                  <div className="mt-5 space-y-3">
                     {balanceSources.map((source) => (
                       <div
                         key={source._id}
-                        className="grid gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/[0.08] dark:bg-[#0b1020] sm:grid-cols-[1fr_1fr_auto] lg:grid-cols-[1fr_1fr_auto]"
+                        className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
                       >
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                            {source.type}
-                          </p>
-                          <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
-                            {formatAmount(source.amount)}
-                          </p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                              {source.type}
+                            </p>
+                            <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
+                              {formatAmount(source.amount)}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+                              Created
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                              {source.createdAt
+                                ? formatDate(source.createdAt)
+                                : "Unknown"}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                            Created
-                          </p>
-                          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                            {source.createdAt
-                              ? formatDate(source.createdAt)
-                              : "Unknown"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
+
+                        <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
                             onClick={() => handleEditBalanceSource(source)}
-                            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                            className={buttonSecondary}
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteBalanceSource(source)}
-                            className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-black text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                            disabled={balanceDeleting}
+                            className={buttonDanger}
                           >
                             Delete
                           </button>
@@ -837,138 +843,111 @@ export default function MoneyDashboard() {
                       </div>
                     ))}
                   </div>
-                </div>
-              ) : (
-                <div className="mt-6 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
-                  No saved balance sources yet. Add one to track bank, cash,
-                  salary, or external balances.
-                </div>
-              )}
-
-              <p className="mt-4 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
-                Use this to track your cash/bank balance separate from salary.
-                Expenses can be deducted from this balance and salary together
-                when both exist.
-              </p>
-            </div>
-
-            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
-              <div className="mb-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
-                  Categories
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  Manage spending buckets
-                </h2>
-              </div>
-
-              <form
-                onSubmit={handleCategorySubmit}
-                className="grid gap-4 grid-cols-1 sm:grid-cols-[1fr_auto]"
-              >
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Category name
-                  </label>
-                  <input
-                    value={categoryName}
-                    onChange={(event) => {
-                      setCategoryName(event.target.value);
-                      if (categoryErrors.name) setCategoryErrors({});
-                    }}
-                    placeholder="food"
-                    aria-label="New category name"
-                    aria-invalid={!!categoryErrors.name}
-                    aria-describedby={
-                      categoryErrors.name ? "category-error" : undefined
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-violet-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                  />
-                  {categoryErrors.name ? (
-                    <p
-                      className="mt-2 text-sm font-semibold text-rose-500"
-                      id="category-error"
-                      role="alert"
-                    >
-                      {categoryErrors.name}
-                    </p>
-                  ) : null}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={categorySaving}
-                  className="mt-0 sm:mt-[1.85rem] inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-violet-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {categorySaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  Add category
-                </button>
-              </form>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                {categories.length > 0 ? (
-                  categories.map((category) => (
-                    <div
-                      key={category._id}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                    >
-                      <Tags className="h-3.5 w-3.5 text-violet-500" />
-                      <span>{category.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => void handleCategoryDelete(category.name)}
-                        disabled={deletingCategoryName === category.name}
-                        className="rounded-full p-1 text-slate-400 transition hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-70"
-                        aria-label={`Delete ${category.name}`}
-                      >
-                        {deletingCategoryName === category.name ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  ))
                 ) : (
-                  <div className="w-full rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
-                    No categories yet. Add one before saving expenses.
+                  <div className="mt-6 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
+                    No saved balance sources yet. Add one to track your bank,
+                    cash, salary, or external balance.
                   </div>
                 )}
+              </div>
+
+              <div className={cardClass}>
+                <SectionHeader
+                  eyebrow="Categories"
+                  title="Manage spending buckets"
+                />
+
+                <form onSubmit={handleCategorySubmit} className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Category name
+                    </label>
+                    <input
+                      value={categoryName}
+                      onChange={(event) => {
+                        setCategoryName(event.target.value);
+                        if (categoryErrors.name) setCategoryErrors({});
+                      }}
+                      placeholder="Food"
+                      className={inputClass}
+                    />
+                    {categoryErrors.name ? (
+                      <p className="mt-2 text-sm font-semibold text-rose-500">
+                        {categoryErrors.name}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={categorySaving}
+                    className={buttonPrimary}
+                  >
+                    {categorySaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    Add category
+                  </button>
+                </form>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  {categories.length > 0 ? (
+                    categories.map((category) => (
+                      <div
+                        key={category._id}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                      >
+                        <Tags className="h-3.5 w-3.5 text-violet-500" />
+                        <span>{category.name}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCategoryDelete(category.name)
+                          }
+                          disabled={deletingCategoryName === category.name}
+                          className="rounded-full p-1 text-slate-400 transition hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-70"
+                          aria-label={`Delete ${category.name}`}
+                        >
+                          {deletingCategoryName === category.name ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
+                      No categories yet. Add one before saving expenses.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          <div
-            ref={expenseFormRef}
-            className="scroll-mt-24 rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20"
-          >
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
-                  Expense Management
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  {editingExpenseId ? "Edit expense" : "Add a new expense"}
-                </h2>
-              </div>
+          <div ref={expenseFormRef} className={`${cardClass} scroll-mt-24`}>
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <SectionHeader
+                eyebrow="Expense Management"
+                title={editingExpenseId ? "Edit expense" : "Add a new expense"}
+              />
 
               {editingExpenseId ? (
                 <button
                   type="button"
                   onClick={resetExpenseForm}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                  className={buttonSecondary}
                 >
                   Cancel edit
                 </button>
               ) : null}
             </div>
 
-            <form onSubmit={handleExpenseSubmit} className="grid gap-3">
-              <div className="grid gap-3 md:grid-cols-2">
+            <form onSubmit={handleExpenseSubmit} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
                     Amount
@@ -986,19 +965,10 @@ export default function MoneyDashboard() {
                       if (expenseErrors.amount) setExpenseErrors({});
                     }}
                     placeholder="250"
-                    aria-label="Expense amount"
-                    aria-invalid={!!expenseErrors.amount}
-                    aria-describedby={
-                      expenseErrors.amount ? "amount-error" : undefined
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                    className={inputClass}
                   />
                   {expenseErrors.amount ? (
-                    <p
-                      className="mt-2 text-sm font-semibold text-rose-500"
-                      id="amount-error"
-                      role="alert"
-                    >
+                    <p className="mt-2 text-sm font-semibold text-rose-500">
                       {expenseErrors.amount}
                     </p>
                   ) : null}
@@ -1018,19 +988,10 @@ export default function MoneyDashboard() {
                       }));
                       if (expenseErrors.date) setExpenseErrors({});
                     }}
-                    aria-label="Expense date"
-                    aria-invalid={!!expenseErrors.date}
-                    aria-describedby={
-                      expenseErrors.date ? "date-error" : undefined
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                    className={inputClass}
                   />
                   {expenseErrors.date ? (
-                    <p
-                      className="mt-2 text-sm font-semibold text-rose-500"
-                      id="date-error"
-                      role="alert"
-                    >
+                    <p className="mt-2 text-sm font-semibold text-rose-500">
                       {expenseErrors.date}
                     </p>
                   ) : null}
@@ -1038,7 +999,7 @@ export default function MoneyDashboard() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
                   Note
                 </label>
                 <input
@@ -1051,26 +1012,17 @@ export default function MoneyDashboard() {
                     if (expenseErrors.note) setExpenseErrors({});
                   }}
                   placeholder="Lunch"
-                  aria-label="Expense note"
-                  aria-invalid={!!expenseErrors.note}
-                  aria-describedby={
-                    expenseErrors.note ? "note-error" : undefined
-                  }
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                  className={inputClass}
                 />
                 {expenseErrors.note ? (
-                  <p
-                    className="mt-2 text-sm font-semibold text-rose-500"
-                    id="note-error"
-                    role="alert"
-                  >
+                  <p className="mt-2 text-sm font-semibold text-rose-500">
                     {expenseErrors.note}
                   </p>
                 ) : null}
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
                   Category
                 </label>
                 <select
@@ -1082,12 +1034,7 @@ export default function MoneyDashboard() {
                     }));
                     if (expenseErrors.category) setExpenseErrors({});
                   }}
-                  aria-label="Expense category"
-                  aria-invalid={!!expenseErrors.category}
-                  aria-describedby={
-                    expenseErrors.category ? "category-select-error" : undefined
-                  }
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+                  className={inputClass}
                 >
                   <option value="">Select a category</option>
                   {categoryOptions.map((category) => (
@@ -1097,11 +1044,7 @@ export default function MoneyDashboard() {
                   ))}
                 </select>
                 {expenseErrors.category ? (
-                  <p
-                    className="mt-2 text-sm font-semibold text-rose-500"
-                    id="category-select-error"
-                    role="alert"
-                  >
+                  <p className="mt-2 text-sm font-semibold text-rose-500">
                     {expenseErrors.category}
                   </p>
                 ) : null}
@@ -1110,7 +1053,7 @@ export default function MoneyDashboard() {
               <button
                 type="submit"
                 disabled={expenseSaving}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-500 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-cyan-950/30 transition hover:shadow-lg hover:shadow-cyan-600/40 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {expenseSaving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1125,133 +1068,117 @@ export default function MoneyDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-[1fr_0.85fr] xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
-            <div className="mb-4 space-y-3">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-2xl">
-                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-500 dark:text-orange-300">
-                    Expense History
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    Review and refine your expense records
-                  </h2>
-                  <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
-                    Narrow the list by date or category, then edit or remove
-                    entries without leaving the page.
-                  </p>
-                </div>
+        <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className={cardClass}>
+            <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <SectionHeader
+                eyebrow="Expense History"
+                title="Review and refine your expense records"
+                description="Filter by date or category, then edit or remove entries without leaving the page."
+              />
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 shrink-0">
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  ["Visible", expenses.length],
+                  ["Total", pagination.total],
+                  ["Page", `${pagination.page}/${pagination.totalPages}`],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]"
+                  >
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Visible
+                      {label}
                     </p>
                     <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                      {expenses.length}
+                      {value}
                     </p>
                   </div>
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Total
-                    </p>
-                    <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                      {pagination.total}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Page
-                    </p>
-                    <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                      {pagination.page}/{pagination.totalPages}
-                    </p>
-                  </div>
-                </div>
+                ))}
               </div>
-
-              <form
-                onSubmit={handleApplyFilters}
-                className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 dark:border-white/[0.08] dark:bg-white/[0.03]"
-              >
-                <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
-                  <label className="space-y-1.5">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                      From
-                    </span>
-                    <input
-                      type="date"
-                      value={filters.startDate}
-                      onChange={(event) =>
-                        updateFilterField("startDate", event.target.value)
-                      }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white"
-                    />
-                  </label>
-
-                  <label className="space-y-1.5">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                      To
-                    </span>
-                    <input
-                      type="date"
-                      value={filters.endDate}
-                      onChange={(event) =>
-                        updateFilterField("endDate", event.target.value)
-                      }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white"
-                    />
-                  </label>
-
-                  <label className="space-y-1.5">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                      Category
-                    </span>
-                    <select
-                      value={filters.category}
-                      onChange={(event) =>
-                        updateFilterField("category", event.target.value)
-                      }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white"
-                    >
-                      <option value="">All categories</option>
-                      {categoryOptions.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="flex items-end">
-                    <button
-                      type="submit"
-                      disabled={expensesLoading}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-2 text-sm font-bold text-white transition hover:shadow-lg hover:shadow-slate-900/30 hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-70 dark:from-white dark:to-slate-100 dark:text-slate-950 lg:w-auto lg:min-w-[100px]"
-                    >
-                      {expensesLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CalendarRange className="h-4 w-4" />
-                      )}
-                      Apply
-                    </button>
-                  </div>
-                </div>
-              </form>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-white/[0.08]">
-              <div className="hidden grid-cols-[0.95fr_1.6fr_1fr_0.9fr_0.9fr] gap-4 bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-600 lg:grid dark:from-white/[0.04] dark:to-white/[0.02] dark:text-slate-500">
+            <form
+              onSubmit={handleApplyFilters}
+              className="mb-5 rounded-3xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]"
+            >
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
+                <label>
+                  <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                    From
+                  </span>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(event) =>
+                      updateFilterField("startDate", event.target.value)
+                    }
+                    className={inputClass}
+                  />
+                </label>
+
+                <label>
+                  <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                    To
+                  </span>
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(event) =>
+                      updateFilterField("endDate", event.target.value)
+                    }
+                    className={inputClass}
+                  />
+                </label>
+
+                <label>
+                  <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                    Category
+                  </span>
+                  <select
+                    value={filters.category}
+                    onChange={(event) =>
+                      updateFilterField("category", event.target.value)
+                    }
+                    className={inputClass}
+                  >
+                    <option value="">All categories</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={expensesLoading}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-70 dark:bg-white dark:text-slate-950 xl:w-auto"
+                  >
+                    {expensesLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CalendarRange className="h-4 w-4" />
+                    )}
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-white/[0.08]">
+              <div className="hidden grid-cols-[0.9fr_1.5fr_1fr_0.9fr_1fr] gap-4 bg-slate-50 px-5 py-4 text-xs font-black uppercase tracking-wider text-slate-500 lg:grid dark:bg-white/[0.04]">
                 <span>Amount</span>
                 <span>Description</span>
                 <span>Category</span>
                 <span>Date</span>
-                <span>Actions</span>
+                <span className="text-right">Actions</span>
               </div>
 
               {expensesLoading ? (
-                <div className="space-y-3 px-5 py-5">
+                <div className="space-y-3 p-5">
                   {Array.from({ length: 4 }).map((_, index) => (
                     <div
                       key={index}
@@ -1264,9 +1191,9 @@ export default function MoneyDashboard() {
                   {expenses.map((expense) => (
                     <div
                       key={expense._id}
-                      className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[0.95fr_1.6fr_1fr_0.9fr_1fr] lg:items-center"
+                      className="grid gap-4 p-5 lg:grid-cols-[0.9fr_1.5fr_1fr_0.9fr_1fr] lg:items-center"
                     >
-                      <div className="min-w-0">
+                      <div>
                         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
                           Amount
                         </p>
@@ -1275,7 +1202,7 @@ export default function MoneyDashboard() {
                         </p>
                       </div>
 
-                      <div className="min-w-0">
+                      <div>
                         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
                           Description
                         </p>
@@ -1284,7 +1211,7 @@ export default function MoneyDashboard() {
                         </p>
                       </div>
 
-                      <div className="min-w-0">
+                      <div>
                         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
                           Category
                         </p>
@@ -1293,7 +1220,7 @@ export default function MoneyDashboard() {
                         </span>
                       </div>
 
-                      <div className="min-w-0">
+                      <div>
                         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
                           Date
                         </p>
@@ -1302,11 +1229,11 @@ export default function MoneyDashboard() {
                         </p>
                       </div>
 
-                      <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+                      <div className="grid grid-cols-2 gap-2 sm:flex lg:justify-end">
                         <button
                           type="button"
                           onClick={() => handleEditExpense(expense)}
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                          className={buttonSecondary}
                         >
                           <PencilLine className="h-4 w-4" />
                           Edit
@@ -1315,7 +1242,7 @@ export default function MoneyDashboard() {
                           type="button"
                           onClick={() => void handleDeleteExpense(expense)}
                           disabled={deletingExpenseId === expense._id}
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                          className={buttonDanger}
                         >
                           {deletingExpenseId === expense._id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1330,15 +1257,14 @@ export default function MoneyDashboard() {
                 </div>
               ) : (
                 <div className="px-6 py-12 text-center">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400">
                     <Coins className="h-7 w-7" />
                   </div>
                   <h3 className="mt-4 text-lg font-black text-slate-950 dark:text-white">
                     No expenses found
                   </h3>
                   <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                    Empty ranges and categories are valid. Adjust filters or add
-                    a new expense.
+                    Adjust filters or add a new expense.
                   </p>
                 </div>
               )}
@@ -1350,17 +1276,18 @@ export default function MoneyDashboard() {
                 {pagination.total} total expenses
               </p>
 
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <div className="grid grid-cols-2 gap-2 sm:flex">
                 <button
                   type="button"
                   onClick={() =>
                     void goToPage(Math.max(1, pagination.page - 1))
                   }
                   disabled={pagination.page <= 1 || expensesLoading}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                  className={buttonSecondary}
                 >
                   Previous
                 </button>
+
                 <button
                   type="button"
                   onClick={() =>
@@ -1371,7 +1298,7 @@ export default function MoneyDashboard() {
                   disabled={
                     pagination.page >= pagination.totalPages || expensesLoading
                   }
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                  className={buttonSecondary}
                 >
                   Next
                 </button>
@@ -1380,15 +1307,13 @@ export default function MoneyDashboard() {
           </div>
 
           <div className="space-y-5">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
-                Insights
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                Most spent and top categories
-              </h2>
+            <div className={cardClass}>
+              <SectionHeader
+                eyebrow="Insights"
+                title="Most spent and top categories"
+              />
 
-              <div className="mt-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:from-white/[0.05] dark:to-white/[0.03]">
+              <div className="rounded-3xl bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:from-white/[0.05] dark:to-white/[0.03]">
                 <p className="text-sm font-bold text-slate-500">
                   Most spent category
                 </p>
@@ -1397,12 +1322,14 @@ export default function MoneyDashboard() {
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
                   {mostSpentCategory
-                    ? `${formatAmount(mostSpentCategory.totalSpent)} spent in this category`
-                    : "This will appear once your backend has expense data."}
+                    ? `${formatAmount(
+                        mostSpentCategory.totalSpent,
+                      )} spent in this category`
+                    : "This will appear once expense data exists."}
                 </p>
               </div>
 
-              <div className="mt-5 h-64 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3.5 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
+              <div className="mt-5 h-72 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
@@ -1461,20 +1388,18 @@ export default function MoneyDashboard() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5 shadow-xl shadow-slate-200/50 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#0f0c1f] dark:to-[#0a0715] dark:shadow-black/20">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-500 dark:text-emerald-300">
-                Top Categories
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                Spend distribution
-              </h2>
+            <div className={cardClass}>
+              <SectionHeader
+                eyebrow="Top Categories"
+                title="Spend distribution"
+              />
 
-              <div className="mt-4 space-y-2">
+              <div className="space-y-3">
                 {(summary?.topCategories?.length ?? 0) > 0 ? (
                   (summary?.topCategories ?? []).map((category) => (
                     <div
                       key={category._id}
-                      className="rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3.5 py-3 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]"
+                      className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]"
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -1493,7 +1418,7 @@ export default function MoneyDashboard() {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-[1.3rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
+                  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
                     No top-category data yet.
                   </div>
                 )}
