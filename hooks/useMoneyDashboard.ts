@@ -58,6 +58,26 @@ function normalizeCategoryName(category: string) {
   return category.trim().toLowerCase();
 }
 
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function findMonthlyTotal(monthlyExpenseSummary: unknown, monthKey: string) {
+  if (!Array.isArray(monthlyExpenseSummary)) {
+    return 0;
+  }
+
+  return (
+    monthlyExpenseSummary.find(
+      (item) =>
+        item?.month === monthKey ||
+        item?.month?.startsWith?.(monthKey) ||
+        item?.month?.startsWith?.(`${monthKey}-`),
+    )?.total ?? 0
+  );
+}
+
 function defaultSummary(): MoneySummary {
   return {
     salaryAmount: 0,
@@ -94,6 +114,40 @@ export function useMoneyDashboard() {
   const [pagination, setPagination] = useState<MoneyPagination>(
     createDefaultPagination(),
   );
+
+  const summaryWithFallback = useMemo(() => {
+    const currentMonthKey = getCurrentMonthKey();
+    const fallbackMonthSpent =
+      findMonthlyTotal(monthlyExpenseSummary, currentMonthKey) ||
+      expenses.reduce((sum, expense) => {
+        const expenseDate = new Date(expense.date);
+        const now = new Date();
+        return expenseDate.getFullYear() === now.getFullYear() &&
+          expenseDate.getMonth() === now.getMonth()
+          ? sum + expense.amount
+          : sum;
+      }, 0);
+
+    const totalExpenses =
+      summary.totalExpenses ||
+      expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const expenseCount = summary.expenseCount || expenses.length;
+    const averageExpense =
+      summary.averageExpense ||
+      (expenseCount > 0 ? totalExpenses / expenseCount : 0);
+    const salaryAmount = salary?.amount ?? summary.salaryAmount;
+    const remainingSalary =
+      summary.remainingSalary || salaryAmount - fallbackMonthSpent;
+
+    return {
+      ...summary,
+      currentMonthSpent: summary.currentMonthSpent || fallbackMonthSpent,
+      averageExpense,
+      remainingSalary,
+      expenseCount,
+      totalExpenses,
+    };
+  }, [expenses, monthlyExpenseSummary, salary, summary]);
   const [filters, setFilters] = useState<FiltersState>({
     ...getMonthRange(),
     category: "",
@@ -237,10 +291,11 @@ export function useMoneyDashboard() {
 
       try {
         const summary = await moneyAPI.getMonthlyExpenseSummary();
+        const safeSummary = Array.isArray(summary) ? summary : [];
 
         if (!isMounted.current) return;
 
-        setMonthlyExpenseSummary(summary ?? []);
+        setMonthlyExpenseSummary(safeSummary);
         setError(null);
         clearToastLock();
       } catch (error: unknown) {
@@ -777,7 +832,7 @@ export function useMoneyDashboard() {
     salaryHistory,
     balanceSources,
     monthlyExpenseSummary,
-    summary,
+    summary: summaryWithFallback,
     categories,
     categoryOptions,
     expenses,

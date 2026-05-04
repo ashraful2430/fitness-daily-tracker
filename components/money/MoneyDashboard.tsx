@@ -31,7 +31,10 @@ import {
   YAxis,
 } from "recharts";
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
-import PremiumModal from "@/components/ui/PremiumModal";
+import PremiumModal, {
+  ModalCancelButton,
+  ModalConfirmButton,
+} from "@/components/ui/PremiumModal";
 import type { BalanceSource, MoneyExpense } from "@/types/money";
 
 type FormErrors = Record<string, string>;
@@ -52,7 +55,7 @@ const fixedCardClass =
   "min-h-[390px] rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0f0c1f]/90 dark:shadow-black/25 sm:p-6";
 
 const inputClass =
-  "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white dark:focus:bg-white/[0.07]";
+  "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-white/[0.08] dark:bg-slate-950/90 dark:text-slate-100 dark:focus:bg-slate-900";
 
 const buttonPrimary =
   "inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-cyan-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-950/25 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto";
@@ -80,6 +83,17 @@ function formatDate(value: string) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatCategoryLabel(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .map((word) =>
+      word.length > 0
+        ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`
+        : "",
+    )
+    .join(" ");
 }
 
 function getToday() {
@@ -252,7 +266,7 @@ export default function MoneyDashboard() {
   const chartData = useMemo(
     () =>
       (summary?.topCategories || []).map((category) => ({
-        name: category._id,
+        name: formatCategoryLabel(category._id),
         totalSpent: category.totalSpent,
       })),
     [summary?.topCategories],
@@ -550,10 +564,13 @@ export default function MoneyDashboard() {
                     label: "Logged in as",
                     value: user?.name ?? "Unknown user",
                   },
-                  { label: "Categories", value: String(categories.length) },
                   {
-                    label: "Total records",
-                    value: String(summary.expenseCount ?? 0),
+                    label: "Available Balance",
+                    value: formatAmount(totalBalance),
+                  },
+                  {
+                    label: "Total Spent",
+                    value: formatAmount(summary.currentMonthSpent),
                   },
                 ].map((item) => (
                   <div
@@ -880,7 +897,9 @@ export default function MoneyDashboard() {
                         className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
                       >
                         <Tags className="h-3.5 w-3.5 shrink-0 text-violet-500" />
-                        <span className="truncate">{category.name}</span>
+                        <span className="truncate">
+                          {formatCategoryLabel(category.name)}
+                        </span>
                         <button
                           type="button"
                           onClick={() =>
@@ -888,7 +907,7 @@ export default function MoneyDashboard() {
                           }
                           disabled={deletingCategoryName === category.name}
                           className="shrink-0 rounded-full p-1 text-slate-400 transition hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-70"
-                          aria-label={`Delete ${category.name}`}
+                          aria-label={`Delete ${formatCategoryLabel(category.name)}`}
                         >
                           {deletingCategoryName === category.name ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1089,7 +1108,7 @@ export default function MoneyDashboard() {
                 <option value="">Select a category</option>
                 {categoryOptions.map((category) => (
                   <option key={category} value={category}>
-                    {category}
+                    {formatCategoryLabel(category)}
                   </option>
                 ))}
               </select>
@@ -1194,7 +1213,7 @@ export default function MoneyDashboard() {
                     <option value="">All categories</option>
                     {categoryOptions.map((category) => (
                       <option key={category} value={category}>
-                        {category}
+                        {formatCategoryLabel(category)}
                       </option>
                     ))}
                   </select>
@@ -1257,7 +1276,7 @@ export default function MoneyDashboard() {
                             Description
                           </p>
                           <p className="truncate font-bold text-slate-700 dark:text-slate-200">
-                            {expense.note}
+                            {expense.note?.trim() || "No description provided"}
                           </p>
                         </div>
 
@@ -1266,10 +1285,10 @@ export default function MoneyDashboard() {
                             Category
                           </p>
                           <span
-                            title={expense.category}
+                            title={formatCategoryLabel(expense.category)}
                             className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-bold text-slate-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
                           >
-                            {expense.category}
+                            {formatCategoryLabel(expense.category)}
                           </span>
                         </div>
 
@@ -1373,7 +1392,9 @@ export default function MoneyDashboard() {
                   Most spent category
                 </p>
                 <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  {mostSpentCategory?._id ?? "No data yet"}
+                  {mostSpentCategory
+                    ? formatCategoryLabel(mostSpentCategory._id)
+                    : "No data yet"}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
                   {mostSpentCategory
@@ -1459,7 +1480,7 @@ export default function MoneyDashboard() {
                       <div className="flex items-center justify-between gap-4">
                         <div className="min-w-0">
                           <p className="truncate text-base font-black text-slate-950 dark:text-white">
-                            {category._id}
+                            {formatCategoryLabel(category._id)}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
                             {category.expenseCount} expense
