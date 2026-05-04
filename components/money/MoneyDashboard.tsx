@@ -31,6 +31,7 @@ import {
   YAxis,
 } from "recharts";
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
+import PremiumModal from "@/components/ui/PremiumModal";
 import type { BalanceSource, MoneyExpense } from "@/types/money";
 
 type FormErrors = Record<string, string>;
@@ -237,6 +238,15 @@ export default function MoneyDashboard() {
   const [expenseErrors, setExpenseErrors] = useState<FormErrors>({});
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    description: string;
+    confirmLabel?: string;
+    variant?: "default" | "info" | "error";
+    action: () => Promise<void>;
+  } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
   const expenseFormRef = useRef<HTMLDivElement | null>(null);
 
   const chartData = useMemo(
@@ -277,18 +287,21 @@ export default function MoneyDashboard() {
   };
 
   const handleSalaryReset = async () => {
-    const confirmed = window.confirm(
-      "Reset your saved salary? This removes the current salary value.",
-    );
+    setConfirmState({
+      title: "Reset saved salary",
+      description:
+        "Reset your saved salary? This removes the current salary value.",
+      confirmLabel: "Reset salary",
+      variant: "info",
+      action: async () => {
+        const ok = await resetSalary();
 
-    if (!confirmed) return;
-
-    const ok = await resetSalary();
-
-    if (ok) {
-      setSalaryAmount("");
-      setSalaryErrors({});
-    }
+        if (ok) {
+          setSalaryAmount("");
+          setSalaryErrors({});
+        }
+      },
+    });
   };
 
   const handleBalanceSubmit = async (
@@ -331,19 +344,21 @@ export default function MoneyDashboard() {
   };
 
   const handleDeleteBalanceSource = async (source: BalanceSource) => {
-    const confirmed = window.confirm(
-      `Remove ${source.type.toLowerCase()} source with ${formatAmount(
+    setConfirmState({
+      title: "Remove balance source",
+      description: `Remove ${source.type.toLowerCase()} source with ${formatAmount(
         source.amount,
       )}?`,
-    );
+      confirmLabel: "Delete source",
+      variant: "error",
+      action: async () => {
+        const ok = await deleteBalanceSource(source._id);
 
-    if (!confirmed) return;
-
-    const ok = await deleteBalanceSource(source._id);
-
-    if (ok && editingBalanceId === source._id) {
-      handleBalanceCancel();
-    }
+        if (ok && editingBalanceId === source._id) {
+          handleBalanceCancel();
+        }
+      },
+    });
   };
 
   const handleCategorySubmit = async (
@@ -360,13 +375,15 @@ export default function MoneyDashboard() {
   };
 
   const handleCategoryDelete = async (name: string) => {
-    const confirmed = window.confirm(
-      `Delete category "${name}"? This only works if no expenses use it.`,
-    );
-
-    if (!confirmed) return;
-
-    await deleteCategory(name);
+    setConfirmState({
+      title: "Delete category",
+      description: `Delete category "${name}"? This only works if no expenses use it.`,
+      confirmLabel: "Delete category",
+      variant: "error",
+      action: async () => {
+        await deleteCategory(name);
+      },
+    });
   };
 
   const handleExpenseSubmit = async (
@@ -406,17 +423,21 @@ export default function MoneyDashboard() {
   };
 
   const handleDeleteExpense = async (expense: MoneyExpense) => {
-    const confirmed = window.confirm(
-      `Delete expense "${expense.note}" for ${formatAmount(expense.amount)}?`,
-    );
+    setConfirmState({
+      title: "Delete expense",
+      description: `Delete expense "${expense.note}" for ${formatAmount(
+        expense.amount,
+      )}?`,
+      confirmLabel: "Delete expense",
+      variant: "error",
+      action: async () => {
+        const ok = await deleteExpense(expense._id);
 
-    if (!confirmed) return;
-
-    const ok = await deleteExpense(expense._id);
-
-    if (ok && editingExpenseId === expense._id) {
-      resetExpenseForm();
-    }
+        if (ok && editingExpenseId === expense._id) {
+          resetExpenseForm();
+        }
+      },
+    });
   };
 
   const handleApplyFilters = async (
@@ -1461,6 +1482,51 @@ export default function MoneyDashboard() {
           </div>
         </section>
       </div>
+
+      <PremiumModal
+        open={Boolean(confirmState)}
+        title={confirmState?.title ?? "Confirm action"}
+        description={confirmState?.description}
+        subtitle="Confirmation"
+        variant={confirmState?.variant ?? "default"}
+        size="sm"
+        onClose={() => {
+          if (!confirmLoading) setConfirmState(null);
+        }}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirmLoading) setConfirmState(null);
+              }}
+              className="rounded-3xl border border-slate-700/80 bg-slate-950/80 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-900"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirmState || confirmLoading) return;
+                setConfirmLoading(true);
+
+                try {
+                  await confirmState.action();
+                } finally {
+                  setConfirmLoading(false);
+                  setConfirmState(null);
+                }
+              }}
+              disabled={confirmLoading}
+              className="rounded-3xl bg-gradient-to-r from-rose-500 via-rose-600 to-orange-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-500/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {confirmLoading
+                ? "Processing..."
+                : (confirmState?.confirmLabel ?? "Confirm")}
+            </button>
+          </>
+        }
+      />
     </div>
   );
 }

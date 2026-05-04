@@ -2,9 +2,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Minus, Pencil, Plus, Target, Trash2, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { Minus, Pencil, Plus, Target, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+import PremiumModal from "@/components/ui/PremiumModal";
 import {
   scoreSectionAPI,
   type ScoreGoalType,
@@ -198,9 +199,7 @@ export default function ScoreSections({
       );
 
       setSections((prev) =>
-        prev.map((item) =>
-          item._id === section._id ? updatedSection : item,
-        ),
+        prev.map((item) => (item._id === section._id ? updatedSection : item)),
       );
     } catch {
       setSections(previous);
@@ -443,130 +442,109 @@ function SectionModal({
   onClose: () => void;
 }) {
   return (
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+    <PremiumModal
+      open={open}
+      title={editMode ? "Update section" : "Create section"}
+      subtitle={editMode ? "Edit Section" : "New Section"}
+      description="Add a goal like Coding, Meditation, Study, Workout, or Reading."
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            type="button"
             onClick={onClose}
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-          />
-
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.97 }}
-            className="relative w-full max-w-lg rounded-[2rem] border border-violet-200 bg-white p-6 shadow-2xl shadow-violet-200/50 dark:border-violet-400/20 dark:bg-[#120f24] dark:shadow-violet-950/30"
+            className="rounded-3xl border border-white/10 bg-slate-950/80 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-900"
           >
-            <button
-              onClick={onClose}
-              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-950 dark:bg-white/[0.07] dark:text-slate-400 dark:hover:bg-white/[0.12] dark:hover:text-white"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="mb-6">
-              <p className="mb-2 text-xs font-black uppercase tracking-[0.25em] text-violet-500 dark:text-violet-300">
-                {editMode ? "Edit Section" : "New Section"}
-              </p>
-
-              <h2 className="text-3xl font-black text-slate-950 dark:text-white">
-                {editMode ? "Update section" : "Create section"}
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Add a goal like Coding, Meditation, Study, Workout, or Reading.
-              </p>
-            </div>
-
-            <div className="space-y-5">
-              <div>
-                <p className="mb-3 text-sm font-black text-slate-950 dark:text-white">
-                  Icon
-                </p>
-
-                <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-                  {EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => setForm((prev) => ({ ...prev, emoji }))}
-                      className={`flex h-10 w-10 items-center justify-center rounded-2xl text-lg transition ${
-                        form.emoji === emoji
-                          ? "bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-950/30"
-                          : "bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12]"
-                      }`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <input
-                value={form.name}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-                placeholder="Section name"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-950 outline-none placeholder:text-slate-400 focus:border-violet-400/50 dark:border-white/10 dark:bg-white/[0.07] dark:text-white dark:placeholder:text-slate-500"
-              />
-
-              <div className="grid gap-2 sm:grid-cols-3">
-                {goalTypes.map((type) => (
-                  <button
-                    key={type.value}
-                    onClick={() =>
-                      setForm((prev) => ({
-                        ...prev,
-                        goalType: type.value,
-                        goalValue:
-                          type.value === "boolean" ? 1 : prev.goalValue || 1,
-                      }))
-                    }
-                    className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
-                      form.goalType === type.value
-                        ? "border-violet-400/40 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-950/30"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:bg-white/[0.10]"
-                    }`}
-                  >
-                    {type.label}
-                  </button>
-                ))}
-              </div>
-
-              {form.goalType !== "boolean" && (
-                <input
-                  type="number"
-                  min={1}
-                  value={form.goalValue}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      goalValue: Number(e.target.value),
-                    }))
-                  }
-                  placeholder="Daily goal value"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-950 outline-none placeholder:text-slate-400 focus:border-violet-400/50 dark:border-white/10 dark:bg-white/[0.07] dark:text-white dark:placeholder:text-slate-500"
-                />
-              )}
-
-              <button
-                onClick={onSubmit}
-                disabled={saving}
-                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-violet-950/30 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving
-                  ? "Saving..."
-                  : editMode
-                    ? "Save Changes"
-                    : "Create Section"}
-              </button>
-            </div>
-          </motion.div>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={saving}
+            className="rounded-3xl bg-gradient-to-r from-violet-500 to-cyan-400 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/20 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Saving..." : editMode ? "Save changes" : "Add section"}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-slate-200 mb-2">
+            Section name
+          </label>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, name: e.target.value }))
+            }
+            placeholder="e.g. Workout"
+            className="w-full rounded-3xl border border-slate-700/80 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
+          />
         </div>
-      )}
-    </AnimatePresence>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-slate-200 mb-2">
+              Emoji
+            </label>
+            <select
+              value={form.emoji}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, emoji: e.target.value }))
+              }
+              className="w-full rounded-3xl border border-slate-700/80 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
+            >
+              {EMOJIS.map((emoji) => (
+                <option key={emoji} value={emoji}>
+                  {emoji}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-200 mb-2">
+              Goal type
+            </label>
+            <select
+              value={form.goalType}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  goalType: e.target.value as ScoreGoalType,
+                }))
+              }
+              className="w-full rounded-3xl border border-slate-700/80 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
+            >
+              {goalTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-200 mb-2">
+            Goal value
+          </label>
+          <input
+            type="number"
+            value={form.goalValue}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                goalValue: Number(e.target.value),
+              }))
+            }
+            min={form.goalType === "boolean" ? 1 : 0}
+            className="w-full rounded-3xl border border-slate-700/80 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-500/20"
+          />
+        </div>
+      </div>
+    </PremiumModal>
   );
 }
