@@ -118,6 +118,28 @@ function emptyExpenseForm(defaultCategory = ""): ExpenseFormState {
   };
 }
 
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xl dark:border-white/[0.10] dark:bg-slate-900">
+      <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+        {label}
+      </p>
+      <p className="mt-1 text-base font-black text-emerald-600 dark:text-emerald-300">
+        {formatAmount(payload[0].value)}
+      </p>
+    </div>
+  );
+}
+
 function SectionHeader({
   eyebrow,
   title,
@@ -195,6 +217,7 @@ export default function MoneyDashboard() {
     salary,
     balanceSources,
     summary,
+    insights,
     categories,
     categoryOptions,
     expenses,
@@ -265,16 +288,16 @@ export default function MoneyDashboard() {
 
   const chartData = useMemo(
     () =>
-      (summary?.topCategories || []).map((category) => ({
-        name: formatCategoryLabel(category._id),
+      (insights?.topCategories ?? []).map((category) => ({
+        name: category.categoryLabel,
         totalSpent: category.totalSpent,
       })),
-    [summary?.topCategories],
+    [insights?.topCategories],
   );
 
   const activeCategory = expenseForm.category || categoryOptions[0] || "";
   const salaryDisplay = salary?.amount ?? summary.salaryAmount ?? 0;
-  const mostSpentCategory = summary?.topCategories?.[0];
+  const mostSpentCategory = insights?.mostSpentCategory ?? null;
 
   const totalBalance = balanceSources.reduce(
     (sum, source) => sum + source.amount,
@@ -1392,15 +1415,11 @@ export default function MoneyDashboard() {
                   Most spent category
                 </p>
                 <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  {mostSpentCategory
-                    ? formatCategoryLabel(mostSpentCategory._id)
-                    : "No data yet"}
+                  {mostSpentCategory ? mostSpentCategory.categoryLabel : "No data yet"}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
                   {mostSpentCategory
-                    ? `${formatAmount(
-                        mostSpentCategory.totalSpent,
-                      )} spent in this category`
+                    ? `${formatAmount(mostSpentCategory.totalSpent)} spent · ${mostSpentCategory.percentage}% of total spend`
                     : "This will appear once expense data exists."}
                 </p>
               </div>
@@ -1434,12 +1453,7 @@ export default function MoneyDashboard() {
                       />
                       <Tooltip
                         cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
-                        contentStyle={{
-                          borderRadius: 16,
-                          border: "1px solid rgba(148,163,184,0.16)",
-                          background: "#0f172a",
-                          color: "#fff",
-                        }}
+                        content={ChartTooltip}
                       />
                       <Bar dataKey="totalSpent" radius={[12, 12, 4, 4]}>
                         {chartData.map((item, index) => (
@@ -1471,20 +1485,20 @@ export default function MoneyDashboard() {
               />
 
               <div className="max-h-[390px] space-y-3 overflow-y-auto pr-1">
-                {(summary?.topCategories?.length ?? 0) > 0 ? (
-                  (summary?.topCategories ?? []).map((category) => (
+                {(insights?.topCategories?.length ?? 0) > 0 ? (
+                  (insights?.topCategories ?? []).map((category) => (
                     <div
-                      key={category._id}
+                      key={category.category}
                       className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]"
                     >
                       <div className="flex items-center justify-between gap-4">
                         <div className="min-w-0">
                           <p className="truncate text-base font-black text-slate-950 dark:text-white">
-                            {formatCategoryLabel(category._id)}
+                            {category.categoryLabel}
                           </p>
                           <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                            {category.expenseCount} expense
-                            {category.expenseCount === 1 ? "" : "s"}
+                            {category.count} expense
+                            {category.count === 1 ? "" : "s"} · {category.percentage}%
                           </p>
                         </div>
                         <p className="shrink-0 text-lg font-black text-emerald-600 dark:text-emerald-300">

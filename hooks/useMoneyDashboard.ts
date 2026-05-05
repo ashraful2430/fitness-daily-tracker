@@ -11,6 +11,7 @@ import type {
   ExpensesQuery,
   MoneyCategory,
   MoneyExpense,
+  MoneyInsights,
   MoneyPagination,
   MoneySummary,
   MonthlyExpenseSummary,
@@ -110,6 +111,7 @@ export function useMoneyDashboard() {
     MonthlyExpenseSummary[]
   >([]);
   const [summary, setSummary] = useState<MoneySummary>(defaultSummary);
+  const [insights, setInsights] = useState<MoneyInsights | null>(null);
   const [expenses, setExpenses] = useState<MoneyExpense[]>([]);
   const [pagination, setPagination] = useState<MoneyPagination>(
     createDefaultPagination(),
@@ -285,6 +287,28 @@ export function useMoneyDashboard() {
     [clearToastLock, handleError, userId],
   );
 
+  const fetchInsights = useCallback(
+    async (notify = false) => {
+      if (!userId) return;
+
+      try {
+        const now = new Date();
+        const result = await moneyAPI.getInsights({
+          month: now.getMonth() + 1,
+          year: now.getFullYear(),
+        });
+
+        if (!isMounted.current) return;
+
+        setInsights(result);
+        clearToastLock();
+      } catch (error: unknown) {
+        handleError(error, "Failed to load insights", notify);
+      }
+    },
+    [clearToastLock, handleError, userId],
+  );
+
   const fetchMonthlySummary = useCallback(
     async (notify = false) => {
       if (!userId) return;
@@ -363,6 +387,7 @@ export function useMoneyDashboard() {
           fetchSummaryBundle(notify),
           fetchSalaryHistory(notify),
           fetchMonthlySummary(notify),
+          fetchInsights(notify),
           fetchExpenses(filtersRef.current, notify),
         ]);
       } finally {
@@ -375,6 +400,7 @@ export function useMoneyDashboard() {
       authLoading,
       fetchCategories,
       fetchExpenses,
+      fetchInsights,
       fetchMonthlySummary,
       fetchSalaryHistory,
       fetchSummaryBundle,
@@ -391,12 +417,14 @@ export function useMoneyDashboard() {
         fetchSummaryBundle(false),
         fetchSalaryHistory(false),
         fetchMonthlySummary(false),
+        fetchInsights(false),
         fetchExpenses(targetFilters, false),
       ]);
     },
     [
       fetchCategories,
       fetchExpenses,
+      fetchInsights,
       fetchMonthlySummary,
       fetchSalaryHistory,
       fetchSummaryBundle,
@@ -833,6 +861,7 @@ export function useMoneyDashboard() {
     balanceSources,
     monthlyExpenseSummary,
     summary: summaryWithFallback,
+    insights,
     categories,
     categoryOptions,
     expenses,

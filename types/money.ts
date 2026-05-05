@@ -60,6 +60,26 @@ export interface MostSpentCategory {
   totalSpent: number;
 }
 
+export interface InsightsTopCategory {
+  category: string;
+  categoryLabel: string;
+  totalSpent: number;
+  count: number;
+  percentage: number;
+}
+
+export interface MoneyInsights {
+  period: { month: number; year: number };
+  totalSpent: number;
+  mostSpentCategory: InsightsTopCategory | null;
+  topCategories: InsightsTopCategory[];
+}
+
+export interface InsightsQuery {
+  month?: number;
+  year?: number;
+}
+
 export interface MoneyPagination {
   page: number;
   limit: number;

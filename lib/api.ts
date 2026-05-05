@@ -13,8 +13,10 @@ import type {
   CreateExpenseRequest,
   ExpensesQuery,
   ExpensesResponse,
+  InsightsQuery,
   MoneyCategory,
   MoneyExpense,
+  MoneyInsights,
   MoneySummary,
   SalaryRecord,
   BalanceResponse,
@@ -332,6 +334,16 @@ export const moneyAPI = {
     apiRequest<SalaryRecord[]>("/api/money/salary/history"),
 
   getSummary: () => apiRequest<MoneySummary>("/api/money/summary"),
+
+  getInsights: (query?: InsightsQuery) => {
+    const params = new URLSearchParams();
+    if (query?.month !== undefined) params.set("month", String(query.month));
+    if (query?.year !== undefined) params.set("year", String(query.year));
+    const search = params.toString();
+    return apiRequest<MoneyInsights>(
+      `/api/money/insights${search ? `?${search}` : ""}`,
+    );
+  },
 };
 
 export const lendingAPI = {
