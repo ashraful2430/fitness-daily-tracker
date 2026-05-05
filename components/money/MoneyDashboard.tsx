@@ -36,6 +36,8 @@ import PremiumModal, {
   ModalConfirmButton,
 } from "@/components/ui/PremiumModal";
 import type { BalanceSource, MoneyExpense } from "@/types/money";
+import type { TooltipProps } from "recharts";
+import type { TooltipContentProps } from "recharts";
 
 type FormErrors = Record<string, string>;
 
@@ -118,23 +120,31 @@ function emptyExpenseForm(defaultCategory = ""): ExpenseFormState {
   };
 }
 
+type CustomTooltipPayload = {
+  value?: number;
+};
+
+type FixedTooltipProps = TooltipProps<number, string> & {
+  payload?: CustomTooltipPayload[];
+  label?: string;
+};
+
 function ChartTooltip({
   active,
   payload,
   label,
-}: {
-  active?: boolean;
-  payload?: Array<{ value: number }>;
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
+}: TooltipContentProps<number, string>) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const value = typeof payload[0]?.value === "number" ? payload[0].value : 0;
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xl dark:border-white/[0.10] dark:bg-slate-900">
       <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
         {label}
       </p>
       <p className="mt-1 text-base font-black text-emerald-600 dark:text-emerald-300">
-        {formatAmount(payload[0].value)}
+        {formatAmount(value)}
       </p>
     </div>
   );
@@ -1415,7 +1425,9 @@ export default function MoneyDashboard() {
                   Most spent category
                 </p>
                 <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  {mostSpentCategory ? mostSpentCategory.categoryLabel : "No data yet"}
+                  {mostSpentCategory
+                    ? mostSpentCategory.categoryLabel
+                    : "No data yet"}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
                   {mostSpentCategory
@@ -1453,7 +1465,7 @@ export default function MoneyDashboard() {
                       />
                       <Tooltip
                         cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
-                        content={ChartTooltip}
+                        content={ChartTooltip as any}
                       />
                       <Bar dataKey="totalSpent" radius={[12, 12, 4, 4]}>
                         {chartData.map((item, index) => (
@@ -1498,7 +1510,8 @@ export default function MoneyDashboard() {
                           </p>
                           <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
                             {category.count} expense
-                            {category.count === 1 ? "" : "s"} · {category.percentage}%
+                            {category.count === 1 ? "" : "s"} ·{" "}
+                            {category.percentage}%
                           </p>
                         </div>
                         <p className="shrink-0 text-lg font-black text-emerald-600 dark:text-emerald-300">
