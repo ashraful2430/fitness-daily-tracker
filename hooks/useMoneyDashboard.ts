@@ -14,6 +14,7 @@ import type {
   MoneyInsights,
   MoneyPagination,
   MoneySummary,
+  MonthlySummaryResponse,
   MonthlyExpenseSummary,
   SalaryRecord,
   UpdateExpenseRequest,
@@ -100,9 +101,29 @@ function isConflictError(error: unknown) {
   return error instanceof ApiError && error.status === 409;
 }
 
+function findSalaryForMonth(
+  history: SalaryRecord[],
+  monthKey: string,
+): SalaryRecord | null {
+  if (!monthKey || history.length === 0) return null;
+  const [yearStr, monthStr] = monthKey.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const lastDay = new Date(Date.UTC(year, month, 0));
+
+  return (
+    history
+      .filter((r) => new Date(r.date) <= lastDay)
+      .sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      )[0] ?? null
+  );
+}
+
 export function useMoneyDashboard() {
   const { user, loading: authLoading, clearUser } = useAuth();
   const userId = user?.id ?? null;
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
   const [categories, setCategories] = useState<MoneyCategory[]>([]);
   const [salary, setSalary] = useState<SalaryRecord | null>(null);
   const [salaryHistory, setSalaryHistory] = useState<SalaryRecord[]>([]);
@@ -112,6 +133,7 @@ export function useMoneyDashboard() {
   >([]);
   const [summary, setSummary] = useState<MoneySummary>(defaultSummary);
   const [insights, setInsights] = useState<MoneyInsights | null>(null);
+  const [historicalSummary, setHistoricalSummary] = useState<MonthlySummaryResponse | null>(null);
   const [expenses, setExpenses] = useState<MoneyExpense[]>([]);
   const [pagination, setPagination] = useState<MoneyPagination>(
     createDefaultPagination(),
@@ -150,6 +172,16 @@ export function useMoneyDashboard() {
       totalExpenses,
     };
   }, [expenses, monthlyExpenseSummary, salary, summary]);
+  const isCurrentMonth = useMemo(
+    () => selectedMonth === getCurrentMonthKey(),
+    [selectedMonth],
+  );
+
+  const monthlyReportSalary = useMemo(
+    () => findSalaryForMonth(salaryHistory, selectedMonth),
+    [salaryHistory, selectedMonth],
+  );
+
   const [filters, setFilters] = useState<FiltersState>({
     ...getMonthRange(),
     category: "",
@@ -180,6 +212,7 @@ export function useMoneyDashboard() {
     page: 1,
     limit: 10,
   });
+  const selectedMonthRef = useRef(getCurrentMonthKey());
 
   useEffect(() => {
     isMounted.current = true;
@@ -191,6 +224,10 @@ export function useMoneyDashboard() {
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+
+  useEffect(() => {
+    selectedMonthRef.current = selectedMonth;
+  }, [selectedMonth]);
 
   const clearToastLock = useCallback(() => {
     lastToastMessage.current = null;
@@ -292,10 +329,10 @@ export function useMoneyDashboard() {
       if (!userId) return;
 
       try {
-        const now = new Date();
+        const [yearStr, monthStr] = selectedMonthRef.current.split("-");
         const result = await moneyAPI.getInsights({
-          month: now.getMonth() + 1,
-          year: now.getFullYear(),
+          month: Number(monthStr),
+          year: Number(yearStr),
         });
 
         if (!isMounted.current) return;
@@ -304,6 +341,24 @@ export function useMoneyDashboard() {
         clearToastLock();
       } catch (error: unknown) {
         handleError(error, "Failed to load insights", notify);
+      }
+    },
+    [clearToastLock, handleError, userId],
+  );
+
+  const fetchHistoricalSummary = useCallback(
+    async (month: number, year: number, notify = false) => {
+      if (!userId) return;
+
+      try {
+        const result = await moneyAPI.getMonthSummary(month, year);
+
+        if (!isMounted.current) return;
+
+        setHistoricalSummary(result);
+        clearToastLock();
+      } catch (error: unknown) {
+        handleError(error, "Failed to load monthly summary", notify);
       }
     },
     [clearToastLock, handleError, userId],
@@ -382,12 +437,16 @@ export function useMoneyDashboard() {
 
       try {
         setInitialLoading(true);
+        const [yearStr, monthStr] = selectedMonthRef.current.split("-");
+        const isHistorical = selectedMonthRef.current !== getCurrentMonthKey();
         await Promise.all([
           fetchCategories(notify),
           fetchSummaryBundle(notify),
           fetchSalaryHistory(notify),
           fetchMonthlySummary(notify),
-          fetchInsights(notify),
+          isHistorical
+            ? fetchHistoricalSummary(Number(monthStr), Number(yearStr), notify)
+            : fetchInsights(notify),
           fetchExpenses(filtersRef.current, notify),
         ]);
       } finally {
@@ -400,6 +459,7 @@ export function useMoneyDashboard() {
       authLoading,
       fetchCategories,
       fetchExpenses,
+      fetchHistoricalSummary,
       fetchInsights,
       fetchMonthlySummary,
       fetchSalaryHistory,
@@ -808,6 +868,45 @@ export function useMoneyDashboard() {
     [expenses.length, handleError, refreshAfterMutation],
   );
 
+  const changeSelectedMonth = useCallback(
+    async (monthKey: string) => {
+      const [yearStr, monthStr] = monthKey.split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 0));
+      const nextFilters: FiltersState = {
+        startDate: toIsoDateValue(start),
+        endDate: toIsoDateValue(end),
+        category: "",
+        page: 1,
+        limit: filtersRef.current.limit,
+      };
+
+      selectedMonthRef.current = monthKey;
+
+      if (isMounted.current) {
+        setSelectedMonth(monthKey);
+        setHistoricalSummary(null);
+        filtersRef.current = nextFilters;
+        setFilters(nextFilters);
+      }
+
+      if (monthKey !== getCurrentMonthKey()) {
+        await Promise.all([
+          fetchExpenses(nextFilters, false),
+          fetchHistoricalSummary(month, year, false),
+        ]);
+      } else {
+        await Promise.all([
+          fetchExpenses(nextFilters, false),
+          fetchInsights(false),
+        ]);
+      }
+    },
+    [fetchExpenses, fetchHistoricalSummary, fetchInsights],
+  );
+
   const updateFilterField = useCallback(
     (field: "startDate" | "endDate" | "category", value: string) => {
       setFilters((current) => ({
@@ -862,11 +961,15 @@ export function useMoneyDashboard() {
     monthlyExpenseSummary,
     summary: summaryWithFallback,
     insights,
+    historicalSummary,
     categories,
     categoryOptions,
     expenses,
     filters,
     pagination,
+    selectedMonth,
+    isCurrentMonth,
+    monthlyReportSalary,
     loading: initialLoading || authLoading,
     summaryLoading,
     expensesLoading,
@@ -891,6 +994,7 @@ export function useMoneyDashboard() {
     createExpense,
     updateExpense,
     deleteExpense,
+    changeSelectedMonth,
     updateFilterField,
     setPage,
     applyFilters,
