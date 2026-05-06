@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+const EXTERNAL_API =
+  process.env.EXTERNAL_API_URL ||
+  "https://fitness-daily-tracker-backend-main.vercel.app";
+
 const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -18,6 +22,27 @@ const nextConfig: NextConfig = {
 
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
+  },
+
+  async rewrites() {
+    return [
+      {
+        source: "/api/money/:path*",
+        destination: `${EXTERNAL_API}/api/money/:path*`,
+      },
+      {
+        source: "/api/lending-stats",
+        destination: `${EXTERNAL_API}/api/lending-stats`,
+      },
+      {
+        source: "/api/learning/:path*",
+        destination: `${EXTERNAL_API}/api/learning/:path*`,
+      },
+      {
+        source: "/api/score-sections/:path*",
+        destination: `${EXTERNAL_API}/api/score-sections/:path*`,
+      },
+    ];
   },
 
   images: {

@@ -36,9 +36,10 @@ import type {
   MonthlySummaryResponse,
 } from "@/types/money";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://fitness-daily-tracker-backend-main.vercel.app";
+// Empty string → relative URLs → all requests go to the same Next.js app.
+// Money/learning/score-sections routes are proxied to the external backend
+// via next.config.ts rewrites (server-side, no CORS).
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
