@@ -33,6 +33,7 @@ import type {
   CreateLoanResponse,
   RepaymentResponse,
   LoanDetailsResponse,
+  MonthlySummaryResponse,
 } from "@/types/money";
 
 const API_BASE_URL =
@@ -334,6 +335,15 @@ export const moneyAPI = {
     apiRequest<SalaryRecord[]>("/api/money/salary/history"),
 
   getSummary: () => apiRequest<MoneySummary>("/api/money/summary"),
+
+  getMonthSummary: (month: number, year: number) => {
+    const params = new URLSearchParams();
+    params.set("month", String(month));
+    params.set("year", String(year));
+    return apiRequest<MonthlySummaryResponse>(
+      `/api/money/summary?${params.toString()}`,
+    );
+  },
 
   getInsights: (query?: InsightsQuery) => {
     const params = new URLSearchParams();

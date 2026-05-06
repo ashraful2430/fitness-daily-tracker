@@ -80,6 +80,25 @@ export interface InsightsQuery {
   year?: number;
 }
 
+export interface MonthlySummaryTopCategory {
+  category: string;
+  categoryLabel: string;
+  totalSpent: number;
+  count: number;
+  percentage?: number;
+}
+
+export interface MonthlySummaryResponse {
+  salaryAmount: number;
+  availableBalance: number;
+  totalExpenses: number;
+  expenseCount: number;
+  averageExpense: number;
+  currentMonthSpent: number;
+  remainingSalary: number;
+  topCategories: MonthlySummaryTopCategory[];
+}
+
 export interface MoneyPagination {
   page: number;
   limit: number;
