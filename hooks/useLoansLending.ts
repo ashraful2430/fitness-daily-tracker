@@ -121,10 +121,10 @@ export function useLoansLending() {
   );
 
   const payLoan = useCallback(
-    async (id: string) => {
+    async (id: string, amount: number) => {
       try {
-        await loansAPI.pay(id);
-        toast.success("Loan marked as paid");
+        await loansAPI.pay(id, amount);
+        toast.success("Payment recorded");
         await loadAll();
       } catch (error) {
         handleError(error, "Failed to update loan");
@@ -161,10 +161,10 @@ export function useLoansLending() {
   );
 
   const markRepaid = useCallback(
-    async (id: string) => {
+    async (id: string, amount: number) => {
       try {
-        await lendingRecordAPI.markRepaid(id);
-        toast.success("Marked as repaid");
+        await lendingRecordAPI.markRepaid(id, amount);
+        toast.success("Repayment recorded");
         await loadAll();
       } catch (error) {
         handleError(error, "Failed to update lending record");

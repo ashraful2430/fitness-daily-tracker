@@ -692,7 +692,25 @@ export function useMoneyDashboard() {
     try {
       setSalaryDeleting(true);
       setError(null);
-      await moneyAPI.deleteSalary();
+
+      // Delete dedicated salary record; 404 = nothing to delete, continue
+      try {
+        await moneyAPI.deleteSalary();
+      } catch (err: unknown) {
+        if (!(err instanceof ApiError && err.status === 404)) throw err;
+      }
+
+      // Also delete all SALARY-type balance sources
+      const salarySourceIds = balanceSources
+        .filter((s) => s.type === "SALARY")
+        .map((s) => s._id);
+      if (salarySourceIds.length > 0) {
+        await Promise.all(
+          salarySourceIds.map((id) => moneyAPI.deleteBalanceSource(id)),
+        );
+      }
+
+      if (isMounted.current) setSalary(null);
       await refreshAfterMutation();
       toast.success("Salary reset");
       return true;
@@ -704,7 +722,7 @@ export function useMoneyDashboard() {
         setSalaryDeleting(false);
       }
     }
-  }, [handleError, refreshAfterMutation]);
+  }, [handleError, refreshAfterMutation, balanceSources]);
 
   const createCategory = useCallback(
     async (name: string) => {

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   BadgeDollarSign,
+  Banknote,
   Calendar,
   CalendarRange,
   ChevronDown,
@@ -356,14 +357,22 @@ export default function MoneyDashboard() {
     ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   }, [selectedMonth]);
 
+  const salaryFromSources = balanceSources
+    .filter((s) => s.type === "SALARY")
+    .reduce((sum, s) => sum + s.amount, 0);
+
   const displayStats = useMemo(() => {
     if (isCurrentMonth) {
+      const effectiveSalary =
+        (salary?.amount ?? summary.salaryAmount) || salaryFromSources;
       return {
-        salary: salary?.amount ?? summary.salaryAmount ?? 0,
+        salary: effectiveSalary,
         monthSpent: summary.currentMonthSpent,
         expenseCount: summary.expenseCount,
         averageExpense: summary.averageExpense,
-        remainingSalary: summary.remainingSalary,
+        remainingSalary:
+          summary.remainingSalary ||
+          effectiveSalary - summary.currentMonthSpent,
       };
     }
     if (historicalSummary) {
@@ -383,10 +392,11 @@ export default function MoneyDashboard() {
       averageExpense: 0,
       remainingSalary: monthSalary,
     };
-  }, [isCurrentMonth, salary, summary, historicalSummary, monthlyReportSalary]);
+  }, [isCurrentMonth, salary, summary, historicalSummary, monthlyReportSalary, salaryFromSources]);
 
   const activeCategory = expenseForm.category || categoryOptions[0] || "";
-  const salaryDisplay = salary?.amount ?? summary.salaryAmount ?? 0;
+  const salaryDisplay =
+    (salary?.amount ?? summary.salaryAmount) || salaryFromSources;
   const mostSpentCategory =
     !isCurrentMonth && historicalSummary
       ? (effectiveTopCategories[0] ?? null)
@@ -396,6 +406,10 @@ export default function MoneyDashboard() {
     (sum, source) => sum + source.amount,
     0,
   );
+
+  const externalIncome = balanceSources
+    .filter((s) => s.type === "EXTERNAL")
+    .reduce((sum, s) => sum + s.amount, 0);
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -710,7 +724,7 @@ export default function MoneyDashboard() {
           <StatCard
             title="Current Salary"
             value={formatAmount(displayStats.salary)}
-            subtitle={isCurrentMonth ? "Latest saved salary value." : `Salary in ${selectedMonthLabel}.`}
+            subtitle="Your active monthly salary."
             icon={Wallet}
             gradient="from-emerald-500 to-lime-400"
           />
@@ -743,11 +757,11 @@ export default function MoneyDashboard() {
             gradient="from-blue-500 to-indigo-400"
           />
           <StatCard
-            title="Records"
-            value={formatAmount(displayStats.expenseCount)}
-            subtitle={isCurrentMonth ? "Stored expense entries." : `Expenses in ${selectedMonthLabel}.`}
-            icon={ReceiptText}
-            gradient="from-slate-700 to-slate-500"
+            title="External Income"
+            value={formatAmount(externalIncome)}
+            subtitle="From external balance sources."
+            icon={Banknote}
+            gradient="from-teal-500 to-emerald-400"
           />
         </section>
 
