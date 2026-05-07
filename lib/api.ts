@@ -34,6 +34,10 @@ import type {
   RepaymentResponse,
   LoanDetailsResponse,
   MonthlySummaryResponse,
+  LoanRecord,
+  LendingRecord,
+  FinanceSummary,
+  FundingSource,
 } from "@/types/money";
 
 // Empty string → relative URLs → all requests go to the same Next.js app.
@@ -481,6 +485,54 @@ export const scoreSectionAPI = {
       method: "PATCH",
       body: JSON.stringify({ value }),
     }),
+};
+
+export const loansAPI = {
+  getAll: () => apiRequest<LoanRecord[]>("/api/loans"),
+
+  create: (payload: {
+    personName: string;
+    amount: number;
+    reason: string;
+    date?: string;
+  }) =>
+    apiRequest<LoanRecord>("/api/loans", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  pay: (id: string) =>
+    apiRequest<LoanRecord>(`/api/loans/${id}/pay`, { method: "PATCH" }),
+
+  remove: (id: string) =>
+    apiRequest<{ message: string }>(`/api/loans/${id}`, { method: "DELETE" }),
+};
+
+export const lendingRecordAPI = {
+  getAll: () => apiRequest<LendingRecord[]>("/api/lending"),
+
+  create: (payload: {
+    personName: string;
+    amount: number;
+    fundingSource: FundingSource;
+    date?: string;
+  }) =>
+    apiRequest<LendingRecord>("/api/lending", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  markRepaid: (id: string) =>
+    apiRequest<LendingRecord>(`/api/lending/${id}/repaid`, { method: "PATCH" }),
+
+  remove: (id: string) =>
+    apiRequest<{ message: string }>(`/api/lending/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+export const financeAPI = {
+  getSummary: () => apiRequest<FinanceSummary>("/api/finance/summary"),
 };
 
 export default apiRequest;
