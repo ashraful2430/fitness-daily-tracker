@@ -75,7 +75,7 @@ export default function AuthForm() {
           </div>
           <div>
             <h1 className="text-lg font-black">Planify Life</h1>
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <p className="hidden text-xs font-semibold text-slate-500 dark:text-slate-400 sm:block">
               Personal tracking system
             </p>
           </div>

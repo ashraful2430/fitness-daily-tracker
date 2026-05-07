@@ -17,7 +17,26 @@ export async function GET() {
     }
 
     const user = await User.findById(userId).select("-password");
-    return NextResponse.json({ success: true, data: user });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, data: null, message: "User not found" },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        loginStreak: user.loginStreak ?? 0,
+        longestLoginStreak: user.longestLoginStreak ?? 0,
+        lastLoginDate: user.lastLoginDate ?? null,
+      },
+    });
   } catch {
     return NextResponse.json(
       { success: false, message: "Unable to get user." },

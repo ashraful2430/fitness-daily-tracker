@@ -197,8 +197,8 @@ export default function HomeLanding() {
           className="pointer-events-none absolute bottom-[22%] left-[22%] -z-10 h-40 w-40 rounded-full bg-amber-300/10 blur-3xl dark:bg-amber-400/10"
         />
 
-        <section className="px-4 pb-16 pt-4 sm:px-6 lg:px-10 lg:pb-24">
-          <nav className="relative z-[90] mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-[2rem] border border-white/50 bg-white/70 px-4 py-3 shadow-[0_20px_70px_rgba(148,163,184,0.18)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:px-5">
+        <section className="px-3 pb-16 pt-4 sm:px-6 lg:px-10 lg:pb-24">
+          <nav className="relative z-[90] mx-auto flex max-w-7xl items-center justify-between gap-2 rounded-[2rem] border border-white/50 bg-white/70 px-3 py-2.5 shadow-[0_20px_70px_rgba(148,163,184,0.18)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:gap-4 sm:px-5 sm:py-3">
             <Link href="/" className="flex min-w-0 items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30">
                 <Activity size={21} />
@@ -206,7 +206,7 @@ export default function HomeLanding() {
 
               <div className="min-w-0">
                 <p className="truncate text-lg font-black">Planify Life</p>
-                <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <p className="hidden truncate text-xs font-semibold text-slate-500 dark:text-slate-400 sm:block">
                   Personal operating system for better momentum
                 </p>
               </div>
@@ -289,7 +289,7 @@ export default function HomeLanding() {
                   </Link>
                   <Link
                     href="/auth"
-                    className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-black text-white transition hover:scale-[1.02] dark:bg-white dark:text-slate-950"
+                    className="whitespace-nowrap rounded-full bg-slate-950 px-4 py-2.5 text-sm font-black text-white transition hover:scale-[1.02] dark:bg-white dark:text-slate-950"
                   >
                     Start free
                   </Link>
@@ -310,7 +310,7 @@ export default function HomeLanding() {
                 Smarter tracking for study, work, health, and money
               </div>
 
-              <h1 className="mt-6 max-w-4xl text-5xl font-black leading-[0.98] tracking-[-0.05em] text-slate-950 dark:text-white sm:text-6xl lg:text-7xl xl:text-[5.4rem]">
+              <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[0.98] tracking-[-0.05em] text-slate-950 dark:text-white sm:text-5xl md:text-6xl lg:text-7xl xl:text-[5.4rem]">
                 A sharper home for your daily systems.
               </h1>
 
@@ -356,7 +356,7 @@ export default function HomeLanding() {
               initial={{ opacity: 0, y: 28, rotateX: 7 }}
               animate={{ opacity: 1, y: 0, rotateX: 0 }}
               transition={{ duration: 0.8 }}
-              className="relative mx-auto w-full max-w-[760px] [perspective:1800px]"
+              className="relative mx-auto w-full max-w-[760px] overflow-hidden [perspective:1800px] sm:overflow-visible"
             >
               <div className="absolute -left-12 top-12 h-32 w-32 rounded-full bg-cyan-400/30 blur-3xl dark:bg-cyan-500/20" />
               <div className="absolute -right-6 top-0 h-32 w-32 rounded-full bg-fuchsia-400/25 blur-3xl dark:bg-fuchsia-500/20" />
@@ -365,19 +365,19 @@ export default function HomeLanding() {
                 aria-hidden="true"
                 animate={{ rotate: [0, 10, 0], y: [0, -10, 0] }}
                 transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-                className="pointer-events-none absolute -left-10 top-24 h-24 w-24 rounded-[1.8rem] border border-cyan-300/20 bg-cyan-300/10 shadow-[0_18px_50px_rgba(34,211,238,0.18)] backdrop-blur-md"
+                className="pointer-events-none absolute -left-10 top-24 hidden h-24 w-24 rounded-[1.8rem] border border-cyan-300/20 bg-cyan-300/10 shadow-[0_18px_50px_rgba(34,211,238,0.18)] backdrop-blur-md sm:block"
               />
               <motion.div
                 aria-hidden="true"
                 animate={{ rotate: [12, -8, 12], y: [0, 14, 0] }}
                 transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-                className="pointer-events-none absolute -right-6 top-20 h-20 w-20 rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 shadow-[0_18px_50px_rgba(217,70,239,0.18)] backdrop-blur-md"
+                className="pointer-events-none absolute -right-6 top-20 hidden h-20 w-20 rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 shadow-[0_18px_50px_rgba(217,70,239,0.18)] backdrop-blur-md sm:block"
               />
               <motion.div
                 aria-hidden="true"
                 animate={{ x: [0, 8, -8, 0], rotate: [0, 6, -4, 0] }}
                 transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }}
-                className="pointer-events-none absolute bottom-16 right-8 h-28 w-28 rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-[0_18px_60px_rgba(15,23,42,0.28)] backdrop-blur-sm"
+                className="pointer-events-none absolute bottom-16 right-8 hidden h-28 w-28 rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-[0_18px_60px_rgba(15,23,42,0.28)] backdrop-blur-sm sm:block"
               />
               <div className="pointer-events-none absolute inset-x-[12%] top-[8%] h-px bg-gradient-to-r from-transparent via-cyan-200/40 to-transparent" />
               <div className="pointer-events-none absolute right-[7%] top-[14%] h-[72%] w-px bg-gradient-to-b from-transparent via-white/20 to-transparent" />
