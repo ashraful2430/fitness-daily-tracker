@@ -61,7 +61,7 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
     <motion.button
       whileHover={{ backgroundColor: "rgba(255,255,255,0.04)" }}
       onClick={onClick}
-      className="w-full p-6 text-left transition-all rounded-xl hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50"
+      className="w-full rounded-xl p-4 text-left transition-all hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/50 dark:hover:bg-white/5 sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
         {/* Left Content */}
@@ -72,7 +72,7 @@ export default function LoanCard({ loan, onClick }: LoanCardProps) {
             </h3>
 
             <div
-              className={`flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 ${getStatusColor()}`}
+              className={`flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 dark:bg-white/5 ${getStatusColor()}`}
             >
               {getStatusIcon()}
               <span className="text-xs font-medium uppercase">

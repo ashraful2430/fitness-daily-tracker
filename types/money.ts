@@ -247,3 +247,38 @@ export interface LoanDetailsResponse {
   totalRepaid: number;
   remainingAmount: number;
 }
+
+// ===== NEW LOANS & LENDING API TYPES =====
+
+export type LoanStatusSimple = "ACTIVE" | "PAID";
+export type LendingStatusSimple = "ACTIVE" | "REPAID";
+export type FundingSource = "PERSONAL" | "BORROWED";
+
+export interface LoanRecord {
+  _id: string;
+  personName: string;
+  amount: number;
+  reason: string;
+  date: string;
+  status: LoanStatusSimple;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LendingRecord {
+  _id: string;
+  personName: string;
+  amount: number;
+  fundingSource: FundingSource;
+  date: string;
+  status: LendingStatusSimple;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinanceSummary {
+  availableBalance: number;
+  totalLoanDebt: number;
+  totalLending: number;
+  netBalance: number;
+}

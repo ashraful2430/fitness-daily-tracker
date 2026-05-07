@@ -18,8 +18,8 @@ export default function LoansList({
 }: LoansListProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_80px_-40px_rgba(34,211,238,0.35)]">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-300" />
+      <div className="flex h-64 items-center justify-center rounded-2xl border border-slate-200 bg-white/80 shadow-[0_20px_80px_-40px_rgba(34,211,238,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+        <Loader2 className="h-8 w-8 animate-spin text-cyan-500 dark:text-cyan-300" />
       </div>
     );
   }
@@ -29,11 +29,11 @@ export default function LoansList({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-12 text-center shadow-[0_20px_80px_-40px_rgba(34,211,238,0.25)] overflow-hidden"
+        className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 p-12 text-center shadow-[0_20px_80px_-40px_rgba(34,211,238,0.25)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
       >
-        <FileText className="w-12 h-12 text-cyan-200 mx-auto mb-3" />
-        <h3 className="text-lg font-semibold text-white mb-2">No loans yet</h3>
-        <p className="text-slate-600 dark:text-slate-400">
+        <FileText className="mx-auto mb-3 h-12 w-12 text-cyan-500 dark:text-cyan-200" />
+        <h3 className="mb-2 text-lg font-semibold text-slate-950 dark:text-white">No loans yet</h3>
+        <p className="text-slate-500 dark:text-slate-400">
           Create your first loan to get started tracking lending activities
         </p>
       </motion.div>
@@ -55,7 +55,7 @@ export default function LoansList({
       variants={container}
       initial="hidden"
       animate="show"
-      className="relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden shadow-[0_20px_80px_-40px_rgba(34,211,238,0.18)]"
+      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-[0_20px_80px_-40px_rgba(34,211,238,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
     >
       <div className="p-6 border-b border-slate-200 dark:border-slate-700">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">

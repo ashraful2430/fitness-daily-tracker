@@ -12,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <Sidebar />
 
-      <div className="relative z-10 flex-1 overflow-y-auto">
+      <div className="relative z-10 flex-1 overflow-x-hidden overflow-y-auto">
         <div className="pointer-events-none absolute inset-x-4 top-4 hidden h-px bg-gradient-to-r from-transparent via-slate-400/30 to-transparent dark:via-white/10 lg:block" />
         {children}
       </div>

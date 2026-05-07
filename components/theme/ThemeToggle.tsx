@@ -38,31 +38,29 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="relative flex h-12 w-[150px] items-center rounded-2xl bg-slate-100 p-1 dark:bg-white/10"
-      aria-label="Toggle theme"
+      className="relative flex h-11 w-20 items-center rounded-2xl bg-slate-100 p-1 dark:bg-white/10"
+      aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
     >
       <span
-        className={`absolute top-1 h-10 w-[calc(50%-4px)] rounded-xl bg-white shadow-md transition-all dark:bg-indigo-600 ${
+        className={`absolute top-1 h-9 w-[calc(50%-4px)] rounded-xl bg-white shadow-md transition-all dark:bg-indigo-600 ${
           darkMode ? "left-[50%]" : "left-1"
         }`}
       />
 
       <span
-        className={`relative z-10 flex w-1/2 items-center justify-center gap-1 text-sm font-black ${
+        className={`relative z-10 flex w-1/2 items-center justify-center ${
           darkMode ? "text-slate-400" : "text-slate-950"
         }`}
       >
         <Sun size={16} />
-        Light
       </span>
 
       <span
-        className={`relative z-10 flex w-1/2 items-center justify-center gap-1 text-sm font-black ${
+        className={`relative z-10 flex w-1/2 items-center justify-center ${
           darkMode ? "text-white" : "text-slate-500"
         }`}
       >
         <Moon size={16} />
-        Dark
       </span>
     </button>
   );
