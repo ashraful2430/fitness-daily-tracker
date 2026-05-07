@@ -250,14 +250,15 @@ export interface LoanDetailsResponse {
 
 // ===== NEW LOANS & LENDING API TYPES =====
 
-export type LoanStatusSimple = "ACTIVE" | "PAID";
-export type LendingStatusSimple = "ACTIVE" | "REPAID";
+export type LoanStatusSimple = "ACTIVE" | "PARTIALLY_PAID" | "PAID";
+export type LendingStatusSimple = "ACTIVE" | "PARTIALLY_REPAID" | "REPAID";
 export type FundingSource = "PERSONAL" | "BORROWED";
 
 export interface LoanRecord {
   _id: string;
   personName: string;
   amount: number;
+  paidAmount: number;
   reason: string;
   date: string;
   status: LoanStatusSimple;
@@ -269,6 +270,7 @@ export interface LendingRecord {
   _id: string;
   personName: string;
   amount: number;
+  repaidAmount: number;
   fundingSource: FundingSource;
   date: string;
   status: LendingStatusSimple;

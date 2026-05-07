@@ -188,14 +188,14 @@ export default function LendingDashboard() {
               <LoansTable
                 key="loans"
                 loans={loans}
-                onPay={payLoan}
+                onPay={(id, amount) => payLoan(id, amount)}
                 onDelete={deleteLoan}
               />
             ) : (
               <LendingTable
                 key="lending"
                 lendings={lendings}
-                onMarkRepaid={markRepaid}
+                onMarkRepaid={(id, amount) => markRepaid(id, amount)}
                 onDelete={deleteLending}
               />
             )}

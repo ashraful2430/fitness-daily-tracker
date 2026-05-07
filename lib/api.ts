@@ -501,8 +501,11 @@ export const loansAPI = {
       body: JSON.stringify(payload),
     }),
 
-  pay: (id: string) =>
-    apiRequest<LoanRecord>(`/api/loans/${id}/pay`, { method: "PATCH" }),
+  pay: (id: string, amount: number) =>
+    apiRequest<LoanRecord>(`/api/loans/${id}/pay`, {
+      method: "PATCH",
+      body: JSON.stringify({ amount }),
+    }),
 
   remove: (id: string) =>
     apiRequest<{ message: string }>(`/api/loans/${id}`, { method: "DELETE" }),
@@ -522,8 +525,11 @@ export const lendingRecordAPI = {
       body: JSON.stringify(payload),
     }),
 
-  markRepaid: (id: string) =>
-    apiRequest<LendingRecord>(`/api/lending/${id}/repaid`, { method: "PATCH" }),
+  markRepaid: (id: string, amount: number) =>
+    apiRequest<LendingRecord>(`/api/lending/${id}/repaid`, {
+      method: "PATCH",
+      body: JSON.stringify({ amount }),
+    }),
 
   remove: (id: string) =>
     apiRequest<{ message: string }>(`/api/lending/${id}`, {
