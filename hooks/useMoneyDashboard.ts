@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { ApiError, isUnauthorizedError, moneyAPI } from "@/lib/api";
+import { ApiError, isUnauthorizedError, loansAPI, moneyAPI } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
   BalanceResponse,
@@ -886,6 +886,51 @@ export function useMoneyDashboard() {
     [expenses.length, handleError, refreshAfterMutation],
   );
 
+  const recordLoanFunds = useCallback(
+    async (personName: string, amount: number, reason: string, date: string) => {
+      try {
+        await loansAPI.create({ personName, amount, reason, date });
+        await refreshAfterMutation();
+        toast.success("Loan recorded — balance updated");
+        return true;
+      } catch (error: unknown) {
+        handleError(error, "Failed to record loan", true);
+        return false;
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
+  const addExternalIncome = useCallback(
+    async (amount: number, source: string, note: string, date: string) => {
+      try {
+        await moneyAPI.addIncome({ amount, source, note, date });
+        await refreshAfterMutation();
+        toast.success("External income added");
+        return true;
+      } catch (error: unknown) {
+        handleError(error, "Failed to add external income", true);
+        return false;
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
+  const addOtherSavings = useCallback(
+    async (amount: number, sourceName: string, note: string, date: string) => {
+      try {
+        await moneyAPI.addSavings({ amount, sourceName, note, date });
+        await refreshAfterMutation();
+        toast.success("Savings added");
+        return true;
+      } catch (error: unknown) {
+        handleError(error, "Failed to add savings", true);
+        return false;
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
   const changeSelectedMonth = useCallback(
     async (monthKey: string) => {
       const [yearStr, monthStr] = monthKey.split("-");
@@ -1012,6 +1057,9 @@ export function useMoneyDashboard() {
     createExpense,
     updateExpense,
     deleteExpense,
+    recordLoanFunds,
+    addExternalIncome,
+    addOtherSavings,
     changeSelectedMonth,
     updateFilterField,
     setPage,

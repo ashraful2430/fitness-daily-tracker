@@ -283,6 +283,9 @@ export default function MoneyDashboard() {
     createExpense,
     updateExpense,
     deleteExpense,
+    recordLoanFunds,
+    addExternalIncome,
+    addOtherSavings,
     changeSelectedMonth,
     updateFilterField,
     applyFilters,
@@ -312,6 +315,20 @@ export default function MoneyDashboard() {
 
   const [expenseErrors, setExpenseErrors] = useState<FormErrors>({});
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+
+  type FundsOption = "loan" | "income" | "savings" | null;
+  const [insufficientFundsOpen, setInsufficientFundsOpen] = useState(false);
+  const [selectedFundsOption, setSelectedFundsOption] = useState<FundsOption>(null);
+  const [fundsActionLoading, setFundsActionLoading] = useState(false);
+
+  const [loanForm, setLoanForm] = useState({ personName: "", amount: "", reason: "", date: getToday() });
+  const [loanErrors, setLoanErrors] = useState<FormErrors>({});
+
+  const [incomeForm, setIncomeForm] = useState({ amount: "", source: "", note: "", date: getToday() });
+  const [incomeErrors, setIncomeErrors] = useState<FormErrors>({});
+
+  const [savingsForm, setSavingsForm] = useState({ amount: "", sourceName: "", note: "", date: getToday() });
+  const [savingsErrors, setSavingsErrors] = useState<FormErrors>({});
 
   const [confirmState, setConfirmState] = useState<{
     title: string;
@@ -530,6 +547,57 @@ export default function MoneyDashboard() {
     });
   };
 
+  const closeFundsModal = () => {
+    setInsufficientFundsOpen(false);
+    setSelectedFundsOption(null);
+    setLoanForm({ personName: "", amount: "", reason: "", date: getToday() });
+    setLoanErrors({});
+    setIncomeForm({ amount: "", source: "", note: "", date: getToday() });
+    setIncomeErrors({});
+    setSavingsForm({ amount: "", sourceName: "", note: "", date: getToday() });
+    setSavingsErrors({});
+  };
+
+  const handleLoanSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: FormErrors = {};
+    if (!loanForm.personName.trim()) errors.personName = "Person name is required.";
+    if (!loanForm.amount.trim() || Number(loanForm.amount) <= 0) errors.amount = "Amount must be greater than zero.";
+    if (!loanForm.reason.trim()) errors.reason = "Reason is required.";
+    if (!loanForm.date) errors.date = "Date is required.";
+    if (Object.keys(errors).length > 0) { setLoanErrors(errors); return; }
+    setFundsActionLoading(true);
+    const ok = await recordLoanFunds(loanForm.personName, Number(loanForm.amount), loanForm.reason, loanForm.date);
+    setFundsActionLoading(false);
+    if (ok) closeFundsModal();
+  };
+
+  const handleIncomeSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: FormErrors = {};
+    if (!incomeForm.amount.trim() || Number(incomeForm.amount) <= 0) errors.amount = "Amount must be greater than zero.";
+    if (!incomeForm.source.trim()) errors.source = "Source is required.";
+    if (!incomeForm.date) errors.date = "Date is required.";
+    if (Object.keys(errors).length > 0) { setIncomeErrors(errors); return; }
+    setFundsActionLoading(true);
+    const ok = await addExternalIncome(Number(incomeForm.amount), incomeForm.source, incomeForm.note, incomeForm.date);
+    setFundsActionLoading(false);
+    if (ok) closeFundsModal();
+  };
+
+  const handleSavingsSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: FormErrors = {};
+    if (!savingsForm.amount.trim() || Number(savingsForm.amount) <= 0) errors.amount = "Amount must be greater than zero.";
+    if (!savingsForm.sourceName.trim()) errors.sourceName = "Source name is required.";
+    if (!savingsForm.date) errors.date = "Date is required.";
+    if (Object.keys(errors).length > 0) { setSavingsErrors(errors); return; }
+    setFundsActionLoading(true);
+    const ok = await addOtherSavings(Number(savingsForm.amount), savingsForm.sourceName, savingsForm.note, savingsForm.date);
+    setFundsActionLoading(false);
+    if (ok) closeFundsModal();
+  };
+
   const handleExpenseSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ) => {
@@ -541,6 +609,12 @@ export default function MoneyDashboard() {
       category: activeCategory,
       date: expenseForm.date,
     };
+
+    if (!editingExpenseId && payload.amount > totalBalance) {
+      setInsufficientFundsOpen(true);
+      setSelectedFundsOption(null);
+      return;
+    }
 
     const result = editingExpenseId
       ? await updateExpense(editingExpenseId, payload)
@@ -1774,6 +1848,196 @@ export default function MoneyDashboard() {
           </div>
         </section>
       </div>
+
+      {insufficientFundsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+            onClick={() => { if (!fundsActionLoading) closeFundsModal(); }}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-2xl dark:border-white/[0.08] dark:bg-[#0f0c1f]">
+            {selectedFundsOption === null && (
+              <div>
+                <div className="mb-6 text-center">
+                  <div className="mb-3 text-5xl">😅</div>
+                  <h3 className="text-xl font-black text-slate-950 dark:text-white">
+                    Oops! Not enough money
+                  </h3>
+                  <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Looks like you do not have enough balance right now. How would you like to top up?
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFundsOption("loan")}
+                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:bg-emerald-500/10"
+                  >
+                    <span className="text-2xl">💸</span>
+                    <div>
+                      <p className="font-black text-slate-950 dark:text-white">Took a Loan</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Someone lent you money — record it here</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFundsOption("income")}
+                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-cyan-300 hover:bg-cyan-50 dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:bg-cyan-500/10"
+                  >
+                    <span className="text-2xl">📈</span>
+                    <div>
+                      <p className="font-black text-slate-950 dark:text-white">External Income</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Freelance, side hustle, or any extra income</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFundsOption("savings")}
+                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:bg-violet-500/10"
+                  >
+                    <span className="text-2xl">🏦</span>
+                    <div>
+                      <p className="font-black text-slate-950 dark:text-white">Other Savings</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Personal savings or reserve funds you're tapping</p>
+                    </div>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeFundsModal}
+                  className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {selectedFundsOption === "loan" && (
+              <div>
+                <div className="mb-5 flex items-center gap-3">
+                  <button type="button" onClick={() => setSelectedFundsOption(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                    ←
+                  </button>
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Record a Loan</h3>
+                </div>
+                <form onSubmit={(e) => void handleLoanSubmit(e)} className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Person who lent you</label>
+                    <input
+                      value={loanForm.personName}
+                      onChange={(e) => { setLoanForm((p) => ({ ...p, personName: e.target.value })); if (loanErrors.personName) setLoanErrors({}); }}
+                      placeholder="e.g. Uncle Rahim"
+                      className={inputClass}
+                    />
+                    {loanErrors.personName && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.personName}</p>}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Amount</label>
+                      <input type="number" min="0" step="0.01" value={loanForm.amount} onChange={(e) => { setLoanForm((p) => ({ ...p, amount: e.target.value })); if (loanErrors.amount) setLoanErrors({}); }} placeholder="5000" className={inputClass} />
+                      {loanErrors.amount && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.amount}</p>}
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Date</label>
+                      <input type="date" value={loanForm.date} onChange={(e) => { setLoanForm((p) => ({ ...p, date: e.target.value })); if (loanErrors.date) setLoanErrors({}); }} className={inputClass} />
+                      {loanErrors.date && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.date}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Reason</label>
+                    <input value={loanForm.reason} onChange={(e) => { setLoanForm((p) => ({ ...p, reason: e.target.value })); if (loanErrors.reason) setLoanErrors({}); }} placeholder="e.g. Emergency rent" className={inputClass} />
+                    {loanErrors.reason && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.reason}</p>}
+                  </div>
+                  <button type="submit" disabled={fundsActionLoading} className={buttonPrimary}>
+                    {fundsActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Record Loan
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {selectedFundsOption === "income" && (
+              <div>
+                <div className="mb-5 flex items-center gap-3">
+                  <button type="button" onClick={() => setSelectedFundsOption(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                    ←
+                  </button>
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Add External Income</h3>
+                </div>
+                <form onSubmit={(e) => void handleIncomeSubmit(e)} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Amount</label>
+                      <input type="number" min="0" step="0.01" value={incomeForm.amount} onChange={(e) => { setIncomeForm((p) => ({ ...p, amount: e.target.value })); if (incomeErrors.amount) setIncomeErrors({}); }} placeholder="3000" className={inputClass} />
+                      {incomeErrors.amount && <p className="mt-1 text-sm font-semibold text-rose-500">{incomeErrors.amount}</p>}
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Date</label>
+                      <input type="date" value={incomeForm.date} onChange={(e) => { setIncomeForm((p) => ({ ...p, date: e.target.value })); if (incomeErrors.date) setIncomeErrors({}); }} className={inputClass} />
+                      {incomeErrors.date && <p className="mt-1 text-sm font-semibold text-rose-500">{incomeErrors.date}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Source</label>
+                    <input value={incomeForm.source} onChange={(e) => { setIncomeForm((p) => ({ ...p, source: e.target.value })); if (incomeErrors.source) setIncomeErrors({}); }} placeholder="e.g. Freelance project" className={inputClass} />
+                    {incomeErrors.source && <p className="mt-1 text-sm font-semibold text-rose-500">{incomeErrors.source}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Note (optional)</label>
+                    <input value={incomeForm.note} onChange={(e) => setIncomeForm((p) => ({ ...p, note: e.target.value }))} placeholder="Any extra details" className={inputClass} />
+                  </div>
+                  <button type="submit" disabled={fundsActionLoading} className={buttonPrimary}>
+                    {fundsActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Add Income
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {selectedFundsOption === "savings" && (
+              <div>
+                <div className="mb-5 flex items-center gap-3">
+                  <button type="button" onClick={() => setSelectedFundsOption(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                    ←
+                  </button>
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Add Other Savings</h3>
+                </div>
+                <form onSubmit={(e) => void handleSavingsSubmit(e)} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Amount</label>
+                      <input type="number" min="0" step="0.01" value={savingsForm.amount} onChange={(e) => { setSavingsForm((p) => ({ ...p, amount: e.target.value })); if (savingsErrors.amount) setSavingsErrors({}); }} placeholder="2000" className={inputClass} />
+                      {savingsErrors.amount && <p className="mt-1 text-sm font-semibold text-rose-500">{savingsErrors.amount}</p>}
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Date</label>
+                      <input type="date" value={savingsForm.date} onChange={(e) => { setSavingsForm((p) => ({ ...p, date: e.target.value })); if (savingsErrors.date) setSavingsErrors({}); }} className={inputClass} />
+                      {savingsErrors.date && <p className="mt-1 text-sm font-semibold text-rose-500">{savingsErrors.date}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Source Name</label>
+                    <input value={savingsForm.sourceName} onChange={(e) => { setSavingsForm((p) => ({ ...p, sourceName: e.target.value })); if (savingsErrors.sourceName) setSavingsErrors({}); }} placeholder="e.g. Emergency fund" className={inputClass} />
+                    {savingsErrors.sourceName && <p className="mt-1 text-sm font-semibold text-rose-500">{savingsErrors.sourceName}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Note (optional)</label>
+                    <input value={savingsForm.note} onChange={(e) => setSavingsForm((p) => ({ ...p, note: e.target.value }))} placeholder="Any extra details" className={inputClass} />
+                  </div>
+                  <button type="submit" disabled={fundsActionLoading} className={buttonPrimary}>
+                    {fundsActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Add Savings
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <PremiumModal
         open={Boolean(confirmState)}

@@ -284,3 +284,39 @@ export interface FinanceSummary {
   totalLending: number;
   netBalance: number;
 }
+
+export interface ExternalIncome {
+  _id: string;
+  userId: string;
+  amount: number;
+  source: string;
+  note: string;
+  date: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OtherSavings {
+  _id: string;
+  userId: string;
+  amount: number;
+  sourceName: string;
+  note: string;
+  date: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateExternalIncomeRequest {
+  amount: number;
+  source: string;
+  note: string;
+  date: string;
+}
+
+export interface CreateOtherSavingsRequest {
+  amount: number;
+  sourceName: string;
+  note: string;
+  date: string;
+}

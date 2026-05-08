@@ -38,6 +38,10 @@ import type {
   LendingRecord,
   FinanceSummary,
   FundingSource,
+  ExternalIncome,
+  OtherSavings,
+  CreateExternalIncomeRequest,
+  CreateOtherSavingsRequest,
 } from "@/types/money";
 
 // Empty string → relative URLs → all requests go to the same Next.js app.
@@ -359,6 +363,18 @@ export const moneyAPI = {
       `/api/money/insights${search ? `?${search}` : ""}`,
     );
   },
+
+  addIncome: (payload: CreateExternalIncomeRequest) =>
+    apiRequest<ExternalIncome>("/api/money/income", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  addSavings: (payload: CreateOtherSavingsRequest) =>
+    apiRequest<OtherSavings>("/api/money/savings", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
 
 export const lendingAPI = {
