@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { DollarSign, Trash2, X, Loader2 } from "lucide-react";
+import { AlertTriangle, DollarSign, Loader2, Trash2, X } from "lucide-react";
 import type { LendingRecord } from "@/types/money";
 
 interface Props {
@@ -173,6 +173,88 @@ function RepayModal({
   );
 }
 
+function ConfirmDeleteModal({
+  personName,
+  onConfirm,
+  onClose,
+}: {
+  personName: string;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsDeleting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
+      >
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-red-50 px-6 py-4 dark:border-white/10 dark:bg-red-500/10">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Delete Lending Record
+            </h2>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/10"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="space-y-4 p-6">
+            <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Delete lending record for{" "}
+                <span className="font-bold">{personName}</span>? This cannot be
+                undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isDeleting}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirm()}
+                disabled={isDeleting}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 const statusStyles: Record<string, string> = {
   REPAID: "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300",
   PARTIALLY_REPAID: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
@@ -185,6 +267,7 @@ export default function LendingTable({
   onDelete,
 }: Props) {
   const [repayingRecord, setRepayingRecord] = useState<LendingRecord | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<LendingRecord | null>(null);
 
   if (!lendings.length) {
     return (
@@ -269,7 +352,9 @@ export default function LendingTable({
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusStyles[record.status] ?? statusStyles.ACTIVE}`}
                       >
-                        {record.status === "PARTIALLY_REPAID" ? "PARTIAL" : record.status}
+                        {record.status === "PARTIALLY_REPAID"
+                          ? "PARTIAL"
+                          : record.status}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -284,7 +369,7 @@ export default function LendingTable({
                           </button>
                         )}
                         <button
-                          onClick={() => void onDelete(record._id)}
+                          onClick={() => setConfirmingDelete(record)}
                           className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                           title="Delete"
                         >
@@ -306,6 +391,16 @@ export default function LendingTable({
             record={repayingRecord}
             onConfirm={(amount) => onMarkRepaid(repayingRecord._id, amount)}
             onClose={() => setRepayingRecord(null)}
+          />
+        )}
+        {confirmingDelete && (
+          <ConfirmDeleteModal
+            personName={confirmingDelete.personName}
+            onConfirm={async () => {
+              await onDelete(confirmingDelete._id);
+              setConfirmingDelete(null);
+            }}
+            onClose={() => setConfirmingDelete(null)}
           />
         )}
       </AnimatePresence>

@@ -188,6 +188,7 @@ export default function LendingDashboard() {
               <LoansTable
                 key="loans"
                 loans={loans}
+                availableBalance={summary?.availableBalance ?? 0}
                 onPay={(id, amount) => payLoan(id, amount)}
                 onDelete={deleteLoan}
               />

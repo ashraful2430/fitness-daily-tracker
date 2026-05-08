@@ -2,21 +2,34 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { DollarSign, Trash2, X, Loader2 } from "lucide-react";
+import { AlertTriangle, DollarSign, Loader2, Trash2, X } from "lucide-react";
 import type { LoanRecord } from "@/types/money";
 
 interface Props {
   loans: LoanRecord[];
+  availableBalance: number;
   onPay: (id: string, amount: number) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
+const savageMessages = [
+  "Bro you're broke 💀 Top up your balance first!",
+  "Your wallet said 'lol no' 😭 Go earn more!",
+  "Not enough funds! Time to get that bag! 💪",
+  "Your bank account just ghosted you 😂",
+  "Insufficient funds! The streets are calling 🏃",
+  "You can't pay what you don't have! Hustle up! 🔥",
+  "Empty pockets can't write cheques, king 👑",
+];
+
 function PayModal({
   loan,
+  availableBalance,
   onConfirm,
   onClose,
 }: {
   loan: LoanRecord;
+  availableBalance: number;
   onConfirm: (amount: number) => Promise<void>;
   onClose: () => void;
 }) {
@@ -24,11 +37,14 @@ function PayModal({
   const [mode, setMode] = useState<"full" | "partial">("full");
   const [partialAmount, setPartialAmount] = useState("");
   const [error, setError] = useState("");
+  const [savageError, setSavageError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [savageMsg] = useState(
+    () => savageMessages[Math.floor(Math.random() * savageMessages.length)],
+  );
 
   const handleSubmit = async () => {
-    const payAmount =
-      mode === "full" ? remaining : parseFloat(partialAmount);
+    const payAmount = mode === "full" ? remaining : parseFloat(partialAmount);
 
     if (mode === "partial") {
       if (!partialAmount || isNaN(payAmount) || payAmount <= 0) {
@@ -41,6 +57,11 @@ function PayModal({
       }
     }
 
+    if (payAmount > availableBalance) {
+      setSavageError(savageMsg);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await onConfirm(payAmount);
@@ -48,6 +69,11 @@ function PayModal({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const resetErrors = () => {
+    setError("");
+    setSavageError("");
   };
 
   return (
@@ -107,19 +133,40 @@ function PayModal({
               </div>
             </div>
 
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-white/10 dark:bg-white/5">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Your available balance
+              </p>
+              <p
+                className={`text-sm font-black ${
+                  availableBalance > 0
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                ${availableBalance.toLocaleString()}
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               {(["full", "partial"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
-                  onClick={() => { setMode(m); setError(""); setPartialAmount(""); }}
+                  onClick={() => {
+                    setMode(m);
+                    setPartialAmount("");
+                    resetErrors();
+                  }}
                   className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
                     mode === m
                       ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300"
                       : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-400 dark:hover:bg-white/5"
                   }`}
                 >
-                  {m === "full" ? `Pay Full ($${remaining.toLocaleString()})` : "Pay Partial"}
+                  {m === "full"
+                    ? `Pay Full ($${remaining.toLocaleString()})`
+                    : "Pay Partial"}
                 </button>
               ))}
             </div>
@@ -133,7 +180,10 @@ function PayModal({
                 <input
                   type="number"
                   value={partialAmount}
-                  onChange={(e) => { setPartialAmount(e.target.value); setError(""); }}
+                  onChange={(e) => {
+                    setPartialAmount(e.target.value);
+                    resetErrors();
+                  }}
                   placeholder={`Max $${remaining.toLocaleString()}`}
                   min="0.01"
                   step="0.01"
@@ -143,8 +193,25 @@ function PayModal({
               </motion.div>
             )}
 
-            {error && (
-              <p className="text-xs text-red-500">{error}</p>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+
+            {savageError && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-500/20 dark:bg-red-500/10"
+              >
+                <p className="text-sm font-black text-red-600 dark:text-red-300">
+                  {savageError}
+                </p>
+                <p className="mt-1 text-xs text-red-500 dark:text-red-400">
+                  You have ${availableBalance.toLocaleString()}, need $
+                  {(mode === "full"
+                    ? remaining
+                    : parseFloat(partialAmount) || 0
+                  ).toLocaleString()}
+                </p>
+              </motion.div>
             )}
 
             <div className="flex gap-3 pt-1">
@@ -173,14 +240,105 @@ function PayModal({
   );
 }
 
+function ConfirmDeleteModal({
+  personName,
+  onConfirm,
+  onClose,
+}: {
+  personName: string;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsDeleting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
+      >
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-red-50 px-6 py-4 dark:border-white/10 dark:bg-red-500/10">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Delete Loan
+            </h2>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/10"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="space-y-4 p-6">
+            <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Delete loan for{" "}
+                <span className="font-bold">{personName}</span>? This cannot be
+                undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isDeleting}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirm()}
+                disabled={isDeleting}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 const statusStyles: Record<string, string> = {
   PAID: "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300",
-  PARTIALLY_PAID: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+  PARTIALLY_PAID:
+    "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
   ACTIVE: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
 };
 
-export default function LoansTable({ loans, onPay, onDelete }: Props) {
+export default function LoansTable({
+  loans,
+  availableBalance,
+  onPay,
+  onDelete,
+}: Props) {
   const [payingLoan, setPayingLoan] = useState<LoanRecord | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<LoanRecord | null>(
+    null,
+  );
 
   if (!loans.length) {
     return (
@@ -257,7 +415,9 @@ export default function LoansTable({ loans, onPay, onDelete }: Props) {
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusStyles[loan.status] ?? statusStyles.ACTIVE}`}
                       >
-                        {loan.status === "PARTIALLY_PAID" ? "PARTIAL" : loan.status}
+                        {loan.status === "PARTIALLY_PAID"
+                          ? "PARTIAL"
+                          : loan.status}
                       </span>
                     </td>
                     <td className="px-5 py-4">
@@ -272,7 +432,7 @@ export default function LoansTable({ loans, onPay, onDelete }: Props) {
                           </button>
                         )}
                         <button
-                          onClick={() => void onDelete(loan._id)}
+                          onClick={() => setConfirmingDelete(loan)}
                           className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                           title="Delete"
                         >
@@ -292,8 +452,19 @@ export default function LoansTable({ loans, onPay, onDelete }: Props) {
         {payingLoan && (
           <PayModal
             loan={payingLoan}
+            availableBalance={availableBalance}
             onConfirm={(amount) => onPay(payingLoan._id, amount)}
             onClose={() => setPayingLoan(null)}
+          />
+        )}
+        {confirmingDelete && (
+          <ConfirmDeleteModal
+            personName={confirmingDelete.personName}
+            onConfirm={async () => {
+              await onDelete(confirmingDelete._id);
+              setConfirmingDelete(null);
+            }}
+            onClose={() => setConfirmingDelete(null)}
           />
         )}
       </AnimatePresence>
