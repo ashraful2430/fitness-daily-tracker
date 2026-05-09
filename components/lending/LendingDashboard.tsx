@@ -16,6 +16,7 @@ import LoansTable from "./LoansTable";
 import LendingTable from "./LendingTable";
 import AddLoanModal from "./AddLoanModal";
 import AddLendingModal from "./AddLendingModal";
+import { normalizeFinanceSummary } from "@/lib/financeSummary";
 
 type Tab = "loans" | "lending";
 
@@ -46,26 +47,30 @@ export default function LendingDashboard() {
     );
   }
 
-  const netBalance = summary?.netBalance ?? 0;
+  const finance = normalizeFinanceSummary(summary);
+  const netBalance = finance.netBalance;
 
   const summaryCards = [
     {
       label: "Available Balance",
-      value: summary?.availableBalance ?? 0,
+      value: finance.availableBalance,
+      subtitle: `Accounts: $${finance.balanceAccounts.toLocaleString()}`,
       Icon: Wallet,
       color: "text-blue-600 dark:text-blue-400",
       bg: "bg-blue-50 dark:bg-blue-500/10",
     },
     {
-      label: "Total Loan Debt",
-      value: summary?.totalLoanDebt ?? 0,
+      label: "Loan Debt",
+      value: finance.loanDebt,
+      subtitle: `Direct $${finance.directLoans.toLocaleString()} + linked $${finance.borrowedLendingLoans.toLocaleString()}`,
       Icon: TrendingDown,
       color: "text-red-600 dark:text-red-400",
       bg: "bg-red-50 dark:bg-red-500/10",
     },
     {
-      label: "Total Lending",
-      value: summary?.totalLending ?? 0,
+      label: "Lending Outstanding",
+      value: finance.lendingOutstanding,
+      subtitle: `Open lending: $${finance.lending.toLocaleString()}`,
       Icon: TrendingUp,
       color: "text-amber-600 dark:text-amber-400",
       bg: "bg-amber-50 dark:bg-amber-500/10",
@@ -73,6 +78,7 @@ export default function LendingDashboard() {
     {
       label: "Net Balance",
       value: netBalance,
+      subtitle: "Available minus debt.",
       Icon: DollarSign,
       color:
         netBalance >= 0
@@ -159,7 +165,30 @@ export default function LendingDashboard() {
                   {card.value < 0 ? "-" : ""}$
                   {Math.abs(card.value).toLocaleString()}
                 </p>
+                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {card.subtitle}
+                </p>
               </motion.div>
+            ))}
+          </div>
+
+          <div className="mb-8 grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 backdrop-blur-xl dark:border-white/10 dark:bg-white/5 sm:grid-cols-2 lg:grid-cols-6">
+            {[
+              ["Salary", finance.salary],
+              ["External Income", finance.externalIncome],
+              ["Savings", finance.savings],
+              ["Active Loans", finance.activeLoans],
+              ["Repaid Loans", finance.repaidLoans],
+              ["Personal Lending", finance.lendingFromPersonal],
+            ].map(([label, value]) => (
+              <div key={label} className="min-w-0">
+                <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {label}
+                </p>
+                <p className="mt-1 text-base font-black text-slate-950 dark:text-white">
+                  ${(value as number).toLocaleString()}
+                </p>
+              </div>
             ))}
           </div>
 
@@ -188,7 +217,7 @@ export default function LendingDashboard() {
               <LoansTable
                 key="loans"
                 loans={loans}
-                availableBalance={summary?.availableBalance ?? 0}
+                availableBalance={finance.availableBalance}
                 onPay={(id, amount) => payLoan(id, amount)}
                 onDelete={deleteLoan}
               />

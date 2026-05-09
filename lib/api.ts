@@ -490,7 +490,7 @@ export const lendingAPI = {
     apiRequest<LoanDetailsResponse>(`/api/money/loans/${id}/transactions`),
 
   // Financial Summary
-  getFinancialSummary: () => apiRequest<FinancialSummary>("/api/money/summary"),
+  getFinancialSummary: () => apiRequest<FinancialSummary>("/api/finance/summary"),
 
   // External Debts
   getExternalDebts: () => apiRequest<ExternalDebt[]>("/api/money/debts"),

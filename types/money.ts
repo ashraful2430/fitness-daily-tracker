@@ -196,6 +196,19 @@ export interface ExternalDebt {
 }
 
 export interface FinancialSummary {
+  availableBalance?: number;
+  loanDebt?: number;
+  netBalance?: number;
+  salary?: number;
+  externalIncome?: number;
+  savings?: number;
+  activeLoans?: number;
+  borrowedLending?: number;
+  repaidLoans?: number;
+  expenses?: number;
+  lendingFromPersonal?: number;
+  lendingOutstanding?: number;
+  breakdown?: FinanceSummaryBreakdown;
   totalBalance: number;
   totalExpenses: number;
   totalLoansGiven: number;
@@ -278,11 +291,38 @@ export interface LendingRecord {
   updatedAt: string;
 }
 
+export interface FinanceSummaryBreakdown {
+  directLoans?: number;
+  borrowedLendingLoans?: number;
+  lending?: number;
+  balanceAccounts?: number;
+}
+
 export interface FinanceSummary {
   availableBalance: number;
-  totalLoanDebt: number;
-  totalLending: number;
+  loanDebt: number;
   netBalance: number;
+  salary: number;
+  externalIncome: number;
+  savings: number;
+  activeLoans: number;
+  borrowedLending: number;
+  repaidLoans: number;
+  expenses: number;
+  lendingFromPersonal: number;
+  lendingOutstanding: number;
+  breakdown?: FinanceSummaryBreakdown;
+  totalLoanDebt?: number;
+  totalLending?: number;
+  totalBalance?: number;
+  totalDebt?: number;
+  netPosition?: number;
+  totalLent?: number;
+  totalOutstandingLoans?: number;
+  totalBorrowedLiability?: number;
+  personalBalance?: number;
+  totalExpenses?: number;
+  totalLoansGiven?: number;
 }
 
 export interface ExternalIncome {
