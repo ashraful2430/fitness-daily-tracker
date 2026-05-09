@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, DollarSign, Loader2, Trash2, X } from "lucide-react";
+import { DollarSign, Loader2, Trash2, X } from "lucide-react";
+import PremiumModal, {
+  ModalCancelButton,
+  ModalConfirmButton,
+} from "@/components/ui/PremiumModal";
 import type { LoanRecord } from "@/types/money";
 
 interface Props {
@@ -261,64 +265,28 @@ function ConfirmDeleteModal({
   };
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
-      >
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl dark:bg-slate-900">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-red-50 px-6 py-4 dark:border-white/10 dark:bg-red-500/10">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              Delete Loan
-            </h2>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/10"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="space-y-4 p-6">
-            <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
-              <p className="text-sm text-red-700 dark:text-red-300">
-                Delete loan for{" "}
-                <span className="font-bold">{personName}</span>? This cannot be
-                undone.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isDeleting}
-                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleConfirm()}
-                disabled={isDeleting}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
-              >
-                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isDeleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </>
+    <PremiumModal
+      open
+      onClose={onClose}
+      variant="error"
+      size="sm"
+      title="Delete loan"
+      subtitle="Permanent action"
+      description={`Delete loan for ${personName}? This action cannot be undone.`}
+      footer={
+        <>
+          <ModalCancelButton onClick={onClose} disabled={isDeleting} />
+          <ModalConfirmButton
+            onClick={() => void handleConfirm()}
+            variant="error"
+            disabled={isDeleting}
+          >
+            {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isDeleting ? "Deleting..." : "Delete loan"}
+          </ModalConfirmButton>
+        </>
+      }
+    />
   );
 }
 

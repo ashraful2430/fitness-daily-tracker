@@ -2,9 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, AlertTriangle, Info, Sparkles } from "lucide-react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { AlertTriangle, Info, Sparkles, X } from "lucide-react";
 
 type PremiumModalSize = "sm" | "md" | "lg";
 type PremiumModalVariant = "default" | "info" | "error";
@@ -21,56 +19,54 @@ interface PremiumModalProps {
   size?: PremiumModalSize;
 }
 
-// ─── Config Maps ──────────────────────────────────────────────────────────────
-
 const sizeClasses: Record<PremiumModalSize, string> = {
-  sm: "max-w-md",
-  md: "max-w-lg",
-  lg: "max-w-2xl",
+  sm: "sm:max-w-[460px]",
+  md: "sm:max-w-lg",
+  lg: "sm:max-w-2xl",
 };
 
 const variantConfig: Record<
   PremiumModalVariant,
   {
-    accentGradient: string;
-    badgeBg: string;
-    badgeText: string;
-    badgeBorder: string;
+    accent: string;
+    badge: string;
+    iconWrap: string;
+    iconColor: string;
     icon: ReactNode;
-    iconBg: string;
     defaultSubtitle: string;
   }
 > = {
   default: {
-    accentGradient: "from-cyan-400 via-violet-500 to-cyan-400",
-    badgeBg: "bg-cyan-400/10",
-    badgeText: "text-cyan-400",
-    badgeBorder: "border-cyan-400/20",
-    icon: <Sparkles className="h-5 w-5 text-cyan-400" />,
-    iconBg: "bg-cyan-400/10",
+    accent: "bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500",
+    badge:
+      "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200",
+    iconWrap:
+      "border-cyan-200 bg-cyan-50 shadow-cyan-900/5 dark:border-cyan-400/20 dark:bg-cyan-400/10",
+    iconColor: "text-cyan-600 dark:text-cyan-200",
+    icon: <Sparkles className="h-5 w-5" />,
     defaultSubtitle: "Premium Access",
   },
   info: {
-    accentGradient: "from-sky-400 via-blue-500 to-sky-400",
-    badgeBg: "bg-sky-400/10",
-    badgeText: "text-sky-400",
-    badgeBorder: "border-sky-400/20",
-    icon: <Info className="h-5 w-5 text-sky-400" />,
-    iconBg: "bg-sky-400/10",
+    accent: "bg-gradient-to-r from-blue-500 to-cyan-500",
+    badge:
+      "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200",
+    iconWrap:
+      "border-blue-200 bg-blue-50 shadow-blue-900/5 dark:border-blue-400/20 dark:bg-blue-400/10",
+    iconColor: "text-blue-600 dark:text-blue-200",
+    icon: <Info className="h-5 w-5" />,
     defaultSubtitle: "Information",
   },
   error: {
-    accentGradient: "from-rose-500 via-orange-400 to-rose-500",
-    badgeBg: "bg-rose-500/10",
-    badgeText: "text-rose-400",
-    badgeBorder: "border-rose-500/20",
-    icon: <AlertTriangle className="h-5 w-5 text-rose-400" />,
-    iconBg: "bg-rose-500/10",
+    accent: "bg-gradient-to-r from-rose-500 via-red-500 to-orange-400",
+    badge:
+      "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200",
+    iconWrap:
+      "border-rose-200 bg-rose-50 shadow-rose-900/5 dark:border-rose-400/20 dark:bg-rose-400/10",
+    iconColor: "text-rose-600 dark:text-rose-200",
+    icon: <AlertTriangle className="h-5 w-5" />,
     defaultSubtitle: "Confirmation",
   },
 };
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PremiumModal({
   open,
@@ -89,7 +85,6 @@ export default function PremiumModal({
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             key="backdrop"
             initial={{ opacity: 0 }}
@@ -97,142 +92,109 @@ export default function PremiumModal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
             onClick={onClose}
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md"
+            className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-sm"
           />
 
-          {/* Modal */}
           <motion.div
             key="modal"
-            initial={{ opacity: 0, y: 20, scale: 0.97 }}
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.97 }}
-            transition={{ duration: 0.28, ease: [0.34, 1.3, 0.64, 1] }}
-            className={`
-              fixed inset-x-0 top-1/2 z-[110] mx-auto w-full
-              ${sizeClasses[size]} -translate-y-1/2 px-4
-            `}
+            exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed inset-0 z-[110] flex items-end justify-center p-3 sm:items-center sm:p-6"
           >
             <div
-              className="
-                relative overflow-hidden rounded-[1.5rem]
-                border border-white/[0.08]
-                bg-slate-950/95 dark:bg-slate-950/95
-                shadow-[0_32px_80px_rgba(0,0,0,0.5),0_0_0_0.5px_rgba(255,255,255,0.06)]
-                backdrop-blur-xl
-              "
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="premium-modal-title"
+              className={`
+                relative max-h-[calc(100vh-1.5rem)] w-full overflow-hidden
+                rounded-[22px] border border-slate-200/80
+                bg-white shadow-[0_24px_70px_rgba(15,23,42,0.28)]
+                ring-1 ring-white/70
+                dark:border-white/10 dark:bg-slate-900
+                dark:ring-white/5 dark:shadow-[0_28px_90px_rgba(0,0,0,0.55)]
+                ${sizeClasses[size]}
+              `}
             >
-              {/* ── Shimmer accent line (animated) */}
-              <div className="relative h-[2px] w-full overflow-hidden">
-                <div
-                  className={`
-                    absolute inset-0 bg-gradient-to-r ${config.accentGradient}
-                    animate-[shimmer_3s_linear_infinite]
-                    bg-[length:200%_100%]
-                  `}
-                />
-              </div>
+              <div className={`h-1.5 w-full ${config.accent}`} />
 
-              {/* ── Subtle glow orb behind header */}
-              <div
-                className={`
-                  pointer-events-none absolute -top-20 left-1/2 h-48 w-64
-                  -translate-x-1/2 rounded-full
-                  ${
-                    variant === "error"
-                      ? "bg-rose-500/10"
-                      : variant === "info"
-                        ? "bg-sky-400/10"
-                        : "bg-cyan-400/10"
-                  }
-                  blur-3xl
-                `}
-              />
-
-              {/* ── Inner content */}
-              <div className="relative px-6 pb-6 pt-6 sm:px-7 sm:pb-7 sm:pt-7">
-                {/* Header row */}
-                <div className="flex items-start justify-between gap-4">
-                  {/* Left: icon + badge + title */}
-                  <div className="flex items-start gap-3.5">
-                    {/* Icon circle */}
+              <div className="max-h-[calc(100vh-1.75rem)] overflow-y-auto p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="flex min-w-0 items-start gap-3.5 sm:gap-4">
                     <div
                       className={`
-                        mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center
-                        rounded-[10px] ${config.iconBg}
-                        border border-white/[0.07]
+                        flex h-12 w-12 shrink-0 items-center justify-center
+                        rounded-2xl border shadow-sm ring-4 ring-slate-100/80
+                        dark:ring-white/5 ${config.iconWrap}
+                        ${config.iconColor}
                       `}
                     >
                       {config.icon}
                     </div>
 
-                    {/* Text block */}
-                    <div className="space-y-1.5">
-                      {/* Badge pill */}
+                    <div className="min-w-0">
+                      <h2
+                        id="premium-modal-title"
+                        className="text-xl font-bold leading-tight text-slate-950 dark:text-white sm:text-2xl"
+                      >
+                        {title}
+                      </h2>
+
                       <span
                         className={`
-                          inline-flex items-center gap-1.5 rounded-md
-                          border ${config.badgeBorder}
-                          ${config.badgeBg} ${config.badgeText}
-                          px-2.5 py-[3px]
-                          text-[10px] font-semibold uppercase tracking-[0.14em]
+                          mt-2 inline-flex max-w-full items-center rounded-full
+                          border px-2.5 py-1 text-[11px] font-bold
+                          uppercase tracking-[0.12em] ${config.badge}
                         `}
                       >
                         {subtitle ?? config.defaultSubtitle}
                       </span>
 
-                      {/* Title */}
-                      <h2 className="text-[1.35rem] font-bold leading-snug tracking-[-0.02em] text-white sm:text-2xl">
-                        {title}
-                      </h2>
-
-                      {/* Description */}
                       {description && (
-                        <p className="max-w-sm text-[13.5px] leading-relaxed text-slate-400">
+                        <p className="mt-3 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-300">
                           {description}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Close button */}
                   <button
                     type="button"
                     onClick={onClose}
                     aria-label="Close modal"
                     className="
-                      mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center
-                      rounded-[9px] border border-white/[0.1]
-                      bg-white/[0.05] text-slate-400
-                      transition-all duration-150
-                      hover:border-white/20 hover:bg-white/10 hover:text-white
+                      flex h-9 w-9 shrink-0 items-center justify-center
+                      rounded-xl border border-slate-200 bg-white/90
+                      text-slate-500 shadow-sm transition
+                      hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950
                       active:scale-95
+                      dark:border-white/10 dark:bg-white/5 dark:text-slate-300
+                      dark:hover:border-white/20 dark:hover:bg-white/10 dark:hover:text-white
                     "
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
 
-                {/* ── Divider */}
                 {(children || footer) && (
-                  <div className="my-5 h-px w-full bg-white/[0.07]" />
+                  <div className="my-5 h-px w-full bg-slate-200/80 dark:bg-white/10" />
                 )}
 
-                {/* ── Children slot */}
                 {children && (
                   <div
                     className="
-                      rounded-xl border border-white/[0.07]
-                      bg-white/[0.03] p-4
-                      text-[13.5px] leading-relaxed text-slate-300
+                      rounded-2xl border border-slate-200 bg-slate-50 p-4
+                      text-sm leading-6 text-slate-700
+                      dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300
                     "
                   >
                     {children}
                   </div>
                 )}
 
-                {/* ── Footer slot */}
                 {footer && (
-                  <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
+                  <div className="mt-5 grid grid-cols-2 gap-3">
                     {footer}
                   </div>
                 )}
@@ -245,26 +207,29 @@ export default function PremiumModal({
   );
 }
 
-// ─── Button helpers (use inside `footer` prop) ────────────────────────────────
-
 export function ModalCancelButton({
   onClick,
   children = "Cancel",
+  disabled = false,
 }: {
   onClick: () => void;
   children?: ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className="
-        rounded-xl border border-white/[0.1]
-        bg-white/[0.04] px-5 py-2.5
-        text-sm font-medium text-slate-300
-        transition-all duration-150
-        hover:border-white/20 hover:bg-white/[0.08] hover:text-white
+        inline-flex min-h-11 items-center justify-center rounded-xl
+        w-full border border-slate-200 bg-white px-5 py-2.5
+        text-sm font-semibold text-slate-700 shadow-sm
+        transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950
         active:scale-[0.98]
+        disabled:pointer-events-none disabled:opacity-50
+        dark:border-white/10 dark:bg-white/5 dark:text-slate-200
+        dark:hover:border-white/20 dark:hover:bg-white/10 dark:hover:text-white
       "
     >
       {children}
@@ -276,28 +241,31 @@ export function ModalConfirmButton({
   onClick,
   variant = "default",
   children,
+  disabled = false,
 }: {
   onClick: () => void;
   variant?: PremiumModalVariant;
   children: ReactNode;
+  disabled?: boolean;
 }) {
   const styles: Record<PremiumModalVariant, string> = {
     default:
-      "bg-gradient-to-br from-cyan-400 to-violet-500 text-white shadow-[0_4px_18px_rgba(13,217,196,0.3)] hover:shadow-[0_6px_28px_rgba(13,217,196,0.45)]",
-    info: "bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-[0_4px_18px_rgba(56,189,248,0.3)] hover:shadow-[0_6px_28px_rgba(56,189,248,0.45)]",
+      "bg-slate-950 text-white shadow-[0_12px_24px_rgba(15,23,42,0.22)] hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200",
+    info: "bg-blue-600 text-white shadow-[0_12px_24px_rgba(37,99,235,0.24)] hover:bg-blue-500",
     error:
-      "bg-gradient-to-br from-rose-500 to-orange-400 text-white shadow-[0_4px_18px_rgba(244,63,94,0.3)] hover:shadow-[0_6px_28px_rgba(244,63,94,0.45)]",
+      "bg-rose-600 text-white shadow-[0_12px_24px_rgba(225,29,72,0.24)] hover:bg-rose-500",
   };
 
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={`
-        rounded-xl px-5 py-2.5
-        text-sm font-semibold
-        transition-all duration-150
-        hover:-translate-y-px active:scale-[0.98]
+        inline-flex min-h-11 w-full items-center justify-center gap-2
+        rounded-xl px-5 py-2.5 text-sm font-semibold
+        transition hover:-translate-y-px active:scale-[0.98]
+        disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-60
         ${styles[variant]}
       `}
     >
@@ -305,22 +273,3 @@ export function ModalConfirmButton({
     </button>
   );
 }
-
-// ─── Usage example ────────────────────────────────────────────────────────────
-//
-// <PremiumModal
-//   open={isOpen}
-//   onClose={() => setIsOpen(false)}
-//   variant="error"
-//   title="Delete category"
-//   subtitle="Confirmation"
-//   description='Delete category "travel"? This only works if no expenses use it.'
-//   footer={
-//     <>
-//       <ModalCancelButton onClick={() => setIsOpen(false)} />
-//       <ModalConfirmButton variant="error" onClick={handleDelete}>
-//         Delete category
-//       </ModalConfirmButton>
-//     </>
-//   }
-// />
