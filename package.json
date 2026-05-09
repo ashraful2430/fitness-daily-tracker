@@ -7,7 +7,7 @@
     "prod": "cross-env EXTERNAL_API_URL=https://fitness-daily-tracker-backend-main.vercel.app next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

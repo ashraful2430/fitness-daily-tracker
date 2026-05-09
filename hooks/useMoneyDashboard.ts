@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 import { ApiError, isUnauthorizedError, loansAPI, moneyAPI } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
-  BalanceResponse,
   BalanceSource,
   CreateExpenseRequest,
   ExpensesQuery,
@@ -18,7 +17,6 @@ import type {
   MonthlyExpenseSummary,
   SalaryRecord,
   UpdateExpenseRequest,
-  UpdateSalaryRequest,
 } from "@/types/money";
 
 type FormErrors = Record<string, string>;

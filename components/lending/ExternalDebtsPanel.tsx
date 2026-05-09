@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertCircle, CheckCircle, DollarSign } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import type { ExternalDebt } from "@/types/money";
 
 interface ExternalDebtsPanelProps {

@@ -112,6 +112,7 @@ export default function CreateLoanModal({
       sourceType,
       creditorName,
       note,
+      onClose,
       onSuccess,
     ],
   );

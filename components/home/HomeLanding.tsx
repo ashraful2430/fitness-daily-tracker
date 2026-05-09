@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import {
+  motion,
+  useMotionTemplate,
+  useMotionValue,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import {
   Activity,
   ArrowRight,
@@ -125,8 +131,10 @@ export default function HomeLanding() {
   const tiltY = useMotionValue(-10);
   const cardRotateX = useSpring(tiltX, { stiffness: 180, damping: 20, mass: 0.45 });
   const cardRotateY = useSpring(tiltY, { stiffness: 180, damping: 20, mass: 0.45 });
-  const [heroGlow, setHeroGlow] = useState({ x: 54, y: 32 });
-  const [heroActive, setHeroActive] = useState(false);
+  const heroGlowX = useMotionValue(54);
+  const heroGlowY = useMotionValue(32);
+  const heroGlowOpacity = useMotionValue(0.68);
+  const heroGlowBackground = useMotionTemplate`radial-gradient(circle at ${heroGlowX}% ${heroGlowY}%, rgba(255,255,255,0.26), transparent 30%), radial-gradient(circle at ${heroGlowX}% ${heroGlowY}%, rgba(34,211,238,0.16), transparent 48%)`;
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -140,15 +148,17 @@ export default function HomeLanding() {
     const px = (event.clientX - bounds.left) / bounds.width;
     const py = (event.clientY - bounds.top) / bounds.height;
 
-    setHeroActive(true);
-    setHeroGlow({ x: px * 100, y: py * 100 });
+    heroGlowX.set(px * 100);
+    heroGlowY.set(py * 100);
+    heroGlowOpacity.set(1);
     tiltX.set((0.5 - py) * 16);
     tiltY.set((px - 0.5) * 20);
   };
 
   const resetHeroTilt = () => {
-    setHeroActive(false);
-    setHeroGlow({ x: 54, y: 32 });
+    heroGlowX.set(54);
+    heroGlowY.set(32);
+    heroGlowOpacity.set(0.68);
     tiltX.set(6);
     tiltY.set(-10);
   };
@@ -394,12 +404,12 @@ export default function HomeLanding() {
                 transition={{ type: "spring", stiffness: 180, damping: 20 }}
                 className="relative rounded-[2.4rem] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.9),rgba(255,255,255,0.64))] p-4 shadow-[0_50px_140px_rgba(15,23,42,0.24)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(135deg,rgba(16,18,30,0.96),rgba(20,18,35,0.84))] dark:shadow-[0_65px_150px_rgba(0,0,0,0.55)] sm:p-5 lg:p-6"
               >
-                <div
+                <motion.div
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 rounded-[2.4rem] transition-opacity duration-300"
                   style={{
-                    background: `radial-gradient(circle at ${heroGlow.x}% ${heroGlow.y}%, rgba(255,255,255,0.26), transparent 30%), radial-gradient(circle at ${heroGlow.x}% ${heroGlow.y}%, rgba(34,211,238,0.16), transparent 48%)`,
-                    opacity: heroActive ? 1 : 0.68,
+                    background: heroGlowBackground,
+                    opacity: heroGlowOpacity,
                   }}
                 />
                 <div className="pointer-events-none absolute inset-x-[8%] top-3 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/20" />

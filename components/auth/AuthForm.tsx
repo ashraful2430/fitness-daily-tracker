@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   Activity,
@@ -22,7 +21,6 @@ import { ApiError } from "@/lib/api";
 type Mode = "login" | "register";
 
 export default function AuthForm() {
-  const router = useRouter();
   const { login, register } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");

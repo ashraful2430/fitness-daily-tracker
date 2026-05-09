@@ -1,4 +1,3 @@
-// app/layout.tsx
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
@@ -22,7 +21,6 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    // ✅ add dark class here so entire app respects dark mode
     <html lang="en" className="dark">
       <body className={`${manrope.variable} font-sans antialiased`}>
         <AuthProvider>

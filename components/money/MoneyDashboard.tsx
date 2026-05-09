@@ -35,13 +35,8 @@ import {
   YAxis,
 } from "recharts";
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
-import PremiumModal, {
-  ModalCancelButton,
-  ModalConfirmButton,
-} from "@/components/ui/PremiumModal";
+import PremiumModal from "@/components/ui/PremiumModal";
 import type { BalanceSource, MoneyExpense } from "@/types/money";
-import type { TooltipProps } from "recharts";
-import type { TooltipContentProps } from "recharts";
 
 type FormErrors = Record<string, string>;
 
@@ -143,20 +138,15 @@ function generateMonthOptions() {
   return options;
 }
 
-type CustomTooltipPayload = {
-  value?: number;
-};
-
-type FixedTooltipProps = TooltipProps<number, string> & {
-  payload?: CustomTooltipPayload[];
-  label?: string;
-};
-
 function ChartTooltip({
   active,
   payload,
   label,
-}: TooltipContentProps<number, string>) {
+}: {
+  active?: boolean;
+  payload?: Array<{ value?: number | string }>;
+  label?: string | number;
+}) {
   if (!active || !payload || payload.length === 0) return null;
 
   const value = typeof payload[0]?.value === "number" ? payload[0].value : 0;
@@ -171,6 +161,10 @@ function ChartTooltip({
       </p>
     </div>
   );
+}
+
+function renderChartTooltip(props: unknown) {
+  return <ChartTooltip {...(props as Parameters<typeof ChartTooltip>[0])} />;
 }
 
 function SectionHeader({
@@ -1782,7 +1776,7 @@ export default function MoneyDashboard() {
                       />
                       <Tooltip
                         cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
-                        content={ChartTooltip as any}
+                        content={renderChartTooltip}
                       />
                       <Bar dataKey="totalSpent" radius={[12, 12, 4, 4]}>
                         {chartData.map((item, index) => (
@@ -1900,7 +1894,7 @@ export default function MoneyDashboard() {
                     <span className="text-2xl">🏦</span>
                     <div>
                       <p className="font-black text-slate-950 dark:text-white">Other Savings</p>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Personal savings or reserve funds you're tapping</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Personal savings or reserve funds you are tapping</p>
                     </div>
                   </button>
                 </div>
