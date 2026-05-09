@@ -1,243 +1,291 @@
-# Production-Grade Improvements & Bug Fixes
+# Planify Life Frontend
 
-## Summary of Changes
+Planify Life is a personal productivity and finance dashboard built with Next.js. It connects to the Planify Life backend and gives one place to manage money, lending, learning, fitness, habits, focus sessions, reports, settings, and account access.
 
-This document outlines all the improvements made to make the Fitness Daily Tracker application production-ready.
+The app is designed for personal use: compact, fast, friendly, and a little savage without being harsh. Backend messages are preserved in the UI so successful actions and errors keep the same playful tone across the product.
 
----
+## Table of Contents
 
-## 1. ✅ Fixed Sidebar Scroll Disappearing Issue
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Available Scripts](#available-scripts)
+- [Application Routes](#application-routes)
+- [Backend Integration](#backend-integration)
+- [API Response Handling](#api-response-handling)
+- [Authentication](#authentication)
+- [Performance Notes](#performance-notes)
+- [Accessibility and UX](#accessibility-and-ux)
+- [Quality Checks](#quality-checks)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
 
-### Problem
+## Features
 
-The sidebar was disappearing when scrolling down on any page due to:
+- Personal dashboard with summary metrics and recent activity.
+- Money management for expenses, income, savings, and loans.
+- Lending workflows for people you lend to or borrow from.
+- Learning dashboard for tracking study sessions and progress.
+- Fitness, habits, focus, reports, categories, settings, and admin screens.
+- Authentication flow with local app session handling.
+- Backend-powered success and error messages with friendly product copy.
+- Paginated list handling and client-side caching for read-heavy screens.
+- Responsive dashboard UI for desktop and mobile.
 
-- Main container having `overflow-hidden` which prevented scrolling
-- Sidebar set to `sticky top-0` but parent container had `overflow-hidden`
-- Layout structure not supporting proper content scrolling with fixed sidebar
+## Tech Stack
 
-### Solution - [app/(app)/layout.tsx](<app/(app)/layout.tsx>)
+| Area | Technology |
+| --- | --- |
+| Framework | Next.js 16 |
+| UI | React 19 |
+| Styling | Tailwind CSS 4 |
+| Animation | Framer Motion |
+| Icons | Lucide React |
+| Charts | Recharts |
+| Notifications | React Hot Toast |
+| Language | TypeScript |
+| Auth utilities | JSON Web Token, bcryptjs |
+| Data proxy | Next.js route handlers |
 
-- **Changed main container from `overflow-hidden` to `overflow-y-auto`** ✓
-- **Fixed layout structure to use `lg:flex`** on main to ensure proper sidebar positioning
-- **Made background gradients `fixed` on desktop and `static` on mobile** to prevent layout shifts
-- **Added proper flex layout** so sidebar remains fixed while content scrolls independently
+## Project Structure
 
-### Technical Details
-
-```jsx
-// Before: Main had overflow-hidden preventing scrolling
-<main className="relative min-h-screen overflow-hidden ...">
-
-// After: Content area has overflow-y-auto for scrolling
-<div className="relative z-10 flex-1 overflow-y-auto">
-  {children}
-</div>
+```text
+.
++-- app/                  # Next.js app router routes and layouts
+|   +-- (app)/            # Authenticated application pages
+|   +-- api/              # Frontend API/proxy route handlers
+|   +-- auth/             # Login and registration pages
+|   +-- page.tsx          # Public entry page
++-- components/           # Feature and shared UI components
++-- hooks/                # Data and state hooks used by dashboard modules
++-- lib/                  # API client, auth helpers, proxy, database helpers
++-- types/                # Shared TypeScript types
++-- public/               # Static assets
++-- package.json          # Scripts and dependencies
 ```
 
----
+## Getting Started
 
-## 2. ✅ Fixed Text Overflow on Money Dashboard (Laptop View)
+### Prerequisites
 
-### Problem
+- Node.js 20 or newer recommended.
+- npm.
+- A running Planify Life backend, or access to the deployed backend URL.
 
-- Main heading text used `text-[clamp(2.4rem,5vw,4.6rem)]` which could overflow on certain viewport widths
-- Stat cards grid wasn't responsive enough for medium screens
-- Button text was wrapping incorrectly on smaller screens
-- Form elements weren't adapting well to different screen sizes
+### Install Dependencies
 
-### Solution - [components/money/MoneyDashboard.tsx](components/money/MoneyDashboard.tsx)
-
-- **Improved heading responsiveness** with better clamp values: `text-[clamp(1.75rem,4vw,4.6rem)]`
-- **Enhanced grid layouts** for stat cards:
-  - Mobile: `grid` (full width)
-  - Tablet: `sm:grid-cols-2 lg:grid-cols-3`
-  - Desktop: `xl:grid-cols-5`
-- **Improved form layouts**:
-  - Salary form: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto]`
-  - Category form: `grid-cols-1 sm:grid-cols-[1fr_auto]`
-- **Made buttons full-width on mobile**, auto-width on larger screens
-- **Fixed button styling** with responsive margin adjustments
-
----
-
-## 3. ✅ Enhanced Responsive Layout Across All Pages
-
-### Improvements - [app/globals.css](app/globals.css)
-
-- **Set `html` and `body` height to 100%** for proper viewport coverage
-- **Added `overflow: hidden` to body** to prevent body scroll and allow content div scrolling
-- **Custom scrollbar styling** for better visual consistency:
-  - Thin scrollbar width
-  - Proper colors for light/dark mode
-  - Smooth hover effects
-
-### Additional Responsive Fixes
-
-- Better breakpoint handling throughout Money Dashboard
-- Improved section grid layouts for 3-column desktop, 2-column tablet, 1-column mobile
-- Better padding/spacing on different screen sizes
-
----
-
-## 4. ✅ Added Production-Grade Error Handling
-
-### Improvements - [components/money/MoneyDashboard.tsx](components/money/MoneyDashboard.tsx)
-
-#### ARIA Attributes for Form Fields
-
-All form inputs now have proper accessibility attributes:
-
-- `aria-label`: Descriptive label for screen readers
-- `aria-invalid`: Indicates validation state
-- `aria-describedby`: Links input to error message
-
-**Example:**
-
-```jsx
-<input
-  aria-label="Monthly salary amount"
-  aria-invalid={!!salaryErrors.amount}
-  aria-describedby={salaryErrors.amount ? "salary-error" : undefined}
-/>
+```bash
+npm install
 ```
 
-#### Error Messages with ARIA Roles
+### Run Locally With a Local Backend
 
-All error messages now include:
+The default development command points the proxy to a backend running on port `5000`.
 
-- `id` attribute matching `aria-describedby`
-- `role="alert"` to announce errors to screen readers
-
-**Example:**
-
-```jsx
-{
-  salaryErrors.amount ? (
-    <p className="..." id="salary-error" role="alert">
-      {salaryErrors.amount}
-    </p>
-  ) : null;
-}
+```bash
+npm run dev
 ```
 
----
+Open the app at:
 
-## 5. ✅ Improved Accessibility Throughout App
+```text
+http://localhost:3000
+```
 
-### Sidebar Navigation - [components/layout/Sidebar.tsx](components/layout/Sidebar.tsx)
+### Run Against the Deployed Backend
 
-- ✓ Added `aria-label="Navigation menu"` to nav element
-- ✓ Added `aria-label="Open navigation menu"` to mobile menu button
-- ✓ Added `aria-label="Close navigation menu"` to close button
+```bash
+npm run prod
+```
 
-### Form Enhancements - Money Dashboard
+This starts the Next.js development server while pointing `EXTERNAL_API_URL` to the deployed backend configured in `package.json`.
 
-All form fields now have:
+## Environment Variables
 
-- ✓ Proper `aria-label` attributes
-- ✓ `aria-invalid` state management
-- ✓ `aria-describedby` linking to error messages
-- ✓ `role="alert"` on error messages
+Create a `.env.local` file when you need to override defaults.
 
-**Fields with Accessibility:**
+```env
+EXTERNAL_API_URL=http://localhost:5000
+NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+MONGODB_URI=mongodb://localhost:27017/planify-life
+JWT_SECRET=replace-with-a-strong-secret
+```
 
-- Salary amount input
-- Category name input
-- Expense amount input
-- Expense date input
-- Expense description input
-- Expense category select
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `EXTERNAL_API_URL` | Recommended | Backend base URL used by the Next.js proxy routes. |
+| `NEXT_PUBLIC_API_URL` | Optional | Public API base URL for direct client requests when enabled. |
+| `NEXT_PUBLIC_SITE_URL` | Optional | Site URL used by public app metadata or redirects. |
+| `MONGODB_URI` | Required for local auth/database routes | MongoDB connection string. |
+| `JWT_SECRET` | Required for auth | Secret used to sign and verify app tokens. |
 
----
+## Available Scripts
 
-## 6. ✅ Additional Production Improvements
+```bash
+npm run dev
+```
 
-### CSS Enhancements
+Starts the app in development mode with `EXTERNAL_API_URL=http://localhost:5000`.
 
-- Better scrollbar styling with custom webkit properties
-- Proper scroll behavior (smooth scrolling)
-- Full viewport coverage without overflow issues
+```bash
+npm run prod
+```
 
-### Layout Stability
+Starts the app in development mode against the deployed backend URL.
 
-- Fixed layout shift issues by properly structuring flex containers
-- Ensured sidebar doesn't jump on scroll
-- Proper z-index management
+```bash
+npm run build
+```
 
-### Responsive Design
+Creates a production build.
 
-- Mobile-first approach strengthened
-- Better medium screen (tablet) support
-- Improved desktop experience
+```bash
+npm run start
+```
 
----
+Runs the production build.
 
-## Testing Recommendations
+```bash
+npm run lint
+```
 
-### Visual Testing
+Runs the Next.js lint command.
 
-- [ ] Test sidebar stays fixed while scrolling on desktop
-- [ ] Test Money page heading doesn't overflow on mobile/tablet
-- [ ] Test all stat cards are visible and properly spaced
-- [ ] Test buttons are full-width on mobile
-- [ ] Test dark mode appearance on all pages
+```bash
+npm run typecheck
+```
 
-### Accessibility Testing
+Runs TypeScript without emitting files.
 
-- [ ] Test with screen readers (NVDA, JAWS, VoiceOver)
-- [ ] Test keyboard navigation on all forms
-- [ ] Verify ARIA labels are announced correctly
-- [ ] Test error states are announced to screen readers
-- [ ] Verify form inputs have proper focus states
+## Application Routes
 
-### Cross-Browser Testing
+| Route | Purpose |
+| --- | --- |
+| `/` | Public entry page. |
+| `/auth/login` | User login. |
+| `/auth/register` | User registration. |
+| `/dashboard` | Main personal dashboard. |
+| `/money` | Expenses, income, savings, loans, and financial summaries. |
+| `/lending` | Lending and borrowed-money workflows. |
+| `/learning` | Learning sessions and study progress. |
+| `/fitness` | Fitness tracking. |
+| `/habits` | Habit tracking. |
+| `/focus` | Focus and productivity sessions. |
+| `/reports` | Reports and analytics. |
+| `/categories` | Category management. |
+| `/settings` | User and app settings. |
+| `/admin` | Admin area. |
 
-- [ ] Chrome/Edge (latest)
-- [ ] Firefox (latest)
-- [ ] Safari (Mac & iOS)
-- [ ] Mobile browsers (Android Chrome, Safari iOS)
+## Backend Integration
 
-### Device Testing
+The frontend expects API responses in this shape:
 
-- [ ] iPhone 12/13/14/15
-- [ ] iPad/iPad Air
-- [ ] Android tablets
-- [ ] Desktop (1920x1080, 2560x1440)
-- [ ] Ultrawide (3440x1440)
+```ts
+type ApiResponse<T = unknown> = {
+  success: boolean;
+  message?: string;
+  data?: T;
+  pagination?: unknown;
+};
+```
 
----
+The app uses `lib/api.ts` for client request helpers and `lib/proxy.ts` for proxying requests through Next.js route handlers. This keeps backend URLs configurable and lets the frontend keep a stable internal API surface while the backend can run locally or remotely.
 
-## Files Modified
+## API Response Handling
 
-1. ✅ `app/(app)/layout.tsx` - Fixed layout structure and scrolling
-2. ✅ `components/layout/Sidebar.tsx` - Added accessibility labels
-3. ✅ `components/money/MoneyDashboard.tsx` - Fixed responsive layout and added ARIA attributes
-4. ✅ `app/globals.css` - Enhanced CSS for better scrolling and visual consistency
+- Show `message` from the backend whenever it exists.
+- Use short, calm success toasts for successful mutations.
+- Show backend validation errors near the related field when field-level data is available.
+- Use a toast or inline page alert for general errors.
+- Only fall back to generic copy when a network request fails before a backend response is received.
+- Keep optional note-style fields valid when they are missing, blank, `null`, or `undefined`.
 
----
+Important backend behaviors reflected in the UI:
 
-## Performance Impact
+- Expense `note` is optional.
+- Income and savings `note` is optional.
+- Loan `reason` is optional. When omitted, the backend stores `No reason provided.`.
+- Lending note and reason-style fields are optional.
+- Learning session `notes` may be missing, `null`, or blank.
 
-- ✅ No negative performance impact
-- ✅ Better semantic HTML with ARIA attributes
-- ✅ Improved CSS specificity and reusability
-- ✅ Better scroll performance (no layout shifts)
+## Authentication
 
----
+The app includes login and registration screens under `/auth`. Auth utilities live in `lib/auth.ts`, and app API routes can use cookies and JWT helpers for session-aware behavior.
 
-## Next Steps
+For production, use a strong `JWT_SECRET` and serve the app over HTTPS so secure cookie behavior works as expected.
 
-1. **Deploy to staging** for QA testing
-2. **Accessibility audit** using axe DevTools or similar
-3. **Performance monitoring** on real devices
-4. **User feedback** collection on responsive design
-5. **Browser compatibility** verification
+## Performance Notes
 
----
+- Use backend pagination values instead of loading large collections at once.
+- Debounce filters and search inputs before sending requests.
+- Cache dashboard and list requests briefly on the client.
+- Revalidate the affected data after mutations instead of refetching every page.
+- Keep dashboard pages dense but readable so common workflows stay fast.
 
-## Version Info
+## Accessibility and UX
 
-- **Date**: 2026-04-30
-- **Version**: 1.0 (Production-Ready)
-- **Status**: ✅ Complete and Ready for Testing
+- Interface language should stay compact, friendly, and useful.
+- Backend messages can be witty, but UI copy should never feel insulting or guilt-heavy.
+- Destructive actions should be confirmed with lightweight dialogs.
+- Empty states should include one clear next action.
+- Buttons, forms, navigation, and modal flows should remain keyboard accessible.
+- Icons should use `lucide-react` where possible.
+
+## Quality Checks
+
+Before shipping meaningful changes, run:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+For UI-heavy changes, also verify the main app routes manually in desktop and mobile viewport sizes.
+
+## Deployment
+
+The app can be deployed to any platform that supports Next.js, such as Vercel, Netlify, or a Node.js server.
+
+Production checklist:
+
+- Set `EXTERNAL_API_URL` to the production backend URL.
+- Set `NEXT_PUBLIC_SITE_URL` to the deployed frontend URL.
+- Set `MONGODB_URI` if local frontend API routes need database access.
+- Set a strong `JWT_SECRET`.
+- Run `npm run build` successfully before deployment.
+
+## Troubleshooting
+
+### API Requests Fail Locally
+
+Check that the backend is running and that `EXTERNAL_API_URL` points to the correct backend origin.
+
+```env
+EXTERNAL_API_URL=http://localhost:5000
+```
+
+### Auth Does Not Persist
+
+Confirm `JWT_SECRET` is set and that browser cookies are not blocked. In production, make sure the app is served over HTTPS.
+
+### Build Fails on Types
+
+Run:
+
+```bash
+npm run typecheck
+```
+
+Fix the first TypeScript error reported, then run the command again.
+
+### Deployed App Still Calls Localhost
+
+Check deployment environment variables. `EXTERNAL_API_URL` must be set in the hosting provider, not only in `.env.local`.
+
+## License
+
+This is a private personal productivity project. Add a license before distributing or publishing it publicly.
