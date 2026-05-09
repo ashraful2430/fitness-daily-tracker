@@ -110,21 +110,24 @@ export function useLoansLending() {
     async (payload: {
       personName: string;
       amount: number;
-      reason: string;
+      reason?: string;
       date?: string;
     }) => {
-      await loansAPI.create(payload);
-      toast.success("Loan added");
-      await loadAll();
+      try {
+        await loansAPI.create(payload);
+        await loadAll();
+      } catch (error) {
+        handleError(error, "Failed to create loan");
+        throw error;
+      }
     },
-    [loadAll],
+    [handleError, loadAll],
   );
 
   const payLoan = useCallback(
     async (id: string, amount: number) => {
       try {
         await loansAPI.pay(id, amount);
-        toast.success("Payment recorded");
         await loadAll();
       } catch (error) {
         handleError(error, "Failed to update loan");
@@ -137,7 +140,6 @@ export function useLoansLending() {
     async (id: string) => {
       try {
         await loansAPI.remove(id);
-        toast.success("Loan deleted");
         await loadAll();
       } catch (error) {
         handleError(error, "Failed to delete loan");
@@ -153,18 +155,21 @@ export function useLoansLending() {
       fundingSource: FundingSource;
       date?: string;
     }) => {
-      await lendingRecordAPI.create(payload);
-      toast.success("Lending record added");
-      await loadAll();
+      try {
+        await lendingRecordAPI.create(payload);
+        await loadAll();
+      } catch (error) {
+        handleError(error, "Failed to create lending record");
+        throw error;
+      }
     },
-    [loadAll],
+    [handleError, loadAll],
   );
 
   const markRepaid = useCallback(
     async (id: string, amount: number) => {
       try {
         await lendingRecordAPI.markRepaid(id, amount);
-        toast.success("Repayment recorded");
         await loadAll();
       } catch (error) {
         handleError(error, "Failed to update lending record");
@@ -177,7 +182,6 @@ export function useLoansLending() {
     async (id: string) => {
       try {
         await lendingRecordAPI.remove(id);
-        toast.success("Lending record deleted");
         await loadAll();
       } catch (error) {
         handleError(error, "Failed to delete lending record");

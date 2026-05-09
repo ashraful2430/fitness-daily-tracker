@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
+import { ApiError } from "@/lib/api";
 
 interface Props {
   isOpen: boolean;
@@ -11,12 +12,13 @@ interface Props {
   onCreate: (payload: {
     personName: string;
     amount: number;
-    reason: string;
+    reason?: string;
     date?: string;
   }) => Promise<void>;
 }
 
-type FormErrors = Partial<Record<"personName" | "amount", string>>;
+type FormErrors = Partial<Record<"personName" | "amount" | "reason" | "date", string>>;
+const fieldNames = ["personName", "amount", "reason", "date"] as const;
 
 export default function AddLoanModal({
   isOpen,
@@ -63,13 +65,19 @@ export default function AddLoanModal({
         await onCreate({
           personName: personName.trim(),
           amount: parseFloat(amount),
-          reason: reason.trim() || "No reason provided",
+          reason: reason.trim() || undefined,
           date: date || undefined,
         });
         reset();
         await onSuccess();
-      } catch {
-        // errors shown via toast in hook
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          fieldNames.includes(error.field as (typeof fieldNames)[number])
+        ) {
+          const field = error.field as keyof FormErrors;
+          setErrors({ [field]: error.message });
+        }
       } finally {
         setIsSubmitting(false);
       }

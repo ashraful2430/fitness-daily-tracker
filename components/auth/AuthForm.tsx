@@ -46,10 +46,6 @@ export default function AuthForm() {
         await register({ name, email, password });
       }
 
-      toast.success(
-        mode === "login" ? "Login successful" : "Account created successfully",
-      );
-
       window.location.href = "/dashboard";
       return;
     } catch (error: unknown) {

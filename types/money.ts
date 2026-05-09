@@ -10,7 +10,7 @@ export interface MoneyExpense {
   _id: string;
   userId?: string;
   amount: number;
-  note: string;
+  note?: string;
   category: string;
   date: string;
   createdAt?: string;
@@ -125,14 +125,14 @@ export interface CreateCategoryRequest {
 
 export interface CreateExpenseRequest {
   amount: number;
-  note: string;
+  note?: string;
   category: string;
   date: string;
 }
 
 export interface UpdateExpenseRequest {
   amount: number;
-  note: string;
+  note?: string;
   category: string;
   date: string;
 }
@@ -259,7 +259,7 @@ export interface LoanRecord {
   personName: string;
   amount: number;
   paidAmount: number;
-  reason: string;
+  reason?: string;
   date: string;
   status: LoanStatusSimple;
   createdAt: string;
@@ -290,7 +290,7 @@ export interface ExternalIncome {
   userId: string;
   amount: number;
   source: string;
-  note: string;
+  note?: string;
   date: string;
   createdAt?: string;
   updatedAt?: string;
@@ -301,7 +301,7 @@ export interface OtherSavings {
   userId: string;
   amount: number;
   sourceName: string;
-  note: string;
+  note?: string;
   date: string;
   createdAt?: string;
   updatedAt?: string;
@@ -310,13 +310,13 @@ export interface OtherSavings {
 export interface CreateExternalIncomeRequest {
   amount: number;
   source: string;
-  note: string;
+  note?: string;
   date: string;
 }
 
 export interface CreateOtherSavingsRequest {
   amount: number;
   sourceName: string;
-  note: string;
+  note?: string;
   date: string;
 }

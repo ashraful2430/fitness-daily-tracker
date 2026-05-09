@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2, AlertTriangle } from "lucide-react";
 import type { FundingSource } from "@/types/money";
+import { ApiError } from "@/lib/api";
 
 interface Props {
   isOpen: boolean;
@@ -17,7 +18,8 @@ interface Props {
   }) => Promise<void>;
 }
 
-type FormErrors = Partial<Record<"personName" | "amount", string>>;
+type FormErrors = Partial<Record<"personName" | "amount" | "fundingSource" | "date", string>>;
+const fieldNames = ["personName", "amount", "fundingSource", "date"] as const;
 
 export default function AddLendingModal({
   isOpen,
@@ -69,8 +71,14 @@ export default function AddLendingModal({
         });
         reset();
         await onSuccess();
-      } catch {
-        // errors shown via toast in hook
+      } catch (error) {
+        if (
+          error instanceof ApiError &&
+          fieldNames.includes(error.field as (typeof fieldNames)[number])
+        ) {
+          const field = error.field as keyof FormErrors;
+          setErrors({ [field]: error.message });
+        }
       } finally {
         setIsSubmitting(false);
       }

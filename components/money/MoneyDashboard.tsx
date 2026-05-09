@@ -109,7 +109,7 @@ function getToday() {
 function expenseToForm(expense: MoneyExpense): ExpenseFormState {
   return {
     amount: String(expense.amount),
-    note: expense.note,
+    note: expense.note ?? "",
     category: expense.category,
     date: expense.date.slice(0, 10),
   };

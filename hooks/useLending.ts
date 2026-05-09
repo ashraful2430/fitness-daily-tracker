@@ -203,7 +203,6 @@ export function useLending() {
           };
         });
 
-        toast.success("Loan created successfully");
         return res.loan;
       } catch (error) {
         handleError(error, "Failed to create loan");
@@ -252,7 +251,6 @@ export function useLending() {
           };
         });
 
-        toast.success("Repayment processed successfully");
         return res;
       } catch (error) {
         handleError(error, "Failed to process repayment");

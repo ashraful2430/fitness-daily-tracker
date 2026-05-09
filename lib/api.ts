@@ -43,6 +43,7 @@ import type {
   CreateExternalIncomeRequest,
   CreateOtherSavingsRequest,
 } from "@/types/money";
+import toast from "react-hot-toast";
 
 // Empty string → relative URLs → all requests go to the same Next.js app.
 // Money/learning/score-sections routes are proxied to the external backend
@@ -53,6 +54,8 @@ export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
 interface ApiOptions extends RequestInit {
   requireAuth?: boolean;
+  cacheTtlMs?: number;
+  showSuccessToast?: boolean;
 }
 
 type ApiEnvelope<T> = {
@@ -60,6 +63,7 @@ type ApiEnvelope<T> = {
   data?: T;
   user?: T;
   message?: string;
+  field?: string;
 };
 
 type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
@@ -69,13 +73,46 @@ type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
 export class ApiError extends Error {
   status: number;
   body?: unknown;
+  field?: string;
 
-  constructor(message: string, status: number, body?: unknown) {
+  constructor(message: string, status: number, body?: unknown, field?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.field = field;
   }
+}
+
+const DEFAULT_GET_CACHE_TTL_MS = 20_000;
+const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
+
+function isClient() {
+  return typeof window !== "undefined";
+}
+
+function isReadRequest(method?: string) {
+  return !method || method.toUpperCase() === "GET";
+}
+
+function getCacheKey(endpoint: string, config: RequestInit) {
+  return `${config.method ?? "GET"}:${endpoint}`;
+}
+
+function clearApiCache() {
+  responseCache.clear();
+}
+
+function showBackendSuccess(message: string | undefined, options: ApiOptions) {
+  if (!message || !isClient()) return;
+
+  const method = options.method?.toUpperCase() ?? "GET";
+  const shouldShow =
+    options.showSuccessToast ?? (method !== "GET" && method !== "HEAD");
+
+  if (!shouldShow) return;
+
+  toast.success(message, { duration: 1800 });
 }
 
 function emitUnauthorized() {
@@ -99,7 +136,12 @@ async function apiRequest<T = unknown>(
   endpoint: string,
   options: ApiOptions = {},
 ): Promise<T> {
-  const { requireAuth = true, ...fetchOptions } = options;
+  const {
+    requireAuth = true,
+    cacheTtlMs = DEFAULT_GET_CACHE_TTL_MS,
+    showSuccessToast,
+    ...fetchOptions
+  } = options;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -111,6 +153,15 @@ async function apiRequest<T = unknown>(
     headers,
     credentials: fetchOptions.credentials ?? "include",
   };
+
+  const readRequest = isReadRequest(config.method);
+  const cacheKey = getCacheKey(endpoint, config);
+  if (readRequest && cacheTtlMs > 0) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+  }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   const body = (await response
@@ -124,17 +175,38 @@ async function apiRequest<T = unknown>(
       emitUnauthorized();
     }
 
-    throw new ApiError(message, response.status, body);
+    throw new ApiError(message, response.status, body, body?.field);
   }
 
-  return getPayload<T>(body);
+  const payload = getPayload<T>(body);
+
+  if (readRequest && cacheTtlMs > 0) {
+    responseCache.set(cacheKey, {
+      expiresAt: Date.now() + cacheTtlMs,
+      value: payload,
+    });
+  } else if (!readRequest) {
+    clearApiCache();
+  }
+
+  showBackendSuccess(body?.message, {
+    ...options,
+    showSuccessToast,
+    method: config.method,
+  });
+
+  return payload;
 }
 
 async function apiRequestWithMeta<T = unknown>(
   endpoint: string,
   options: ApiOptions = {},
 ): Promise<PaginatedApiEnvelope<T> | null> {
-  const { requireAuth = true, ...fetchOptions } = options;
+  const {
+    requireAuth = true,
+    cacheTtlMs = DEFAULT_GET_CACHE_TTL_MS,
+    ...fetchOptions
+  } = options;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -146,6 +218,15 @@ async function apiRequestWithMeta<T = unknown>(
     headers,
     credentials: fetchOptions.credentials ?? "include",
   };
+
+  const readRequest = isReadRequest(config.method);
+  const cacheKey = getCacheKey(endpoint, config);
+  if (readRequest && cacheTtlMs > 0) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as PaginatedApiEnvelope<T> | null;
+    }
+  }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   const body = (await response
@@ -159,7 +240,16 @@ async function apiRequestWithMeta<T = unknown>(
       emitUnauthorized();
     }
 
-    throw new ApiError(message, response.status, body);
+    throw new ApiError(message, response.status, body, body?.field);
+  }
+
+  if (readRequest && cacheTtlMs > 0) {
+    responseCache.set(cacheKey, {
+      expiresAt: Date.now() + cacheTtlMs,
+      value: body,
+    });
+  } else if (!readRequest) {
+    clearApiCache();
   }
 
   return body;
@@ -509,7 +599,7 @@ export const loansAPI = {
   create: (payload: {
     personName: string;
     amount: number;
-    reason: string;
+    reason?: string;
     date?: string;
   }) =>
     apiRequest<LoanRecord>("/api/loans", {

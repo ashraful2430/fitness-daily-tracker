@@ -97,6 +97,14 @@ function getMessage(error: unknown, fallbackMessage: string) {
   return error instanceof Error ? error.message : fallbackMessage;
 }
 
+function getFieldErrors(error: unknown): FormErrors {
+  if (error instanceof ApiError && error.field && error.message) {
+    return { [error.field]: error.message };
+  }
+
+  return {};
+}
+
 function isConflictError(error: unknown) {
   return error instanceof ApiError && error.status === 409;
 }
@@ -212,6 +220,7 @@ export function useMoneyDashboard() {
     page: 1,
     limit: 10,
   });
+  const skipNextFilterDebounce = useRef(true);
   const selectedMonthRef = useRef(getCurrentMonthKey());
 
   useEffect(() => {
@@ -417,6 +426,30 @@ export function useMoneyDashboard() {
     [clearToastLock, handleError, userId],
   );
 
+  useEffect(() => {
+    if (!userId) return;
+
+    if (skipNextFilterDebounce.current) {
+      skipNextFilterDebounce.current = false;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const nextFilters = { ...filtersRef.current, page: 1 };
+      filtersRef.current = nextFilters;
+      setFilters(nextFilters);
+      void fetchExpenses(nextFilters, false);
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    fetchExpenses,
+    filters.category,
+    filters.endDate,
+    filters.startDate,
+    userId,
+  ]);
+
   const refreshExpenses = useCallback(
     async (notify = false) => {
       await fetchExpenses(filters, notify);
@@ -571,11 +604,10 @@ export function useMoneyDashboard() {
           date,
         });
         await refreshAfterMutation();
-        toast.success("Salary saved");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to save salary", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setSalarySaving(false);
@@ -610,11 +642,10 @@ export function useMoneyDashboard() {
           amount: Number(amount),
         });
         await refreshAfterMutation();
-        toast.success("Balance source added");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to add balance source", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setBalanceSaving(false);
@@ -649,11 +680,10 @@ export function useMoneyDashboard() {
           amount: Number(amount),
         });
         await refreshAfterMutation();
-        toast.success("Balance source updated");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to update balance source", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setBalanceSaving(false);
@@ -670,7 +700,6 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.deleteBalanceSource(id);
         await refreshAfterMutation();
-        toast.success("Balance source deleted");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to delete balance source", true);
@@ -708,7 +737,6 @@ export function useMoneyDashboard() {
 
       if (isMounted.current) setSalary(null);
       await refreshAfterMutation();
-      toast.success("Salary reset");
       return true;
     } catch (error: unknown) {
       handleError(error, "Failed to reset salary", true);
@@ -732,11 +760,10 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.createCategory({ name: normalizeCategoryName(name) });
         await refreshAfterMutation();
-        toast.success("Category created");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to create category", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setCategorySaving(false);
@@ -753,7 +780,6 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.deleteCategory(name);
         await refreshAfterMutation();
-        toast.success("Category deleted");
         return { ok: true as const, message: "" };
       } catch (error: unknown) {
         if (isConflictError(error)) {
@@ -783,7 +809,7 @@ export function useMoneyDashboard() {
       const normalizedPayload = {
         ...payload,
         category: normalizeCategoryName(payload.category),
-        note: payload.note.trim(),
+        note: payload.note?.trim() ?? "",
       };
       const errors = validateExpense(normalizedPayload);
 
@@ -803,11 +829,10 @@ export function useMoneyDashboard() {
         }
 
         await refreshAfterMutation(nextFilters);
-        toast.success("Expense added");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to add expense", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setExpenseSaving(false);
@@ -822,7 +847,7 @@ export function useMoneyDashboard() {
       const normalizedPayload = {
         ...payload,
         category: normalizeCategoryName(payload.category),
-        note: payload.note.trim(),
+        note: payload.note?.trim() ?? "",
       };
       const errors = validateExpense(normalizedPayload);
 
@@ -835,11 +860,10 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.updateExpense(id, normalizedPayload);
         await refreshAfterMutation();
-        toast.success("Expense updated");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to update expense", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setExpenseSaving(false);
@@ -868,7 +892,6 @@ export function useMoneyDashboard() {
         }
 
         await refreshAfterMutation(nextFilters);
-        toast.success("Expense deleted");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to delete expense", true);
@@ -888,11 +911,10 @@ export function useMoneyDashboard() {
         await loansAPI.create({
           personName,
           amount,
-          reason: reason.trim() || "No reason provided",
+          reason: reason.trim(),
           date,
         });
         await refreshAfterMutation();
-        toast.success("Loan recorded — balance updated");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to record loan", true);
@@ -907,7 +929,6 @@ export function useMoneyDashboard() {
       try {
         await moneyAPI.addIncome({ amount, source, note, date });
         await refreshAfterMutation();
-        toast.success("External income added");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to add external income", true);
@@ -922,7 +943,6 @@ export function useMoneyDashboard() {
       try {
         await moneyAPI.addSavings({ amount, sourceName, note, date });
         await refreshAfterMutation();
-        toast.success("Savings added");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to add savings", true);
@@ -953,6 +973,7 @@ export function useMoneyDashboard() {
         setSelectedMonth(monthKey);
         setHistoricalSummary(null);
         filtersRef.current = nextFilters;
+        skipNextFilterDebounce.current = true;
         setFilters(nextFilters);
       }
 
@@ -997,6 +1018,7 @@ export function useMoneyDashboard() {
       };
 
       if (isMounted.current) {
+        skipNextFilterDebounce.current = true;
         setFilters(merged);
       }
 
