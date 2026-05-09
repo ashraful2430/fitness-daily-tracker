@@ -538,10 +538,6 @@ export function useMoneyDashboard() {
         nextErrors.amount = "Amount must be greater than zero.";
       }
 
-      if (!payload.note.trim()) {
-        nextErrors.note = "Note is required.";
-      }
-
       if (!normalizedCategory) {
         nextErrors.category = "Please select a category.";
       } else if (
@@ -889,7 +885,12 @@ export function useMoneyDashboard() {
   const recordLoanFunds = useCallback(
     async (personName: string, amount: number, reason: string, date: string) => {
       try {
-        await loansAPI.create({ personName, amount, reason, date });
+        await loansAPI.create({
+          personName,
+          amount,
+          reason: reason.trim() || "No reason provided",
+          date,
+        });
         await refreshAfterMutation();
         toast.success("Loan recorded — balance updated");
         return true;

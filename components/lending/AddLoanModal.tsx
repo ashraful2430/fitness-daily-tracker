@@ -16,7 +16,7 @@ interface Props {
   }) => Promise<void>;
 }
 
-type FormErrors = Partial<Record<"personName" | "amount" | "reason", string>>;
+type FormErrors = Partial<Record<"personName" | "amount", string>>;
 
 export default function AddLoanModal({
   isOpen,
@@ -37,10 +37,9 @@ export default function AddLoanModal({
     const num = parseFloat(amount);
     if (!amount || isNaN(num) || num <= 0)
       next.amount = "Amount must be greater than 0";
-    if (!reason.trim()) next.reason = "Reason is required";
     setErrors(next);
     return Object.keys(next).length === 0;
-  }, [personName, amount, reason]);
+  }, [personName, amount]);
 
   const reset = useCallback(() => {
     setPersonName("");
@@ -64,7 +63,7 @@ export default function AddLoanModal({
         await onCreate({
           personName: personName.trim(),
           amount: parseFloat(amount),
-          reason: reason.trim(),
+          reason: reason.trim() || "No reason provided",
           date: date || undefined,
         });
         reset();
@@ -158,22 +157,15 @@ export default function AddLoanModal({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    Reason *
+                    Reason <span className="font-medium text-slate-400">(optional)</span>
                   </label>
                   <input
                     type="text"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="Why did you borrow this money?"
-                    className={`h-[52px] w-full rounded-xl border bg-white px-4 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 dark:bg-slate-950/40 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-rose-400 dark:focus:ring-rose-400/10 ${
-                      errors.reason
-                        ? "border-rose-500"
-                        : "border-slate-300 dark:border-white/10"
-                    }`}
+                    className="h-[52px] w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 dark:border-white/10 dark:bg-slate-950/40 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-rose-400 dark:focus:ring-rose-400/10"
                   />
-                  {errors.reason && (
-                    <p className="mt-1.5 text-xs font-medium text-rose-500">{errors.reason}</p>
-                  )}
                 </div>
 
                 <div>

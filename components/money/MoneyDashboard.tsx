@@ -563,7 +563,6 @@ export default function MoneyDashboard() {
     const errors: FormErrors = {};
     if (!loanForm.personName.trim()) errors.personName = "Person name is required.";
     if (!loanForm.amount.trim() || Number(loanForm.amount) <= 0) errors.amount = "Amount must be greater than zero.";
-    if (!loanForm.reason.trim()) errors.reason = "Reason is required.";
     if (!loanForm.date) errors.date = "Date is required.";
     if (Object.keys(errors).length > 0) { setLoanErrors(errors); return; }
     setFundsActionLoading(true);
@@ -1333,7 +1332,7 @@ export default function MoneyDashboard() {
 
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                Note
+                Note <span className="font-medium text-slate-400">(optional)</span>
               </label>
               <input
                 value={expenseForm.note}
@@ -1948,9 +1947,8 @@ export default function MoneyDashboard() {
                     </div>
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Reason</label>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Reason <span className="font-medium text-slate-400">(optional)</span></label>
                     <input value={loanForm.reason} onChange={(e) => { setLoanForm((p) => ({ ...p, reason: e.target.value })); if (loanErrors.reason) setLoanErrors({}); }} placeholder="e.g. Emergency rent" className={inputClass} />
-                    {loanErrors.reason && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.reason}</p>}
                   </div>
                   <button type="submit" disabled={fundsActionLoading} className={buttonPrimary}>
                     {fundsActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
