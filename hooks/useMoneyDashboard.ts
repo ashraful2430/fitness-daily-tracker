@@ -134,6 +134,7 @@ export function useMoneyDashboard() {
   const [salary, setSalary] = useState<SalaryRecord | null>(null);
   const [salaryHistory, setSalaryHistory] = useState<SalaryRecord[]>([]);
   const [balanceSources, setBalanceSources] = useState<BalanceSource[]>([]);
+  const [balanceTotal, setBalanceTotal] = useState(0);
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] = useState<
     MonthlyExpenseSummary[]
   >([]);
@@ -280,6 +281,7 @@ export function useMoneyDashboard() {
         setSalary(salaryResponse);
         setSummary(summaryResponse ?? defaultSummary());
         setBalanceSources(balanceResponse?.sources ?? []);
+        setBalanceTotal(balanceResponse?.totalBalance ?? 0);
         setError(null);
         clearToastLock();
       } catch (error: unknown) {
@@ -1042,6 +1044,7 @@ export function useMoneyDashboard() {
     salary,
     salaryHistory,
     balanceSources,
+    balanceTotal,
     monthlyExpenseSummary,
     summary: summaryWithFallback,
     insights,

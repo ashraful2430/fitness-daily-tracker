@@ -28,6 +28,14 @@ export interface BalanceSource {
   _id: string;
   userId: string;
   type: "CASH" | "BANK" | "SALARY" | "EXTERNAL" | "OTHER";
+  source?:
+    | "USER_ADDED"
+    | "BALANCE_ADJUSTMENT"
+    | "EXPENSE_REFUND"
+    | "INCOME_ADDED"
+    | "SAVINGS_ADDED"
+    | "SALARY_ADDED"
+    | "LOAN_REPAID";
   amount: number;
   createdAt?: string;
   updatedAt?: string;

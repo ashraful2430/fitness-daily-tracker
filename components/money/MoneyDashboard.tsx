@@ -71,7 +71,7 @@ function formatAmount(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "0";
 
   return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -243,6 +243,7 @@ export default function MoneyDashboard() {
     user,
     salary,
     balanceSources,
+    balanceTotal,
     summary,
     insights,
     categories,
@@ -413,13 +414,12 @@ export default function MoneyDashboard() {
       ? (effectiveTopCategories[0] ?? null)
       : (insights?.mostSpentCategory ?? null);
 
-  const totalBalance = balanceSources.reduce(
-    (sum, source) => sum + source.amount,
-    0,
-  );
+  const totalBalance =
+    balanceTotal ||
+    balanceSources.reduce((sum, source) => sum + source.amount, 0);
 
   const externalIncome = balanceSources
-    .filter((s) => s.type === "EXTERNAL")
+    .filter((s) => s.type !== "SALARY" && s.source !== "EXPENSE_REFUND")
     .reduce((sum, s) => sum + s.amount, 0);
 
   const resetExpenseForm = () => {
@@ -634,9 +634,12 @@ export default function MoneyDashboard() {
   };
 
   const handleDeleteExpense = async (expense: MoneyExpense) => {
+    const expenseLabel =
+      expense.note?.trim() || formatCategoryLabel(expense.category);
+
     setConfirmState({
       title: "Delete expense",
-      description: `Delete expense "${expense.note}" for ${formatAmount(
+      description: `Delete ${expenseLabel} expense for ${formatAmount(
         expense.amount,
       )}?`,
       confirmLabel: "Delete expense",
@@ -787,7 +790,7 @@ export default function MoneyDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             title="Current Salary"
             value={formatAmount(displayStats.salary)}
@@ -826,7 +829,7 @@ export default function MoneyDashboard() {
           <StatCard
             title="External Income"
             value={formatAmount(externalIncome)}
-            subtitle="From external balance sources."
+            subtitle="Non-salary sources, excluding refunds."
             icon={Banknote}
             gradient="from-teal-500 to-emerald-400"
           />
