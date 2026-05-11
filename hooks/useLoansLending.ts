@@ -6,10 +6,12 @@ import {
   loansAPI,
   lendingRecordAPI,
   financeAPI,
+  moneyAPI,
   isUnauthorizedError,
 } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
+  BalanceResponse,
   LoanRecord,
   LendingRecord,
   FinanceSummary,
@@ -35,6 +37,97 @@ const defaultState: State = {
 function getMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+function getOutstandingLoanDebt(loans: LoanRecord[]) {
+  return loans.reduce((sum, loan) => {
+    if (loan.status === "PAID") return sum;
+    return sum + Math.max(loan.amount - (loan.paidAmount ?? 0), 0);
+  }, 0);
+}
+
+function getRepaidLoans(loans: LoanRecord[]) {
+  return loans.reduce((sum, loan) => sum + (loan.paidAmount ?? 0), 0);
+}
+
+function getLendingOutstanding(lendings: LendingRecord[]) {
+  return lendings.reduce((sum, lending) => {
+    if (lending.status === "REPAID") return sum;
+    return sum + Math.max(lending.amount - (lending.repaidAmount ?? 0), 0);
+  }, 0);
+}
+
+function getPersonalLendingOutstanding(lendings: LendingRecord[]) {
+  return lendings.reduce((sum, lending) => {
+    if (lending.fundingSource !== "PERSONAL" || lending.status === "REPAID") {
+      return sum;
+    }
+    return sum + Math.max(lending.amount - (lending.repaidAmount ?? 0), 0);
+  }, 0);
+}
+
+function getBorrowedLendingOutstanding(lendings: LendingRecord[]) {
+  return lendings.reduce((sum, lending) => {
+    if (lending.fundingSource !== "BORROWED" || lending.status === "REPAID") {
+      return sum;
+    }
+    return sum + Math.max(lending.amount - (lending.repaidAmount ?? 0), 0);
+  }, 0);
+}
+
+function getMoneyPageBalance(balance: BalanceResponse | null | undefined) {
+  if (!balance) return 0;
+
+  if (typeof balance.totalBalance === "number") {
+    return balance.totalBalance;
+  }
+
+  return (balance.sources ?? []).reduce((sum, source) => sum + source.amount, 0);
+}
+
+function buildFinanceSummary(
+  loans: LoanRecord[],
+  lendings: LendingRecord[],
+  balance: BalanceResponse | null | undefined,
+  backendSummary: FinanceSummary | null | undefined,
+): FinanceSummary {
+  const availableBalance = getMoneyPageBalance(balance);
+  const loanDebt = getOutstandingLoanDebt(loans);
+  const repaidLoans = getRepaidLoans(loans);
+  const lendingOutstanding = getLendingOutstanding(lendings);
+  const lendingFromPersonal = getPersonalLendingOutstanding(lendings);
+  const borrowedLending = getBorrowedLendingOutstanding(lendings);
+  const netBalance = availableBalance - loanDebt;
+
+  return {
+    availableBalance,
+    loanDebt,
+    netBalance,
+    salary: backendSummary?.salary ?? 0,
+    externalIncome: backendSummary?.externalIncome ?? 0,
+    savings: backendSummary?.savings ?? 0,
+    activeLoans: loanDebt,
+    borrowedLending,
+    repaidLoans,
+    expenses: backendSummary?.expenses ?? 0,
+    lendingFromPersonal,
+    lendingOutstanding,
+    breakdown: {
+      ...backendSummary?.breakdown,
+      balanceAccounts: availableBalance,
+      directLoans:
+        backendSummary?.breakdown?.directLoans ??
+        Math.max(loanDebt - borrowedLending, 0),
+      borrowedLendingLoans:
+        backendSummary?.breakdown?.borrowedLendingLoans ?? borrowedLending,
+      lending: backendSummary?.breakdown?.lending ?? lendingOutstanding,
+    },
+    totalLoanDebt: loanDebt,
+    totalLending: lendingOutstanding,
+    totalBalance: availableBalance,
+    totalDebt: loanDebt,
+    netPosition: netBalance,
+  };
 }
 
 export function useLoansLending() {
@@ -83,17 +176,20 @@ export function useLoansLending() {
     try {
       safeSetState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-      const [loans, lendings, summary] = await Promise.all([
+      const [loans, lendings, summary, balance] = await Promise.all([
         loansAPI.getAll(),
         lendingRecordAPI.getAll(),
         financeAPI.getSummary(),
+        moneyAPI.getBalanceSources(),
       ]);
+      const safeLoans = loans ?? [];
+      const safeLendings = lendings ?? [];
 
       safeSetState((prev) => ({
         ...prev,
-        loans: loans ?? [],
-        lendings: lendings ?? [],
-        summary: summary ?? null,
+        loans: safeLoans,
+        lendings: safeLendings,
+        summary: buildFinanceSummary(safeLoans, safeLendings, balance, summary),
         isLoading: false,
       }));
     } catch (error) {
