@@ -138,6 +138,25 @@ function generateMonthOptions() {
   return options;
 }
 
+function getMonthlyTotalForMonth(
+  monthlySummary: { month: string; total: number }[],
+  monthKey: string,
+) {
+  const match = monthlySummary.find(
+    (item) =>
+      item.month === monthKey ||
+      item.month.startsWith(`${monthKey}-`) ||
+      item.month.startsWith(monthKey),
+  );
+
+  return match ? match.total : null;
+}
+
+function shortenChartLabel(value: unknown) {
+  const label = String(value ?? "");
+  return label.length > 14 ? `${label.slice(0, 13)}...` : label;
+}
+
 function ChartTooltip({
   active,
   payload,
@@ -244,6 +263,7 @@ export default function MoneyDashboard() {
     salary,
     balanceSources,
     balanceTotal,
+    monthlyExpenseSummary,
     summary,
     insights,
     categories,
@@ -353,6 +373,7 @@ export default function MoneyDashboard() {
     () =>
       effectiveTopCategories.map((category) => ({
         name: category.categoryLabel,
+        shortName: shortenChartLabel(category.categoryLabel),
         totalSpent: category.totalSpent,
       })),
     [effectiveTopCategories],
@@ -369,6 +390,16 @@ export default function MoneyDashboard() {
     ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   }, [selectedMonth]);
 
+  const selectedMonthTotalSpent = useMemo(
+    () => getMonthlyTotalForMonth(monthlyExpenseSummary, selectedMonth),
+    [monthlyExpenseSummary, selectedMonth],
+  );
+
+  const visibleExpenseTotal = useMemo(
+    () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
+    [expenses],
+  );
+
   const salaryFromSources = balanceSources
     .filter((s) => s.type === "SALARY")
     .reduce((sum, s) => sum + s.amount, 0);
@@ -377,14 +408,24 @@ export default function MoneyDashboard() {
     if (isCurrentMonth) {
       const effectiveSalary =
         (salary?.amount ?? summary.salaryAmount) || salaryFromSources;
+      const monthSpent =
+        historicalSummary?.currentMonthSpent ??
+        selectedMonthTotalSpent ??
+        summary.currentMonthSpent;
+      const expenseCount =
+        historicalSummary?.expenseCount ?? summary.expenseCount;
+      const averageExpense =
+        historicalSummary?.averageExpense ?? summary.averageExpense;
       return {
         salary: effectiveSalary,
-        monthSpent: summary.currentMonthSpent,
-        expenseCount: summary.expenseCount,
-        averageExpense: summary.averageExpense,
+        monthSpent,
+        expenseCount,
+        averageExpense,
         remainingSalary:
-          summary.remainingSalary ||
-          effectiveSalary - summary.currentMonthSpent,
+          historicalSummary?.remainingSalary ??
+          (summary.remainingSalary && summary.currentMonthSpent === monthSpent
+            ? summary.remainingSalary
+            : effectiveSalary - monthSpent),
       };
     }
     if (historicalSummary) {
@@ -404,7 +445,7 @@ export default function MoneyDashboard() {
       averageExpense: 0,
       remainingSalary: monthSalary,
     };
-  }, [isCurrentMonth, salary, summary, historicalSummary, monthlyReportSalary, salaryFromSources]);
+  }, [isCurrentMonth, salary, summary, historicalSummary, monthlyReportSalary, salaryFromSources, selectedMonthTotalSpent]);
 
   const activeCategory = expenseForm.category || categoryOptions[0] || "";
   const salaryDisplay =
@@ -727,7 +768,7 @@ export default function MoneyDashboard() {
                     Month Spent
                   </p>
                   <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    {formatAmount(summary.currentMonthSpent)}
+                    {formatAmount(displayStats.monthSpent)}
                   </p>
                 </div>
 
@@ -770,7 +811,7 @@ export default function MoneyDashboard() {
                   },
                   {
                     label: "Total Spent",
-                    value: formatAmount(summary.currentMonthSpent),
+                    value: formatAmount(displayStats.monthSpent),
                   },
                 ].map((item) => (
                   <div
@@ -1406,9 +1447,10 @@ export default function MoneyDashboard() {
                 description="Filter by date or category, then edit or remove entries without leaving the page."
               />
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   ["Visible", expenses.length],
+                  ["Visible Cost", formatAmount(visibleExpenseTotal)],
                   ["Total", pagination.total],
                   ["Page", `${pagination.page}/${pagination.totalPages}`],
                 ].map(([label, value]) => (
@@ -1750,21 +1792,25 @@ export default function MoneyDashboard() {
                 </p>
               </div>
 
-              <div className="mt-5 h-72 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
+              <div className="mt-5 h-80 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 pb-2 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
+                    <BarChart data={chartData} margin={{ right: 10, bottom: 42, left: 0 }}>
                       <CartesianGrid
                         strokeDasharray="3 3"
                         stroke="rgba(148,163,184,0.22)"
                       />
                       <XAxis
-                        dataKey="name"
+                        dataKey="shortName"
+                        interval={0}
+                        height={58}
+                        angle={-28}
+                        textAnchor="end"
                         tickLine={false}
                         axisLine={false}
                         tick={{
                           fill: "#94a3b8",
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: 700,
                         }}
                       />

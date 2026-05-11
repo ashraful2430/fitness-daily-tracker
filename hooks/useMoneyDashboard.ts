@@ -471,15 +471,15 @@ export function useMoneyDashboard() {
       try {
         setInitialLoading(true);
         const [yearStr, monthStr] = selectedMonthRef.current.split("-");
-        const isHistorical = selectedMonthRef.current !== getCurrentMonthKey();
         await Promise.all([
           fetchCategories(notify),
           fetchSummaryBundle(notify),
           fetchSalaryHistory(notify),
           fetchMonthlySummary(notify),
-          isHistorical
-            ? fetchHistoricalSummary(Number(monthStr), Number(yearStr), notify)
-            : fetchInsights(notify),
+          fetchHistoricalSummary(Number(monthStr), Number(yearStr), notify),
+          selectedMonthRef.current === getCurrentMonthKey()
+            ? fetchInsights(notify)
+            : Promise.resolve(),
           fetchExpenses(filtersRef.current, notify),
         ]);
       } finally {
@@ -504,12 +504,14 @@ export function useMoneyDashboard() {
   const refreshAfterMutation = useCallback(
     async (nextFilters?: FiltersState) => {
       const targetFilters = nextFilters ?? filtersRef.current;
+      const [yearStr, monthStr] = selectedMonthRef.current.split("-");
 
       await Promise.all([
         fetchCategories(false),
         fetchSummaryBundle(false),
         fetchSalaryHistory(false),
         fetchMonthlySummary(false),
+        fetchHistoricalSummary(Number(monthStr), Number(yearStr), false),
         fetchInsights(false),
         fetchExpenses(targetFilters, false),
       ]);
@@ -517,6 +519,7 @@ export function useMoneyDashboard() {
     [
       fetchCategories,
       fetchExpenses,
+      fetchHistoricalSummary,
       fetchInsights,
       fetchMonthlySummary,
       fetchSalaryHistory,
@@ -985,6 +988,7 @@ export function useMoneyDashboard() {
       } else {
         await Promise.all([
           fetchExpenses(nextFilters, false),
+          fetchHistoricalSummary(month, year, false),
           fetchInsights(false),
         ]);
       }
