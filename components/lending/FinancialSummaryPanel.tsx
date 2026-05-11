@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { FinancialSummary } from "@/types/money";
+import { normalizeFinanceSummary } from "@/lib/financeSummary";
 
 interface FinancialSummaryPanelProps {
   summary: FinancialSummary | null;
@@ -19,54 +20,47 @@ export default function FinancialSummaryPanel({
 }: FinancialSummaryPanelProps) {
   if (!summary) return null;
 
-  // Normalize all values to strict numbers
-  const safeSummary = {
-    personalBalance: summary.personalBalance ?? 0,
-    totalLent: summary.totalLent ?? 0,
-    totalOutstandingLoans: summary.totalOutstandingLoans ?? 0,
-    totalBorrowedLiability: summary.totalBorrowedLiability ?? 0,
-    netPosition: summary.netPosition ?? 0,
-  };
+  const safeSummary = normalizeFinanceSummary(summary);
 
   const statCards = [
     {
       label: "Personal Balance",
-      value: safeSummary.personalBalance,
+      value: safeSummary.availableBalance,
       icon: Wallet,
       textColor: "text-blue-600 dark:text-blue-400",
       bgColor: "bg-blue-50 dark:bg-blue-900/20",
     },
     {
       label: "Total Lent",
-      value: safeSummary.totalLent,
+      value: safeSummary.lendingOutstanding,
       icon: TrendingUp,
       textColor: "text-green-600 dark:text-green-400",
       bgColor: "bg-green-50 dark:bg-green-900/20",
     },
     {
       label: "Outstanding Loans",
-      value: safeSummary.totalOutstandingLoans,
+      value: safeSummary.lending,
       icon: TrendingDown,
       textColor: "text-orange-600 dark:text-orange-400",
       bgColor: "bg-orange-50 dark:bg-orange-900/20",
     },
     {
       label: "Borrowed Liability",
-      value: safeSummary.totalBorrowedLiability,
+      value: safeSummary.borrowedLendingLoans,
       icon: DollarSign,
       textColor: "text-red-600 dark:text-red-400",
       bgColor: "bg-red-50 dark:bg-red-900/20",
     },
     {
       label: "Net Position",
-      value: safeSummary.netPosition,
+      value: safeSummary.netBalance,
       icon: BarChart3,
       textColor:
-        safeSummary.netPosition >= 0
+        safeSummary.netBalance >= 0
           ? "text-green-600 dark:text-green-400"
           : "text-red-600 dark:text-red-400",
       bgColor:
-        safeSummary.netPosition >= 0
+        safeSummary.netBalance >= 0
           ? "bg-green-50 dark:bg-green-900/20"
           : "bg-red-50 dark:bg-red-900/20",
     },

@@ -13,6 +13,8 @@
 
 html {
   scroll-behavior: smooth;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
@@ -22,6 +24,9 @@ body {
   background-color: #09090f;
   color: #ffffff;
   min-height: 100%;
+  overflow-x: clip;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -29,6 +34,35 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.85);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.28);
 }
 
 /* Ensure proper scrolling on content areas — placed in base so Tailwind utilities (e.g. [scrollbar-width:none]) can override */
@@ -53,5 +87,16 @@ select {
 
   [class*="overflow-y-auto"]::-webkit-scrollbar-thumb:hover {
     background: rgba(148, 163, 184, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

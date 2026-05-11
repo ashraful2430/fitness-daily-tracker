@@ -3,9 +3,13 @@
 import { useMemo, useRef, useState } from "react";
 import {
   BadgeDollarSign,
+  Banknote,
+  Calendar,
   CalendarRange,
+  ChevronDown,
   Coins,
   CreditCard,
+  Eye,
   Loader2,
   PencilLine,
   PiggyBank,
@@ -31,13 +35,8 @@ import {
   YAxis,
 } from "recharts";
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
-import PremiumModal, {
-  ModalCancelButton,
-  ModalConfirmButton,
-} from "@/components/ui/PremiumModal";
+import PremiumModal from "@/components/ui/PremiumModal";
 import type { BalanceSource, MoneyExpense } from "@/types/money";
-import type { TooltipProps } from "recharts";
-import type { TooltipContentProps } from "recharts";
 
 type FormErrors = Record<string, string>;
 
@@ -72,7 +71,7 @@ function formatAmount(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "0";
 
   return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -105,7 +104,7 @@ function getToday() {
 function expenseToForm(expense: MoneyExpense): ExpenseFormState {
   return {
     amount: String(expense.amount),
-    note: expense.note,
+    note: expense.note ?? "",
     category: expense.category,
     date: expense.date.slice(0, 10),
   };
@@ -120,20 +119,53 @@ function emptyExpenseForm(defaultCategory = ""): ExpenseFormState {
   };
 }
 
-type CustomTooltipPayload = {
-  value?: number;
-};
+function generateMonthOptions() {
+  const options: { value: string; label: string }[] = [];
+  const now = new Date();
 
-type FixedTooltipProps = TooltipProps<number, string> & {
-  payload?: CustomTooltipPayload[];
-  label?: string;
-};
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const value = `${year}-${String(month).padStart(2, "0")}`;
+    const label =
+      i === 0
+        ? `${d.toLocaleDateString("en-US", { month: "long", year: "numeric" })} (Current)`
+        : d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    options.push({ value, label });
+  }
+
+  return options;
+}
+
+function getMonthlyTotalForMonth(
+  monthlySummary: { month: string; total: number }[],
+  monthKey: string,
+) {
+  const match = monthlySummary.find(
+    (item) =>
+      item.month === monthKey ||
+      item.month.startsWith(`${monthKey}-`) ||
+      item.month.startsWith(monthKey),
+  );
+
+  return match ? match.total : null;
+}
+
+function shortenChartLabel(value: unknown) {
+  const label = String(value ?? "");
+  return label.length > 14 ? `${label.slice(0, 13)}...` : label;
+}
 
 function ChartTooltip({
   active,
   payload,
   label,
-}: TooltipContentProps<number, string>) {
+}: {
+  active?: boolean;
+  payload?: Array<{ value?: number | string }>;
+  label?: string | number;
+}) {
   if (!active || !payload || payload.length === 0) return null;
 
   const value = typeof payload[0]?.value === "number" ? payload[0].value : 0;
@@ -148,6 +180,10 @@ function ChartTooltip({
       </p>
     </div>
   );
+}
+
+function renderChartTooltip(props: unknown) {
+  return <ChartTooltip {...(props as Parameters<typeof ChartTooltip>[0])} />;
 }
 
 function SectionHeader({
@@ -226,6 +262,8 @@ export default function MoneyDashboard() {
     user,
     salary,
     balanceSources,
+    balanceTotal,
+    monthlyExpenseSummary,
     summary,
     insights,
     categories,
@@ -233,6 +271,10 @@ export default function MoneyDashboard() {
     expenses,
     filters,
     pagination,
+    selectedMonth,
+    isCurrentMonth,
+    monthlyReportSalary,
+    historicalSummary,
     loading,
     summaryLoading,
     expensesLoading,
@@ -256,6 +298,10 @@ export default function MoneyDashboard() {
     createExpense,
     updateExpense,
     deleteExpense,
+    recordLoanFunds,
+    addExternalIncome,
+    addOtherSavings,
+    changeSelectedMonth,
     updateFilterField,
     applyFilters,
     goToPage,
@@ -285,6 +331,20 @@ export default function MoneyDashboard() {
   const [expenseErrors, setExpenseErrors] = useState<FormErrors>({});
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
+  type FundsOption = "loan" | "income" | "savings" | null;
+  const [insufficientFundsOpen, setInsufficientFundsOpen] = useState(false);
+  const [selectedFundsOption, setSelectedFundsOption] = useState<FundsOption>(null);
+  const [fundsActionLoading, setFundsActionLoading] = useState(false);
+
+  const [loanForm, setLoanForm] = useState({ personName: "", amount: "", reason: "", date: getToday() });
+  const [loanErrors, setLoanErrors] = useState<FormErrors>({});
+
+  const [incomeForm, setIncomeForm] = useState({ amount: "", source: "", note: "", date: getToday() });
+  const [incomeErrors, setIncomeErrors] = useState<FormErrors>({});
+
+  const [savingsForm, setSavingsForm] = useState({ amount: "", sourceName: "", note: "", date: getToday() });
+  const [savingsErrors, setSavingsErrors] = useState<FormErrors>({});
+
   const [confirmState, setConfirmState] = useState<{
     title: string;
     description: string;
@@ -296,23 +356,112 @@ export default function MoneyDashboard() {
 
   const expenseFormRef = useRef<HTMLDivElement | null>(null);
 
+  const effectiveTopCategories = useMemo(() => {
+    if (!isCurrentMonth && historicalSummary) {
+      const total = historicalSummary.currentMonthSpent;
+      return historicalSummary.topCategories.map((cat) => ({
+        ...cat,
+        percentage:
+          cat.percentage ??
+          (total > 0 ? Math.round((cat.totalSpent / total) * 100) : 0),
+      }));
+    }
+    return insights?.topCategories ?? [];
+  }, [isCurrentMonth, historicalSummary, insights?.topCategories]);
+
   const chartData = useMemo(
     () =>
-      (insights?.topCategories ?? []).map((category) => ({
+      effectiveTopCategories.map((category) => ({
         name: category.categoryLabel,
+        shortName: shortenChartLabel(category.categoryLabel),
         totalSpent: category.totalSpent,
       })),
-    [insights?.topCategories],
+    [effectiveTopCategories],
   );
+
+  const monthOptions = useMemo(() => generateMonthOptions(), []);
+
+  const selectedMonthLabel = useMemo(() => {
+    const [yearStr, monthStr] = selectedMonth.split("-");
+    return new Date(
+      Number(yearStr),
+      Number(monthStr) - 1,
+      1,
+    ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }, [selectedMonth]);
+
+  const selectedMonthTotalSpent = useMemo(
+    () => getMonthlyTotalForMonth(monthlyExpenseSummary, selectedMonth),
+    [monthlyExpenseSummary, selectedMonth],
+  );
+
+  const visibleExpenseTotal = useMemo(
+    () => expenses.reduce((sum, expense) => sum + expense.amount, 0),
+    [expenses],
+  );
+
+  const salaryFromSources = balanceSources
+    .filter((s) => s.type === "SALARY")
+    .reduce((sum, s) => sum + s.amount, 0);
+
+  const displayStats = useMemo(() => {
+    if (isCurrentMonth) {
+      const effectiveSalary =
+        (salary?.amount ?? summary.salaryAmount) || salaryFromSources;
+      const monthSpent =
+        historicalSummary?.currentMonthSpent ??
+        selectedMonthTotalSpent ??
+        summary.currentMonthSpent;
+      const expenseCount =
+        historicalSummary?.expenseCount ?? summary.expenseCount;
+      const averageExpense =
+        historicalSummary?.averageExpense ?? summary.averageExpense;
+      return {
+        salary: effectiveSalary,
+        monthSpent,
+        expenseCount,
+        averageExpense,
+        remainingSalary:
+          historicalSummary?.remainingSalary ??
+          (summary.remainingSalary && summary.currentMonthSpent === monthSpent
+            ? summary.remainingSalary
+            : effectiveSalary - monthSpent),
+      };
+    }
+    if (historicalSummary) {
+      return {
+        salary: historicalSummary.salaryAmount,
+        monthSpent: historicalSummary.currentMonthSpent,
+        expenseCount: historicalSummary.expenseCount,
+        averageExpense: historicalSummary.averageExpense,
+        remainingSalary: historicalSummary.remainingSalary,
+      };
+    }
+    const monthSalary = monthlyReportSalary?.amount ?? 0;
+    return {
+      salary: monthSalary,
+      monthSpent: 0,
+      expenseCount: 0,
+      averageExpense: 0,
+      remainingSalary: monthSalary,
+    };
+  }, [isCurrentMonth, salary, summary, historicalSummary, monthlyReportSalary, salaryFromSources, selectedMonthTotalSpent]);
 
   const activeCategory = expenseForm.category || categoryOptions[0] || "";
-  const salaryDisplay = salary?.amount ?? summary.salaryAmount ?? 0;
-  const mostSpentCategory = insights?.mostSpentCategory ?? null;
+  const salaryDisplay =
+    (salary?.amount ?? summary.salaryAmount) || salaryFromSources;
+  const mostSpentCategory =
+    !isCurrentMonth && historicalSummary
+      ? (effectiveTopCategories[0] ?? null)
+      : (insights?.mostSpentCategory ?? null);
 
-  const totalBalance = balanceSources.reduce(
-    (sum, source) => sum + source.amount,
-    0,
-  );
+  const totalBalance =
+    balanceTotal ||
+    balanceSources.reduce((sum, source) => sum + source.amount, 0);
+
+  const externalIncome = balanceSources
+    .filter((s) => s.type !== "SALARY" && s.source !== "EXPENSE_REFUND")
+    .reduce((sum, s) => sum + s.amount, 0);
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -433,6 +582,56 @@ export default function MoneyDashboard() {
     });
   };
 
+  const closeFundsModal = () => {
+    setInsufficientFundsOpen(false);
+    setSelectedFundsOption(null);
+    setLoanForm({ personName: "", amount: "", reason: "", date: getToday() });
+    setLoanErrors({});
+    setIncomeForm({ amount: "", source: "", note: "", date: getToday() });
+    setIncomeErrors({});
+    setSavingsForm({ amount: "", sourceName: "", note: "", date: getToday() });
+    setSavingsErrors({});
+  };
+
+  const handleLoanSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: FormErrors = {};
+    if (!loanForm.personName.trim()) errors.personName = "Person name is required.";
+    if (!loanForm.amount.trim() || Number(loanForm.amount) <= 0) errors.amount = "Amount must be greater than zero.";
+    if (!loanForm.date) errors.date = "Date is required.";
+    if (Object.keys(errors).length > 0) { setLoanErrors(errors); return; }
+    setFundsActionLoading(true);
+    const ok = await recordLoanFunds(loanForm.personName, Number(loanForm.amount), loanForm.reason, loanForm.date);
+    setFundsActionLoading(false);
+    if (ok) closeFundsModal();
+  };
+
+  const handleIncomeSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: FormErrors = {};
+    if (!incomeForm.amount.trim() || Number(incomeForm.amount) <= 0) errors.amount = "Amount must be greater than zero.";
+    if (!incomeForm.source.trim()) errors.source = "Source is required.";
+    if (!incomeForm.date) errors.date = "Date is required.";
+    if (Object.keys(errors).length > 0) { setIncomeErrors(errors); return; }
+    setFundsActionLoading(true);
+    const ok = await addExternalIncome(Number(incomeForm.amount), incomeForm.source, incomeForm.note, incomeForm.date);
+    setFundsActionLoading(false);
+    if (ok) closeFundsModal();
+  };
+
+  const handleSavingsSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: FormErrors = {};
+    if (!savingsForm.amount.trim() || Number(savingsForm.amount) <= 0) errors.amount = "Amount must be greater than zero.";
+    if (!savingsForm.sourceName.trim()) errors.sourceName = "Source name is required.";
+    if (!savingsForm.date) errors.date = "Date is required.";
+    if (Object.keys(errors).length > 0) { setSavingsErrors(errors); return; }
+    setFundsActionLoading(true);
+    const ok = await addOtherSavings(Number(savingsForm.amount), savingsForm.sourceName, savingsForm.note, savingsForm.date);
+    setFundsActionLoading(false);
+    if (ok) closeFundsModal();
+  };
+
   const handleExpenseSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ) => {
@@ -444,6 +643,12 @@ export default function MoneyDashboard() {
       category: activeCategory,
       date: expenseForm.date,
     };
+
+    if (!editingExpenseId && payload.amount > totalBalance) {
+      setInsufficientFundsOpen(true);
+      setSelectedFundsOption(null);
+      return;
+    }
 
     const result = editingExpenseId
       ? await updateExpense(editingExpenseId, payload)
@@ -470,9 +675,12 @@ export default function MoneyDashboard() {
   };
 
   const handleDeleteExpense = async (expense: MoneyExpense) => {
+    const expenseLabel =
+      expense.note?.trim() || formatCategoryLabel(expense.category);
+
     setConfirmState({
       title: "Delete expense",
-      description: `Delete expense "${expense.note}" for ${formatAmount(
+      description: `Delete ${expenseLabel} expense for ${formatAmount(
         expense.amount,
       )}?`,
       confirmLabel: "Delete expense",
@@ -560,7 +768,7 @@ export default function MoneyDashboard() {
                     Month Spent
                   </p>
                   <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    {formatAmount(summary.currentMonthSpent)}
+                    {formatAmount(displayStats.monthSpent)}
                   </p>
                 </div>
 
@@ -603,7 +811,7 @@ export default function MoneyDashboard() {
                   },
                   {
                     label: "Total Spent",
-                    value: formatAmount(summary.currentMonthSpent),
+                    value: formatAmount(displayStats.monthSpent),
                   },
                 ].map((item) => (
                   <div
@@ -623,11 +831,11 @@ export default function MoneyDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             title="Current Salary"
-            value={formatAmount(salaryDisplay)}
-            subtitle="Latest saved salary value."
+            value={formatAmount(displayStats.salary)}
+            subtitle="Your active monthly salary."
             icon={Wallet}
             gradient="from-emerald-500 to-lime-400"
           />
@@ -640,32 +848,74 @@ export default function MoneyDashboard() {
           />
           <StatCard
             title="Month Spent"
-            value={formatAmount(summary.currentMonthSpent)}
-            subtitle="Spending this month."
+            value={formatAmount(displayStats.monthSpent)}
+            subtitle={isCurrentMonth ? "Spending this month." : `Total spent in ${selectedMonthLabel}.`}
             icon={TrendingDown}
             gradient="from-rose-500 to-orange-400"
           />
           <StatCard
             title="Remaining"
-            value={formatAmount(summary.remainingSalary)}
+            value={formatAmount(displayStats.remainingSalary)}
             subtitle="Salary minus expenses."
             icon={BadgeDollarSign}
             gradient="from-violet-600 to-fuchsia-500"
           />
           <StatCard
             title="Average"
-            value={formatAmount(summary.averageExpense)}
+            value={formatAmount(displayStats.averageExpense)}
             subtitle="Average per expense."
             icon={Coins}
             gradient="from-blue-500 to-indigo-400"
           />
           <StatCard
-            title="Records"
-            value={formatAmount(summary.expenseCount)}
-            subtitle="Stored expense entries."
-            icon={ReceiptText}
-            gradient="from-slate-700 to-slate-500"
+            title="External Income"
+            value={formatAmount(externalIncome)}
+            subtitle="Non-salary sources, excluding refunds."
+            icon={Banknote}
+            gradient="from-teal-500 to-emerald-400"
           />
+        </section>
+
+        <section className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0f0c1f]/90 dark:shadow-black/25 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-900/20">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-500 dark:text-emerald-300">
+                  Month View
+                </p>
+                <h2 className="text-lg font-black tracking-[-0.03em] text-slate-950 dark:text-white">
+                  {selectedMonthLabel}
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {!isCurrentMonth && (
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
+                  <Eye className="h-3.5 w-3.5" />
+                  View-only — past month
+                </div>
+              )}
+
+              <div className="relative">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => void changeSelectedMonth(e.target.value)}
+                  className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-10 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-white/[0.08] dark:bg-slate-950/90 dark:text-slate-100 sm:w-auto"
+                >
+                  {monthOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              </div>
+            </div>
+          </div>
         </section>
 
         {error ? (
@@ -694,89 +944,98 @@ export default function MoneyDashboard() {
             </div>
 
             <div className="mb-5 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
-              <p className="text-sm font-bold text-slate-500">Current salary</p>
-              <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">
-                {formatAmount(salaryDisplay)}
+              <p className="text-sm font-bold text-slate-500">
+                {isCurrentMonth ? "Current salary" : `Salary in ${selectedMonthLabel}`}
               </p>
+              <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950 dark:text-white">
+                {formatAmount(displayStats.salary)}
+              </p>
+              {!isCurrentMonth && displayStats.salary === 0 && (
+                <p className="mt-1 text-xs font-semibold text-slate-400">
+                  No salary record found for this month.
+                </p>
+              )}
             </div>
 
-            <form onSubmit={handleSalarySubmit} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Salary amount
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={salaryAmount}
-                    placeholder={
-                      salaryDisplay ? String(salaryDisplay) : "50000"
-                    }
-                    onChange={(event) => {
-                      setSalaryAmount(event.target.value);
-                      if (salaryErrors.amount) setSalaryErrors({});
-                    }}
-                    className={inputClass}
-                  />
-                  {salaryErrors.amount ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
-                      {salaryErrors.amount}
-                    </p>
-                  ) : null}
+            {isCurrentMonth && (
+              <form onSubmit={handleSalarySubmit} className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Salary amount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={salaryAmount}
+                      placeholder={
+                        salaryDisplay ? String(salaryDisplay) : "50000"
+                      }
+                      onChange={(event) => {
+                        setSalaryAmount(event.target.value);
+                        if (salaryErrors.amount) setSalaryErrors({});
+                      }}
+                      className={inputClass}
+                    />
+                    {salaryErrors.amount ? (
+                      <p className="mt-2 text-sm font-semibold text-rose-500">
+                        {salaryErrors.amount}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Salary date
+                    </label>
+                    <input
+                      type="date"
+                      value={salaryDate}
+                      onChange={(event) => {
+                        setSalaryDate(event.target.value);
+                        if (salaryErrors.date) setSalaryErrors({});
+                      }}
+                      className={inputClass}
+                    />
+                    {salaryErrors.date ? (
+                      <p className="mt-2 text-sm font-semibold text-rose-500">
+                        {salaryErrors.date}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Salary date
-                  </label>
-                  <input
-                    type="date"
-                    value={salaryDate}
-                    onChange={(event) => {
-                      setSalaryDate(event.target.value);
-                      if (salaryErrors.date) setSalaryErrors({});
-                    }}
-                    className={inputClass}
-                  />
-                  {salaryErrors.date ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
-                      {salaryErrors.date}
-                    </p>
-                  ) : null}
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="submit"
+                    disabled={salarySaving}
+                    className={buttonPrimary}
+                  >
+                    {salarySaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CreditCard className="h-4 w-4" />
+                    )}
+                    Save salary
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSalaryReset}
+                    disabled={salaryDeleting}
+                    className={buttonDanger}
+                  >
+                    {salaryDeleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    Reset
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <button
-                  type="submit"
-                  disabled={salarySaving}
-                  className={buttonPrimary}
-                >
-                  {salarySaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CreditCard className="h-4 w-4" />
-                  )}
-                  Save salary
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSalaryReset}
-                  disabled={salaryDeleting}
-                  className={buttonDanger}
-                >
-                  {salaryDeleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4" />
-                  )}
-                  Reset
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
 
           <div className={fixedCardClass}>
@@ -795,86 +1054,88 @@ export default function MoneyDashboard() {
               </p>
             </div>
 
-            <form
-              id="balance-form"
-              onSubmit={handleBalanceSubmit}
-              className="space-y-4"
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Balance amount
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={balanceForm.amount}
-                    placeholder={String(totalBalance || 0)}
-                    onChange={(event) => {
-                      setBalanceForm((current) => ({
-                        ...current,
-                        amount: event.target.value,
-                      }));
-                      if (balanceErrors.amount) setBalanceErrors({});
-                    }}
-                    className={inputClass}
-                  />
-                  {balanceErrors.amount ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
-                      {balanceErrors.amount}
-                    </p>
-                  ) : null}
+            {isCurrentMonth && (
+              <form
+                id="balance-form"
+                onSubmit={handleBalanceSubmit}
+                className="space-y-4"
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Balance amount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={balanceForm.amount}
+                      placeholder={String(totalBalance || 0)}
+                      onChange={(event) => {
+                        setBalanceForm((current) => ({
+                          ...current,
+                          amount: event.target.value,
+                        }));
+                        if (balanceErrors.amount) setBalanceErrors({});
+                      }}
+                      className={inputClass}
+                    />
+                    {balanceErrors.amount ? (
+                      <p className="mt-2 text-sm font-semibold text-rose-500">
+                        {balanceErrors.amount}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                      Balance source type
+                    </label>
+                    <select
+                      value={balanceForm.type}
+                      onChange={(event) =>
+                        setBalanceForm((current) => ({
+                          ...current,
+                          type: event.target.value as BalanceSource["type"],
+                        }))
+                      }
+                      className={inputClass}
+                    >
+                      <option value="BANK">Bank</option>
+                      <option value="CASH">Cash</option>
+                      <option value="SALARY">Salary</option>
+                      <option value="EXTERNAL">External</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Balance source type
-                  </label>
-                  <select
-                    value={balanceForm.type}
-                    onChange={(event) =>
-                      setBalanceForm((current) => ({
-                        ...current,
-                        type: event.target.value as BalanceSource["type"],
-                      }))
-                    }
-                    className={inputClass}
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="submit"
+                    disabled={balanceSaving}
+                    className={buttonPrimary}
                   >
-                    <option value="BANK">Bank</option>
-                    <option value="CASH">Cash</option>
-                    <option value="SALARY">Salary</option>
-                    <option value="EXTERNAL">External</option>
-                    <option value="OTHER">Other</option>
-                  </select>
+                    {balanceSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Coins className="h-4 w-4" />
+                    )}
+                    {editingBalanceId ? "Update balance" : "Save balance"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBalanceCancel}
+                    disabled={balanceSaving}
+                    className={buttonSecondary}
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    {editingBalanceId ? "Cancel" : "Clear"}
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <button
-                  type="submit"
-                  disabled={balanceSaving}
-                  className={buttonPrimary}
-                >
-                  {balanceSaving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Coins className="h-4 w-4" />
-                  )}
-                  {editingBalanceId ? "Update balance" : "Save balance"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleBalanceCancel}
-                  disabled={balanceSaving}
-                  className={buttonSecondary}
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                  {editingBalanceId ? "Cancel" : "Clear"}
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </section>
 
@@ -887,42 +1148,44 @@ export default function MoneyDashboard() {
               />
 
               <div className="flex-1 overflow-y-auto pr-1">
-                <form onSubmit={handleCategorySubmit} className="space-y-4">
-                  <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                      Category name
-                    </label>
-                    <input
-                      value={categoryName}
-                      onChange={(event) => {
-                        setCategoryName(event.target.value);
-                        if (categoryErrors.name) setCategoryErrors({});
-                      }}
-                      placeholder="Food"
-                      className={inputClass}
-                    />
-                    {categoryErrors.name ? (
-                      <p className="mt-2 text-sm font-semibold text-rose-500">
-                        {categoryErrors.name}
-                      </p>
-                    ) : null}
-                  </div>
+                {isCurrentMonth && (
+                  <form onSubmit={handleCategorySubmit} className="space-y-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
+                        Category name
+                      </label>
+                      <input
+                        value={categoryName}
+                        onChange={(event) => {
+                          setCategoryName(event.target.value);
+                          if (categoryErrors.name) setCategoryErrors({});
+                        }}
+                        placeholder="Food"
+                        className={inputClass}
+                      />
+                      {categoryErrors.name ? (
+                        <p className="mt-2 text-sm font-semibold text-rose-500">
+                          {categoryErrors.name}
+                        </p>
+                      ) : null}
+                    </div>
 
-                  <button
-                    type="submit"
-                    disabled={categorySaving}
-                    className={buttonPrimary}
-                  >
-                    {categorySaving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )}
-                    Add category
-                  </button>
-                </form>
+                    <button
+                      type="submit"
+                      disabled={categorySaving}
+                      className={buttonPrimary}
+                    >
+                      {categorySaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      Add category
+                    </button>
+                  </form>
+                )}
 
-                <div className="mt-6 flex flex-wrap gap-3">
+                <div className={`flex flex-wrap gap-3 ${isCurrentMonth ? "mt-6" : ""}`}>
                   {categories.length > 0 ? (
                     categories.map((category) => (
                       <div
@@ -933,21 +1196,23 @@ export default function MoneyDashboard() {
                         <span className="truncate">
                           {formatCategoryLabel(category.name)}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleCategoryDelete(category.name)
-                          }
-                          disabled={deletingCategoryName === category.name}
-                          className="shrink-0 rounded-full p-1 text-slate-400 transition hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-70"
-                          aria-label={`Delete ${formatCategoryLabel(category.name)}`}
-                        >
-                          {deletingCategoryName === category.name ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
-                        </button>
+                        {isCurrentMonth && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleCategoryDelete(category.name)
+                            }
+                            disabled={deletingCategoryName === category.name}
+                            className="shrink-0 rounded-full p-1 text-slate-400 transition hover:text-rose-500 disabled:cursor-not-allowed disabled:opacity-70"
+                            aria-label={`Delete ${formatCategoryLabel(category.name)}`}
+                          >
+                            {deletingCategoryName === category.name ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     ))
                   ) : (
@@ -996,24 +1261,26 @@ export default function MoneyDashboard() {
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 sm:flex">
-                          <button
-                            type="button"
-                            onClick={() => handleEditBalanceSource(source)}
-                            className={buttonSecondary}
-                          >
-                            Edit
-                          </button>
+                        {isCurrentMonth && (
+                          <div className="grid grid-cols-2 gap-2 sm:flex">
+                            <button
+                              type="button"
+                              onClick={() => handleEditBalanceSource(source)}
+                              className={buttonSecondary}
+                            >
+                              Edit
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBalanceSource(source)}
-                            disabled={balanceDeleting}
-                            className={buttonDanger}
-                          >
-                            Delete
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBalanceSource(source)}
+                              disabled={balanceDeleting}
+                              className={buttonDanger}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1027,10 +1294,11 @@ export default function MoneyDashboard() {
           </div>
         </section>
 
-        <section
-          ref={expenseFormRef}
-          className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0f0c1f]/90 dark:shadow-black/25 sm:p-6"
-        >
+        {isCurrentMonth ? (
+          <section
+            ref={expenseFormRef}
+            className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0f0c1f]/90 dark:shadow-black/25 sm:p-6"
+          >
           <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <SectionHeader
               eyebrow="Expense Management"
@@ -1102,7 +1370,7 @@ export default function MoneyDashboard() {
 
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                Note
+                Note <span className="font-medium text-slate-400">(optional)</span>
               </label>
               <input
                 value={expenseForm.note}
@@ -1167,7 +1435,8 @@ export default function MoneyDashboard() {
               {editingExpenseId ? "Update expense" : "Add expense"}
             </button>
           </form>
-        </section>
+          </section>
+        ) : null}
 
         <section className="space-y-5">
           <div className={cardClass}>
@@ -1178,9 +1447,10 @@ export default function MoneyDashboard() {
                 description="Filter by date or category, then edit or remove entries without leaving the page."
               />
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   ["Visible", expenses.length],
+                  ["Visible Cost", formatAmount(visibleExpenseTotal)],
                   ["Total", pagination.total],
                   ["Page", `${pagination.page}/${pagination.totalPages}`],
                 ].map(([label, value]) => (
@@ -1203,34 +1473,38 @@ export default function MoneyDashboard() {
               onSubmit={handleApplyFilters}
               className="mb-5 rounded-3xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]"
             >
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
-                <label>
-                  <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
-                    From
-                  </span>
-                  <input
-                    type="date"
-                    value={filters.startDate}
-                    onChange={(event) =>
-                      updateFilterField("startDate", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </label>
+              <div className={`grid gap-3 ${isCurrentMonth ? "md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto]" : "xl:grid-cols-[1fr_auto]"}`}>
+                {isCurrentMonth && (
+                  <label>
+                    <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                      From
+                    </span>
+                    <input
+                      type="date"
+                      value={filters.startDate}
+                      onChange={(event) =>
+                        updateFilterField("startDate", event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                )}
 
-                <label>
-                  <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
-                    To
-                  </span>
-                  <input
-                    type="date"
-                    value={filters.endDate}
-                    onChange={(event) =>
-                      updateFilterField("endDate", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </label>
+                {isCurrentMonth && (
+                  <label>
+                    <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                      To
+                    </span>
+                    <input
+                      type="date"
+                      value={filters.endDate}
+                      onChange={(event) =>
+                        updateFilterField("endDate", event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </label>
+                )}
 
                 <label>
                   <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
@@ -1270,12 +1544,12 @@ export default function MoneyDashboard() {
             </form>
 
             <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-white/[0.08]">
-              <div className="hidden grid-cols-[0.8fr_1.8fr_1.2fr_0.9fr_0.8fr] gap-4 bg-slate-50 px-5 py-4 text-xs font-black uppercase tracking-wider text-slate-500 lg:grid dark:bg-white/[0.04]">
+              <div className={`hidden gap-4 bg-slate-50 px-5 py-4 text-xs font-black uppercase tracking-wider text-slate-500 lg:grid dark:bg-white/[0.04] ${isCurrentMonth ? "grid-cols-[0.8fr_1.8fr_1.2fr_0.9fr_0.8fr]" : "grid-cols-[0.8fr_1.8fr_1.2fr_0.9fr]"}`}>
                 <span>Amount</span>
                 <span>Description</span>
                 <span>Category</span>
                 <span>Date</span>
-                <span className="text-right">Actions</span>
+                {isCurrentMonth && <span className="text-right">Actions</span>}
               </div>
 
               <div className="max-h-[430px] overflow-y-auto">
@@ -1293,7 +1567,7 @@ export default function MoneyDashboard() {
                     {expenses.map((expense) => (
                       <div
                         key={expense._id}
-                        className="grid gap-4 p-5 lg:grid-cols-[0.8fr_1.8fr_1.2fr_0.9fr_0.8fr] lg:items-center"
+                        className={`grid gap-4 p-5 lg:items-center ${isCurrentMonth ? "lg:grid-cols-[0.8fr_1.8fr_1.2fr_0.9fr_0.8fr]" : "lg:grid-cols-[0.8fr_1.8fr_1.2fr_0.9fr]"}`}
                       >
                         <div>
                           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
@@ -1334,30 +1608,32 @@ export default function MoneyDashboard() {
                           </p>
                         </div>
 
-                        <div className="flex gap-2 lg:justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleEditExpense(expense)}
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                            aria-label="Edit expense"
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </button>
+                        {isCurrentMonth && (
+                          <div className="flex gap-2 lg:justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleEditExpense(expense)}
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
+                              aria-label="Edit expense"
+                            >
+                              <PencilLine className="h-4 w-4" />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteExpense(expense)}
-                            disabled={deletingExpenseId === expense._id}
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
-                            aria-label="Delete expense"
-                          >
-                            {deletingExpenseId === expense._id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteExpense(expense)}
+                              disabled={deletingExpenseId === expense._id}
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                              aria-label="Delete expense"
+                            >
+                              {deletingExpenseId === expense._id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1413,11 +1689,91 @@ export default function MoneyDashboard() {
             </div>
           </div>
 
+          <div className={cardClass}>
+            <SectionHeader
+              eyebrow="Monthly Report"
+              title={`${selectedMonthLabel} Summary`}
+              description={isCurrentMonth ? "Your current month financial overview." : `A read-only snapshot of your finances for ${selectedMonthLabel}.`}
+            />
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  label: "Salary",
+                  value: formatAmount(displayStats.salary),
+                  sub: isCurrentMonth ? "Active salary" : "Salary that month",
+                  color: "text-emerald-600 dark:text-emerald-300",
+                },
+                {
+                  label: "Total Spent",
+                  value: formatAmount(displayStats.monthSpent),
+                  sub: "All expenses",
+                  color: "text-rose-500 dark:text-rose-300",
+                },
+                {
+                  label: "Remaining",
+                  value: formatAmount(displayStats.remainingSalary),
+                  sub: "Salary − expenses",
+                  color: displayStats.remainingSalary >= 0 ? "text-cyan-600 dark:text-cyan-300" : "text-orange-500 dark:text-orange-300",
+                },
+                {
+                  label: "Records",
+                  value: formatAmount(displayStats.expenseCount),
+                  sub: `Avg ${formatAmount(displayStats.averageExpense)} each`,
+                  color: "text-violet-600 dark:text-violet-300",
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]"
+                >
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                    {item.label}
+                  </p>
+                  <p className={`mt-2 text-2xl font-black tracking-[-0.04em] ${item.color}`}>
+                    {item.value}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-400">
+                    {item.sub}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {effectiveTopCategories.length > 0 && (
+              <div className="mt-5">
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  Top categories this month
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {effectiveTopCategories.slice(0, 5).map((cat, i) => (
+                    <div
+                      key={cat.category}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm dark:border-white/[0.08] dark:bg-white/[0.04]"
+                    >
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: chartColors[i % chartColors.length] }}
+                      />
+                      <span className="font-bold text-slate-700 dark:text-slate-200">
+                        {cat.categoryLabel}
+                      </span>
+                      <span className="font-black text-slate-950 dark:text-white">
+                        {formatAmount(cat.totalSpent)}
+                      </span>
+                      <span className="text-xs text-slate-400">{cat.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="grid gap-5 xl:grid-cols-2">
             <div className={cardClass}>
               <SectionHeader
                 eyebrow="Insights"
-                title="Most spent and top categories"
+                title={`${selectedMonthLabel} — Most spent & top categories`}
               />
 
               <div className="rounded-3xl bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:from-white/[0.05] dark:to-white/[0.03]">
@@ -1436,21 +1792,25 @@ export default function MoneyDashboard() {
                 </p>
               </div>
 
-              <div className="mt-5 h-72 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
+              <div className="mt-5 h-80 rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 pb-2 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
+                    <BarChart data={chartData} margin={{ right: 10, bottom: 42, left: 0 }}>
                       <CartesianGrid
                         strokeDasharray="3 3"
                         stroke="rgba(148,163,184,0.22)"
                       />
                       <XAxis
-                        dataKey="name"
+                        dataKey="shortName"
+                        interval={0}
+                        height={58}
+                        angle={-28}
+                        textAnchor="end"
                         tickLine={false}
                         axisLine={false}
                         tick={{
                           fill: "#94a3b8",
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: 700,
                         }}
                       />
@@ -1465,7 +1825,7 @@ export default function MoneyDashboard() {
                       />
                       <Tooltip
                         cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
-                        content={ChartTooltip as any}
+                        content={renderChartTooltip}
                       />
                       <Bar dataKey="totalSpent" radius={[12, 12, 4, 4]}>
                         {chartData.map((item, index) => (
@@ -1493,12 +1853,12 @@ export default function MoneyDashboard() {
             <div className={cardClass}>
               <SectionHeader
                 eyebrow="Top Categories"
-                title="Spend distribution"
+                title={`${selectedMonthLabel} — Spend distribution`}
               />
 
               <div className="max-h-[390px] space-y-3 overflow-y-auto pr-1">
-                {(insights?.topCategories?.length ?? 0) > 0 ? (
-                  (insights?.topCategories ?? []).map((category) => (
+                {effectiveTopCategories.length > 0 ? (
+                  effectiveTopCategories.map((category) => (
                     <div
                       key={category.category}
                       className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-4 dark:border-white/[0.08] dark:from-white/[0.04] dark:to-white/[0.02]"
@@ -1530,6 +1890,195 @@ export default function MoneyDashboard() {
           </div>
         </section>
       </div>
+
+      {insufficientFundsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"
+            onClick={() => { if (!fundsActionLoading) closeFundsModal(); }}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-2xl dark:border-white/[0.08] dark:bg-[#0f0c1f]">
+            {selectedFundsOption === null && (
+              <div>
+                <div className="mb-6 text-center">
+                  <div className="mb-3 text-5xl">😅</div>
+                  <h3 className="text-xl font-black text-slate-950 dark:text-white">
+                    Oops! Not enough money
+                  </h3>
+                  <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Looks like you do not have enough balance right now. How would you like to top up?
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFundsOption("loan")}
+                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:bg-emerald-500/10"
+                  >
+                    <span className="text-2xl">💸</span>
+                    <div>
+                      <p className="font-black text-slate-950 dark:text-white">Took a Loan</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Someone lent you money — record it here</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFundsOption("income")}
+                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-cyan-300 hover:bg-cyan-50 dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:bg-cyan-500/10"
+                  >
+                    <span className="text-2xl">📈</span>
+                    <div>
+                      <p className="font-black text-slate-950 dark:text-white">External Income</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Freelance, side hustle, or any extra income</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFundsOption("savings")}
+                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-violet-300 hover:bg-violet-50 dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:bg-violet-500/10"
+                  >
+                    <span className="text-2xl">🏦</span>
+                    <div>
+                      <p className="font-black text-slate-950 dark:text-white">Other Savings</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Personal savings or reserve funds you are tapping</p>
+                    </div>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeFundsModal}
+                  className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {selectedFundsOption === "loan" && (
+              <div>
+                <div className="mb-5 flex items-center gap-3">
+                  <button type="button" onClick={() => setSelectedFundsOption(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                    ←
+                  </button>
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Record a Loan</h3>
+                </div>
+                <form onSubmit={(e) => void handleLoanSubmit(e)} className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Person who lent you</label>
+                    <input
+                      value={loanForm.personName}
+                      onChange={(e) => { setLoanForm((p) => ({ ...p, personName: e.target.value })); if (loanErrors.personName) setLoanErrors({}); }}
+                      placeholder="e.g. Uncle Rahim"
+                      className={inputClass}
+                    />
+                    {loanErrors.personName && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.personName}</p>}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Amount</label>
+                      <input type="number" min="0" step="0.01" value={loanForm.amount} onChange={(e) => { setLoanForm((p) => ({ ...p, amount: e.target.value })); if (loanErrors.amount) setLoanErrors({}); }} placeholder="5000" className={inputClass} />
+                      {loanErrors.amount && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.amount}</p>}
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Date</label>
+                      <input type="date" value={loanForm.date} onChange={(e) => { setLoanForm((p) => ({ ...p, date: e.target.value })); if (loanErrors.date) setLoanErrors({}); }} className={inputClass} />
+                      {loanErrors.date && <p className="mt-1 text-sm font-semibold text-rose-500">{loanErrors.date}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Reason <span className="font-medium text-slate-400">(optional)</span></label>
+                    <input value={loanForm.reason} onChange={(e) => { setLoanForm((p) => ({ ...p, reason: e.target.value })); if (loanErrors.reason) setLoanErrors({}); }} placeholder="e.g. Emergency rent" className={inputClass} />
+                  </div>
+                  <button type="submit" disabled={fundsActionLoading} className={buttonPrimary}>
+                    {fundsActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Record Loan
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {selectedFundsOption === "income" && (
+              <div>
+                <div className="mb-5 flex items-center gap-3">
+                  <button type="button" onClick={() => setSelectedFundsOption(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                    ←
+                  </button>
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Add External Income</h3>
+                </div>
+                <form onSubmit={(e) => void handleIncomeSubmit(e)} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Amount</label>
+                      <input type="number" min="0" step="0.01" value={incomeForm.amount} onChange={(e) => { setIncomeForm((p) => ({ ...p, amount: e.target.value })); if (incomeErrors.amount) setIncomeErrors({}); }} placeholder="3000" className={inputClass} />
+                      {incomeErrors.amount && <p className="mt-1 text-sm font-semibold text-rose-500">{incomeErrors.amount}</p>}
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Date</label>
+                      <input type="date" value={incomeForm.date} onChange={(e) => { setIncomeForm((p) => ({ ...p, date: e.target.value })); if (incomeErrors.date) setIncomeErrors({}); }} className={inputClass} />
+                      {incomeErrors.date && <p className="mt-1 text-sm font-semibold text-rose-500">{incomeErrors.date}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Source</label>
+                    <input value={incomeForm.source} onChange={(e) => { setIncomeForm((p) => ({ ...p, source: e.target.value })); if (incomeErrors.source) setIncomeErrors({}); }} placeholder="e.g. Freelance project" className={inputClass} />
+                    {incomeErrors.source && <p className="mt-1 text-sm font-semibold text-rose-500">{incomeErrors.source}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Note (optional)</label>
+                    <input value={incomeForm.note} onChange={(e) => setIncomeForm((p) => ({ ...p, note: e.target.value }))} placeholder="Any extra details" className={inputClass} />
+                  </div>
+                  <button type="submit" disabled={fundsActionLoading} className={buttonPrimary}>
+                    {fundsActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Add Income
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {selectedFundsOption === "savings" && (
+              <div>
+                <div className="mb-5 flex items-center gap-3">
+                  <button type="button" onClick={() => setSelectedFundsOption(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                    ←
+                  </button>
+                  <h3 className="text-lg font-black text-slate-950 dark:text-white">Add Other Savings</h3>
+                </div>
+                <form onSubmit={(e) => void handleSavingsSubmit(e)} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Amount</label>
+                      <input type="number" min="0" step="0.01" value={savingsForm.amount} onChange={(e) => { setSavingsForm((p) => ({ ...p, amount: e.target.value })); if (savingsErrors.amount) setSavingsErrors({}); }} placeholder="2000" className={inputClass} />
+                      {savingsErrors.amount && <p className="mt-1 text-sm font-semibold text-rose-500">{savingsErrors.amount}</p>}
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Date</label>
+                      <input type="date" value={savingsForm.date} onChange={(e) => { setSavingsForm((p) => ({ ...p, date: e.target.value })); if (savingsErrors.date) setSavingsErrors({}); }} className={inputClass} />
+                      {savingsErrors.date && <p className="mt-1 text-sm font-semibold text-rose-500">{savingsErrors.date}</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Source Name</label>
+                    <input value={savingsForm.sourceName} onChange={(e) => { setSavingsForm((p) => ({ ...p, sourceName: e.target.value })); if (savingsErrors.sourceName) setSavingsErrors({}); }} placeholder="e.g. Emergency fund" className={inputClass} />
+                    {savingsErrors.sourceName && <p className="mt-1 text-sm font-semibold text-rose-500">{savingsErrors.sourceName}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">Note (optional)</label>
+                    <input value={savingsForm.note} onChange={(e) => setSavingsForm((p) => ({ ...p, note: e.target.value }))} placeholder="Any extra details" className={inputClass} />
+                  </div>
+                  <button type="submit" disabled={fundsActionLoading} className={buttonPrimary}>
+                    {fundsActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Add Savings
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <PremiumModal
         open={Boolean(confirmState)}

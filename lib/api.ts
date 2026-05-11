@@ -33,16 +33,29 @@ import type {
   CreateLoanResponse,
   RepaymentResponse,
   LoanDetailsResponse,
+  MonthlySummaryResponse,
+  LoanRecord,
+  LendingRecord,
+  FinanceSummary,
+  FundingSource,
+  ExternalIncome,
+  OtherSavings,
+  CreateExternalIncomeRequest,
+  CreateOtherSavingsRequest,
 } from "@/types/money";
+import toast from "react-hot-toast";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://fitness-daily-tracker-backend-main.vercel.app";
+// Empty string → relative URLs → all requests go to the same Next.js app.
+// Money/learning/score-sections routes are proxied to the external backend
+// via next.config.ts rewrites (server-side, no CORS).
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
 interface ApiOptions extends RequestInit {
   requireAuth?: boolean;
+  cacheTtlMs?: number;
+  showSuccessToast?: boolean;
 }
 
 type ApiEnvelope<T> = {
@@ -50,6 +63,7 @@ type ApiEnvelope<T> = {
   data?: T;
   user?: T;
   message?: string;
+  field?: string;
 };
 
 type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
@@ -59,13 +73,46 @@ type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
 export class ApiError extends Error {
   status: number;
   body?: unknown;
+  field?: string;
 
-  constructor(message: string, status: number, body?: unknown) {
+  constructor(message: string, status: number, body?: unknown, field?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.field = field;
   }
+}
+
+const DEFAULT_GET_CACHE_TTL_MS = 20_000;
+const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
+
+function isClient() {
+  return typeof window !== "undefined";
+}
+
+function isReadRequest(method?: string) {
+  return !method || method.toUpperCase() === "GET";
+}
+
+function getCacheKey(endpoint: string, config: RequestInit) {
+  return `${config.method ?? "GET"}:${endpoint}`;
+}
+
+function clearApiCache() {
+  responseCache.clear();
+}
+
+function showBackendSuccess(message: string | undefined, options: ApiOptions) {
+  if (!message || !isClient()) return;
+
+  const method = options.method?.toUpperCase() ?? "GET";
+  const shouldShow =
+    options.showSuccessToast ?? (method !== "GET" && method !== "HEAD");
+
+  if (!shouldShow) return;
+
+  toast.success(message, { duration: 1800 });
 }
 
 function emitUnauthorized() {
@@ -89,7 +136,12 @@ async function apiRequest<T = unknown>(
   endpoint: string,
   options: ApiOptions = {},
 ): Promise<T> {
-  const { requireAuth = true, ...fetchOptions } = options;
+  const {
+    requireAuth = true,
+    cacheTtlMs = DEFAULT_GET_CACHE_TTL_MS,
+    showSuccessToast,
+    ...fetchOptions
+  } = options;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -101,6 +153,15 @@ async function apiRequest<T = unknown>(
     headers,
     credentials: fetchOptions.credentials ?? "include",
   };
+
+  const readRequest = isReadRequest(config.method);
+  const cacheKey = getCacheKey(endpoint, config);
+  if (readRequest && cacheTtlMs > 0) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+  }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   const body = (await response
@@ -114,17 +175,38 @@ async function apiRequest<T = unknown>(
       emitUnauthorized();
     }
 
-    throw new ApiError(message, response.status, body);
+    throw new ApiError(message, response.status, body, body?.field);
   }
 
-  return getPayload<T>(body);
+  const payload = getPayload<T>(body);
+
+  if (readRequest && cacheTtlMs > 0) {
+    responseCache.set(cacheKey, {
+      expiresAt: Date.now() + cacheTtlMs,
+      value: payload,
+    });
+  } else if (!readRequest) {
+    clearApiCache();
+  }
+
+  showBackendSuccess(body?.message, {
+    ...options,
+    showSuccessToast,
+    method: config.method,
+  });
+
+  return payload;
 }
 
 async function apiRequestWithMeta<T = unknown>(
   endpoint: string,
   options: ApiOptions = {},
 ): Promise<PaginatedApiEnvelope<T> | null> {
-  const { requireAuth = true, ...fetchOptions } = options;
+  const {
+    requireAuth = true,
+    cacheTtlMs = DEFAULT_GET_CACHE_TTL_MS,
+    ...fetchOptions
+  } = options;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -136,6 +218,15 @@ async function apiRequestWithMeta<T = unknown>(
     headers,
     credentials: fetchOptions.credentials ?? "include",
   };
+
+  const readRequest = isReadRequest(config.method);
+  const cacheKey = getCacheKey(endpoint, config);
+  if (readRequest && cacheTtlMs > 0) {
+    const cached = responseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as PaginatedApiEnvelope<T> | null;
+    }
+  }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   const body = (await response
@@ -149,7 +240,16 @@ async function apiRequestWithMeta<T = unknown>(
       emitUnauthorized();
     }
 
-    throw new ApiError(message, response.status, body);
+    throw new ApiError(message, response.status, body, body?.field);
+  }
+
+  if (readRequest && cacheTtlMs > 0) {
+    responseCache.set(cacheKey, {
+      expiresAt: Date.now() + cacheTtlMs,
+      value: body,
+    });
+  } else if (!readRequest) {
+    clearApiCache();
   }
 
   return body;
@@ -335,6 +435,15 @@ export const moneyAPI = {
 
   getSummary: () => apiRequest<MoneySummary>("/api/money/summary"),
 
+  getMonthSummary: (month: number, year: number) => {
+    const params = new URLSearchParams();
+    params.set("month", String(month));
+    params.set("year", String(year));
+    return apiRequest<MonthlySummaryResponse>(
+      `/api/money/summary?${params.toString()}`,
+    );
+  },
+
   getInsights: (query?: InsightsQuery) => {
     const params = new URLSearchParams();
     if (query?.month !== undefined) params.set("month", String(query.month));
@@ -344,6 +453,18 @@ export const moneyAPI = {
       `/api/money/insights${search ? `?${search}` : ""}`,
     );
   },
+
+  addIncome: (payload: CreateExternalIncomeRequest) =>
+    apiRequest<ExternalIncome>("/api/money/income", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  addSavings: (payload: CreateOtherSavingsRequest) =>
+    apiRequest<OtherSavings>("/api/money/savings", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
 
 export const lendingAPI = {
@@ -369,7 +490,7 @@ export const lendingAPI = {
     apiRequest<LoanDetailsResponse>(`/api/money/loans/${id}/transactions`),
 
   // Financial Summary
-  getFinancialSummary: () => apiRequest<FinancialSummary>("/api/money/summary"),
+  getFinancialSummary: () => apiRequest<FinancialSummary>("/api/finance/summary"),
 
   // External Debts
   getExternalDebts: () => apiRequest<ExternalDebt[]>("/api/money/debts"),
@@ -470,6 +591,60 @@ export const scoreSectionAPI = {
       method: "PATCH",
       body: JSON.stringify({ value }),
     }),
+};
+
+export const loansAPI = {
+  getAll: () => apiRequest<LoanRecord[]>("/api/loans"),
+
+  create: (payload: {
+    personName: string;
+    amount: number;
+    reason?: string;
+    date?: string;
+  }) =>
+    apiRequest<LoanRecord>("/api/loans", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  pay: (id: string, amount: number) =>
+    apiRequest<LoanRecord>(`/api/loans/${id}/pay`, {
+      method: "PATCH",
+      body: JSON.stringify({ amount }),
+    }),
+
+  remove: (id: string) =>
+    apiRequest<{ message: string }>(`/api/loans/${id}`, { method: "DELETE" }),
+};
+
+export const lendingRecordAPI = {
+  getAll: () => apiRequest<LendingRecord[]>("/api/lending"),
+
+  create: (payload: {
+    personName: string;
+    amount: number;
+    fundingSource: FundingSource;
+    date?: string;
+  }) =>
+    apiRequest<LendingRecord>("/api/lending", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  markRepaid: (id: string, amount: number) =>
+    apiRequest<LendingRecord>(`/api/lending/${id}/repaid`, {
+      method: "PATCH",
+      body: JSON.stringify({ amount }),
+    }),
+
+  remove: (id: string) =>
+    apiRequest<{ message: string }>(`/api/lending/${id}`, {
+      method: "DELETE",
+    }),
+};
+
+export const financeAPI = {
+  getSummary: () => apiRequest<FinanceSummary>("/api/finance/summary"),
 };
 
 export default apiRequest;

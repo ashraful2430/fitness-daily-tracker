@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
-import toast from "react-hot-toast";
 import { lendingAPI } from "@/lib/api";
 import type { CreateLoanRequest, SourceType } from "@/types/money";
 
@@ -90,7 +89,6 @@ export default function CreateLoanModal({
 
         await lendingAPI.createLoan(payload);
 
-        toast.success("Loan created successfully!");
         setBorrowerName("");
         setAmount("");
         setSourceType("PERSONAL");
@@ -102,7 +100,7 @@ export default function CreateLoanModal({
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to create loan";
-        toast.error(errorMessage);
+        setErrors({ form: errorMessage });
       } finally {
         setIsSubmitting(false);
       }
@@ -114,6 +112,7 @@ export default function CreateLoanModal({
       sourceType,
       creditorName,
       note,
+      onClose,
       onSuccess,
     ],
   );
@@ -165,6 +164,11 @@ export default function CreateLoanModal({
               {/* Content */}
               <form onSubmit={handleSubmit} className="p-6 space-y-5">
                 {/* Borrower Name */}
+                {errors.form && (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
+                    {errors.form}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-slate-900 dark:text-white mb-2">
                     Borrower Name *

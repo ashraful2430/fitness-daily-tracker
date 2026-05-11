@@ -331,7 +331,7 @@ export default function Dashboard() {
           <div className="absolute right-0 top-1/2 h-px w-[60%] bg-gradient-to-r from-transparent via-violet-400/30 to-cyan-400/20 blur-sm" />
           <div className="absolute bottom-0 right-[20%] h-40 w-40 rounded-full border border-violet-400/10" />
 
-          <div className="relative z-10 grid grid-cols-1 items-center gap-10 xl:grid-cols-[1.25fr_480px]">
+          <div className="relative z-10 grid grid-cols-1 items-center gap-8 xl:grid-cols-[1.25fr_480px]">
             <div className="max-w-4xl">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.25em] text-violet-600 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-violet-300">
                 <Zap className="h-3.5 w-3.5" />
@@ -374,27 +374,27 @@ export default function Dashboard() {
             </div>
 
             <div className="relative flex flex-col items-center justify-center xl:pr-6">
-              <div className="absolute h-[360px] w-[360px] rounded-full bg-violet-600/20 blur-[105px]" />
+              <div className="absolute h-[260px] w-[260px] rounded-full bg-violet-600/20 blur-[105px] sm:h-[360px] sm:w-[360px]" />
 
-              <div className="relative flex h-[310px] w-[310px] items-center justify-center rounded-full">
+              <div className="relative flex h-[240px] w-[240px] items-center justify-center rounded-full sm:h-[310px] sm:w-[310px]">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white via-violet-50 to-slate-100 shadow-[inset_18px_18px_60px_rgba(255,255,255,0.55),inset_-24px_-24px_70px_rgba(15,23,42,0.08),0_35px_100px_-35px_rgba(139,92,246,0.9)] dark:from-white/[0.08] dark:via-white/[0.02] dark:to-black/20 dark:shadow-[inset_18px_18px_60px_rgba(255,255,255,0.035),inset_-24px_-24px_70px_rgba(0,0,0,0.45),0_35px_100px_-35px_rgba(139,92,246,0.9)]" />
                 <div className="absolute inset-5 rounded-full border border-violet-100 dark:border-white/[0.055]" />
                 <div className="absolute inset-10 rounded-full bg-white/80 shadow-[inset_0_20px_55px_rgba(15,23,42,0.08)] dark:bg-[#120b33]/70 dark:shadow-[inset_0_20px_55px_rgba(0,0,0,0.55)]" />
                 <div className="absolute left-1/2 top-4 h-4 w-4 -translate-x-1/2 rounded-full bg-gradient-to-br from-cyan-300 to-violet-500 shadow-[0_0_30px_rgba(56,189,248,0.8)]" />
 
-                <div className="relative h-[270px] w-[270px]">
+                <div className="relative h-[200px] w-[200px] sm:h-[270px] sm:w-[270px]">
                   <ScoreRing score={score} />
 
-                  <div className="absolute inset-0 flex flex-col items-center justify-center px-10 text-center">
-                    <span className="mb-3 text-sm font-bold text-slate-500 dark:text-slate-300">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center sm:px-10">
+                    <span className="mb-2 text-xs font-bold text-slate-500 dark:text-slate-300 sm:mb-3 sm:text-sm">
                       Today&apos;s Score
                     </span>
 
-                    <span className="text-6xl font-black leading-none text-slate-950 tabular-nums dark:text-white xl:text-7xl">
+                    <span className="text-5xl font-black leading-none text-slate-950 tabular-nums dark:text-white sm:text-6xl xl:text-7xl">
                       {score}%
                     </span>
 
-                    <span className="mt-5 max-w-[170px] text-sm font-semibold leading-relaxed text-slate-500 dark:text-slate-400">
+                    <span className="mt-3 max-w-[130px] text-xs font-semibold leading-relaxed text-slate-500 dark:text-slate-400 sm:mt-5 sm:max-w-[170px] sm:text-sm">
                       {score === 0
                         ? "Add sections below."
                         : score < 40
@@ -409,7 +409,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="mt-4 grid w-full max-w-[350px] grid-cols-3 gap-3">
+              <div className="mt-4 grid w-full max-w-full grid-cols-3 gap-3 sm:max-w-[350px]">
                 {[
                   { v: `${loginStreak}d`, l: "Login" },
                   { v: `${sectionStats.totalDurationMinutes}m`, l: "Time" },

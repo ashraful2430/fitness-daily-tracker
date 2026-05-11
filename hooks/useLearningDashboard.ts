@@ -122,6 +122,7 @@ export function useLearningDashboard() {
     status: "",
     subject: "",
   });
+  const skipNextFilterDebounce = useRef(true);
   const completionLockRef = useRef<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
@@ -284,6 +285,24 @@ export function useLearningDashboard() {
     [clearToastLock, handleError, userId],
   );
 
+  useEffect(() => {
+    if (!userId) return;
+
+    if (skipNextFilterDebounce.current) {
+      skipNextFilterDebounce.current = false;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const nextFilters = { ...filtersRef.current, page: 1 };
+      filtersRef.current = nextFilters;
+      setFilters(nextFilters);
+      void fetchSessions(nextFilters, false);
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [fetchSessions, filters.status, filters.subject, userId]);
+
   const refreshAll = useCallback(
     async (notify = false) => {
       if (authLoading) return;
@@ -339,7 +358,6 @@ export function useLearningDashboard() {
           fetchSummary(false),
           fetchSessions(filtersRef.current, false),
         ]);
-        toast.success("Learning session completed");
       } catch (error: unknown) {
         handleError(error, "Failed to complete learning session", true);
       }
@@ -426,7 +444,6 @@ export function useLearningDashboard() {
           setFilters(nextFilters);
         }
         await Promise.all([fetchSummary(false), fetchSessions(nextFilters, false)]);
-        toast.success("Learning session created");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to create learning session", true);
@@ -468,7 +485,6 @@ export function useLearningDashboard() {
           fetchSummary(false),
           fetchSessions(filtersRef.current, false),
         ]);
-        toast.success("Learning session updated");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to update learning session", true);
@@ -507,7 +523,6 @@ export function useLearningDashboard() {
         }
 
         await Promise.all([fetchSummary(false), fetchSessions(nextFilters, false)]);
-        toast.success("Learning session deleted");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to delete learning session", true);
@@ -569,7 +584,6 @@ export function useLearningDashboard() {
           fetchSummary(false),
           fetchSessions(filtersRef.current, false),
         ]);
-        toast.success("Learning timer started");
       } catch (error: unknown) {
         setActiveTimer(null);
         handleError(error, "Failed to start learning timer", true);
@@ -607,7 +621,6 @@ export function useLearningDashboard() {
         fetchSummary(false),
         fetchSessions(filtersRef.current, false),
       ]);
-      toast.success("Learning timer paused");
     } catch (error: unknown) {
       handleError(error, "Failed to pause learning timer", true);
     }
@@ -637,7 +650,6 @@ export function useLearningDashboard() {
         fetchSummary(false),
         fetchSessions(filtersRef.current, false),
       ]);
-      toast.success("Learning session completed");
     } catch (error: unknown) {
       handleError(error, "Failed to complete learning session", true);
     }
@@ -670,6 +682,7 @@ export function useLearningDashboard() {
 
       if (isMounted.current) {
         filtersRef.current = merged;
+        skipNextFilterDebounce.current = true;
         setFilters(merged);
       }
 

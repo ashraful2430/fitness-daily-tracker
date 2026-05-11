@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   Activity,
@@ -22,7 +21,6 @@ import { ApiError } from "@/lib/api";
 type Mode = "login" | "register";
 
 export default function AuthForm() {
-  const router = useRouter();
   const { login, register } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
@@ -45,10 +43,6 @@ export default function AuthForm() {
       } else {
         await register({ name, email, password });
       }
-
-      toast.success(
-        mode === "login" ? "Login successful" : "Account created successfully",
-      );
 
       window.location.href = "/dashboard";
       return;
@@ -75,7 +69,7 @@ export default function AuthForm() {
           </div>
           <div>
             <h1 className="text-lg font-black">Planify Life</h1>
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <p className="hidden text-xs font-semibold text-slate-500 dark:text-slate-400 sm:block">
               Personal tracking system
             </p>
           </div>

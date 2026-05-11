@@ -6,8 +6,6 @@ import {
   CheckCircle,
   AlertCircle,
   Clock,
-  ArrowUpRight,
-  ArrowDownLeft,
 } from "lucide-react";
 import type { Loan, LendingTransaction } from "@/types/money";
 

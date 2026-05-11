@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { ApiError, isUnauthorizedError, moneyAPI } from "@/lib/api";
+import { ApiError, isUnauthorizedError, loansAPI, moneyAPI } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import type {
-  BalanceResponse,
   BalanceSource,
   CreateExpenseRequest,
   ExpensesQuery,
@@ -14,10 +13,10 @@ import type {
   MoneyInsights,
   MoneyPagination,
   MoneySummary,
+  MonthlySummaryResponse,
   MonthlyExpenseSummary,
   SalaryRecord,
   UpdateExpenseRequest,
-  UpdateSalaryRequest,
 } from "@/types/money";
 
 type FormErrors = Record<string, string>;
@@ -96,22 +95,52 @@ function getMessage(error: unknown, fallbackMessage: string) {
   return error instanceof Error ? error.message : fallbackMessage;
 }
 
+function getFieldErrors(error: unknown): FormErrors {
+  if (error instanceof ApiError && error.field && error.message) {
+    return { [error.field]: error.message };
+  }
+
+  return {};
+}
+
 function isConflictError(error: unknown) {
   return error instanceof ApiError && error.status === 409;
+}
+
+function findSalaryForMonth(
+  history: SalaryRecord[],
+  monthKey: string,
+): SalaryRecord | null {
+  if (!monthKey || history.length === 0) return null;
+  const [yearStr, monthStr] = monthKey.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const lastDay = new Date(Date.UTC(year, month, 0));
+
+  return (
+    history
+      .filter((r) => new Date(r.date) <= lastDay)
+      .sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      )[0] ?? null
+  );
 }
 
 export function useMoneyDashboard() {
   const { user, loading: authLoading, clearUser } = useAuth();
   const userId = user?.id ?? null;
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
   const [categories, setCategories] = useState<MoneyCategory[]>([]);
   const [salary, setSalary] = useState<SalaryRecord | null>(null);
   const [salaryHistory, setSalaryHistory] = useState<SalaryRecord[]>([]);
   const [balanceSources, setBalanceSources] = useState<BalanceSource[]>([]);
+  const [balanceTotal, setBalanceTotal] = useState(0);
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] = useState<
     MonthlyExpenseSummary[]
   >([]);
   const [summary, setSummary] = useState<MoneySummary>(defaultSummary);
   const [insights, setInsights] = useState<MoneyInsights | null>(null);
+  const [historicalSummary, setHistoricalSummary] = useState<MonthlySummaryResponse | null>(null);
   const [expenses, setExpenses] = useState<MoneyExpense[]>([]);
   const [pagination, setPagination] = useState<MoneyPagination>(
     createDefaultPagination(),
@@ -150,6 +179,16 @@ export function useMoneyDashboard() {
       totalExpenses,
     };
   }, [expenses, monthlyExpenseSummary, salary, summary]);
+  const isCurrentMonth = useMemo(
+    () => selectedMonth === getCurrentMonthKey(),
+    [selectedMonth],
+  );
+
+  const monthlyReportSalary = useMemo(
+    () => findSalaryForMonth(salaryHistory, selectedMonth),
+    [salaryHistory, selectedMonth],
+  );
+
   const [filters, setFilters] = useState<FiltersState>({
     ...getMonthRange(),
     category: "",
@@ -180,6 +219,8 @@ export function useMoneyDashboard() {
     page: 1,
     limit: 10,
   });
+  const skipNextFilterDebounce = useRef(true);
+  const selectedMonthRef = useRef(getCurrentMonthKey());
 
   useEffect(() => {
     isMounted.current = true;
@@ -191,6 +232,10 @@ export function useMoneyDashboard() {
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+
+  useEffect(() => {
+    selectedMonthRef.current = selectedMonth;
+  }, [selectedMonth]);
 
   const clearToastLock = useCallback(() => {
     lastToastMessage.current = null;
@@ -236,6 +281,7 @@ export function useMoneyDashboard() {
         setSalary(salaryResponse);
         setSummary(summaryResponse ?? defaultSummary());
         setBalanceSources(balanceResponse?.sources ?? []);
+        setBalanceTotal(balanceResponse?.totalBalance ?? 0);
         setError(null);
         clearToastLock();
       } catch (error: unknown) {
@@ -292,10 +338,10 @@ export function useMoneyDashboard() {
       if (!userId) return;
 
       try {
-        const now = new Date();
+        const [yearStr, monthStr] = selectedMonthRef.current.split("-");
         const result = await moneyAPI.getInsights({
-          month: now.getMonth() + 1,
-          year: now.getFullYear(),
+          month: Number(monthStr),
+          year: Number(yearStr),
         });
 
         if (!isMounted.current) return;
@@ -304,6 +350,24 @@ export function useMoneyDashboard() {
         clearToastLock();
       } catch (error: unknown) {
         handleError(error, "Failed to load insights", notify);
+      }
+    },
+    [clearToastLock, handleError, userId],
+  );
+
+  const fetchHistoricalSummary = useCallback(
+    async (month: number, year: number, notify = false) => {
+      if (!userId) return;
+
+      try {
+        const result = await moneyAPI.getMonthSummary(month, year);
+
+        if (!isMounted.current) return;
+
+        setHistoricalSummary(result);
+        clearToastLock();
+      } catch (error: unknown) {
+        handleError(error, "Failed to load monthly summary", notify);
       }
     },
     [clearToastLock, handleError, userId],
@@ -362,6 +426,30 @@ export function useMoneyDashboard() {
     [clearToastLock, handleError, userId],
   );
 
+  useEffect(() => {
+    if (!userId) return;
+
+    if (skipNextFilterDebounce.current) {
+      skipNextFilterDebounce.current = false;
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const nextFilters = { ...filtersRef.current, page: 1 };
+      filtersRef.current = nextFilters;
+      setFilters(nextFilters);
+      void fetchExpenses(nextFilters, false);
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    fetchExpenses,
+    filters.category,
+    filters.endDate,
+    filters.startDate,
+    userId,
+  ]);
+
   const refreshExpenses = useCallback(
     async (notify = false) => {
       await fetchExpenses(filters, notify);
@@ -382,12 +470,16 @@ export function useMoneyDashboard() {
 
       try {
         setInitialLoading(true);
+        const [yearStr, monthStr] = selectedMonthRef.current.split("-");
         await Promise.all([
           fetchCategories(notify),
           fetchSummaryBundle(notify),
           fetchSalaryHistory(notify),
           fetchMonthlySummary(notify),
-          fetchInsights(notify),
+          fetchHistoricalSummary(Number(monthStr), Number(yearStr), notify),
+          selectedMonthRef.current === getCurrentMonthKey()
+            ? fetchInsights(notify)
+            : Promise.resolve(),
           fetchExpenses(filtersRef.current, notify),
         ]);
       } finally {
@@ -400,6 +492,7 @@ export function useMoneyDashboard() {
       authLoading,
       fetchCategories,
       fetchExpenses,
+      fetchHistoricalSummary,
       fetchInsights,
       fetchMonthlySummary,
       fetchSalaryHistory,
@@ -411,12 +504,14 @@ export function useMoneyDashboard() {
   const refreshAfterMutation = useCallback(
     async (nextFilters?: FiltersState) => {
       const targetFilters = nextFilters ?? filtersRef.current;
+      const [yearStr, monthStr] = selectedMonthRef.current.split("-");
 
       await Promise.all([
         fetchCategories(false),
         fetchSummaryBundle(false),
         fetchSalaryHistory(false),
         fetchMonthlySummary(false),
+        fetchHistoricalSummary(Number(monthStr), Number(yearStr), false),
         fetchInsights(false),
         fetchExpenses(targetFilters, false),
       ]);
@@ -424,6 +519,7 @@ export function useMoneyDashboard() {
     [
       fetchCategories,
       fetchExpenses,
+      fetchHistoricalSummary,
       fetchInsights,
       fetchMonthlySummary,
       fetchSalaryHistory,
@@ -478,10 +574,6 @@ export function useMoneyDashboard() {
         nextErrors.amount = "Amount must be greater than zero.";
       }
 
-      if (!payload.note.trim()) {
-        nextErrors.note = "Note is required.";
-      }
-
       if (!normalizedCategory) {
         nextErrors.category = "Please select a category.";
       } else if (
@@ -515,11 +607,10 @@ export function useMoneyDashboard() {
           date,
         });
         await refreshAfterMutation();
-        toast.success("Salary saved");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to save salary", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setSalarySaving(false);
@@ -554,11 +645,10 @@ export function useMoneyDashboard() {
           amount: Number(amount),
         });
         await refreshAfterMutation();
-        toast.success("Balance source added");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to add balance source", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setBalanceSaving(false);
@@ -593,11 +683,10 @@ export function useMoneyDashboard() {
           amount: Number(amount),
         });
         await refreshAfterMutation();
-        toast.success("Balance source updated");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to update balance source", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setBalanceSaving(false);
@@ -614,7 +703,6 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.deleteBalanceSource(id);
         await refreshAfterMutation();
-        toast.success("Balance source deleted");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to delete balance source", true);
@@ -632,9 +720,26 @@ export function useMoneyDashboard() {
     try {
       setSalaryDeleting(true);
       setError(null);
-      await moneyAPI.deleteSalary();
+
+      // Delete dedicated salary record; 404 = nothing to delete, continue
+      try {
+        await moneyAPI.deleteSalary();
+      } catch (err: unknown) {
+        if (!(err instanceof ApiError && err.status === 404)) throw err;
+      }
+
+      // Also delete all SALARY-type balance sources
+      const salarySourceIds = balanceSources
+        .filter((s) => s.type === "SALARY")
+        .map((s) => s._id);
+      if (salarySourceIds.length > 0) {
+        await Promise.all(
+          salarySourceIds.map((id) => moneyAPI.deleteBalanceSource(id)),
+        );
+      }
+
+      if (isMounted.current) setSalary(null);
       await refreshAfterMutation();
-      toast.success("Salary reset");
       return true;
     } catch (error: unknown) {
       handleError(error, "Failed to reset salary", true);
@@ -644,7 +749,7 @@ export function useMoneyDashboard() {
         setSalaryDeleting(false);
       }
     }
-  }, [handleError, refreshAfterMutation]);
+  }, [handleError, refreshAfterMutation, balanceSources]);
 
   const createCategory = useCallback(
     async (name: string) => {
@@ -658,11 +763,10 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.createCategory({ name: normalizeCategoryName(name) });
         await refreshAfterMutation();
-        toast.success("Category created");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to create category", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setCategorySaving(false);
@@ -679,7 +783,6 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.deleteCategory(name);
         await refreshAfterMutation();
-        toast.success("Category deleted");
         return { ok: true as const, message: "" };
       } catch (error: unknown) {
         if (isConflictError(error)) {
@@ -709,7 +812,7 @@ export function useMoneyDashboard() {
       const normalizedPayload = {
         ...payload,
         category: normalizeCategoryName(payload.category),
-        note: payload.note.trim(),
+        note: payload.note?.trim() ?? "",
       };
       const errors = validateExpense(normalizedPayload);
 
@@ -729,11 +832,10 @@ export function useMoneyDashboard() {
         }
 
         await refreshAfterMutation(nextFilters);
-        toast.success("Expense added");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to add expense", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setExpenseSaving(false);
@@ -748,7 +850,7 @@ export function useMoneyDashboard() {
       const normalizedPayload = {
         ...payload,
         category: normalizeCategoryName(payload.category),
-        note: payload.note.trim(),
+        note: payload.note?.trim() ?? "",
       };
       const errors = validateExpense(normalizedPayload);
 
@@ -761,11 +863,10 @@ export function useMoneyDashboard() {
         setError(null);
         await moneyAPI.updateExpense(id, normalizedPayload);
         await refreshAfterMutation();
-        toast.success("Expense updated");
         return { ok: true as const, errors: {} };
       } catch (error: unknown) {
         handleError(error, "Failed to update expense", true);
-        return { ok: false as const, errors: {} };
+        return { ok: false as const, errors: getFieldErrors(error) };
       } finally {
         if (isMounted.current) {
           setExpenseSaving(false);
@@ -794,7 +895,6 @@ export function useMoneyDashboard() {
         }
 
         await refreshAfterMutation(nextFilters);
-        toast.success("Expense deleted");
         return true;
       } catch (error: unknown) {
         handleError(error, "Failed to delete expense", true);
@@ -806,6 +906,94 @@ export function useMoneyDashboard() {
       }
     },
     [expenses.length, handleError, refreshAfterMutation],
+  );
+
+  const recordLoanFunds = useCallback(
+    async (personName: string, amount: number, reason: string, date: string) => {
+      try {
+        await loansAPI.create({
+          personName,
+          amount,
+          reason: reason.trim(),
+          date,
+        });
+        await refreshAfterMutation();
+        return true;
+      } catch (error: unknown) {
+        handleError(error, "Failed to record loan", true);
+        return false;
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
+  const addExternalIncome = useCallback(
+    async (amount: number, source: string, note: string, date: string) => {
+      try {
+        await moneyAPI.addIncome({ amount, source, note, date });
+        await refreshAfterMutation();
+        return true;
+      } catch (error: unknown) {
+        handleError(error, "Failed to add external income", true);
+        return false;
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
+  const addOtherSavings = useCallback(
+    async (amount: number, sourceName: string, note: string, date: string) => {
+      try {
+        await moneyAPI.addSavings({ amount, sourceName, note, date });
+        await refreshAfterMutation();
+        return true;
+      } catch (error: unknown) {
+        handleError(error, "Failed to add savings", true);
+        return false;
+      }
+    },
+    [handleError, refreshAfterMutation],
+  );
+
+  const changeSelectedMonth = useCallback(
+    async (monthKey: string) => {
+      const [yearStr, monthStr] = monthKey.split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const start = new Date(Date.UTC(year, month - 1, 1));
+      const end = new Date(Date.UTC(year, month, 0));
+      const nextFilters: FiltersState = {
+        startDate: toIsoDateValue(start),
+        endDate: toIsoDateValue(end),
+        category: "",
+        page: 1,
+        limit: filtersRef.current.limit,
+      };
+
+      selectedMonthRef.current = monthKey;
+
+      if (isMounted.current) {
+        setSelectedMonth(monthKey);
+        setHistoricalSummary(null);
+        filtersRef.current = nextFilters;
+        skipNextFilterDebounce.current = true;
+        setFilters(nextFilters);
+      }
+
+      if (monthKey !== getCurrentMonthKey()) {
+        await Promise.all([
+          fetchExpenses(nextFilters, false),
+          fetchHistoricalSummary(month, year, false),
+        ]);
+      } else {
+        await Promise.all([
+          fetchExpenses(nextFilters, false),
+          fetchHistoricalSummary(month, year, false),
+          fetchInsights(false),
+        ]);
+      }
+    },
+    [fetchExpenses, fetchHistoricalSummary, fetchInsights],
   );
 
   const updateFilterField = useCallback(
@@ -834,6 +1022,7 @@ export function useMoneyDashboard() {
       };
 
       if (isMounted.current) {
+        skipNextFilterDebounce.current = true;
         setFilters(merged);
       }
 
@@ -859,14 +1048,19 @@ export function useMoneyDashboard() {
     salary,
     salaryHistory,
     balanceSources,
+    balanceTotal,
     monthlyExpenseSummary,
     summary: summaryWithFallback,
     insights,
+    historicalSummary,
     categories,
     categoryOptions,
     expenses,
     filters,
     pagination,
+    selectedMonth,
+    isCurrentMonth,
+    monthlyReportSalary,
     loading: initialLoading || authLoading,
     summaryLoading,
     expensesLoading,
@@ -891,6 +1085,10 @@ export function useMoneyDashboard() {
     createExpense,
     updateExpense,
     deleteExpense,
+    recordLoanFunds,
+    addExternalIncome,
+    addOtherSavings,
+    changeSelectedMonth,
     updateFilterField,
     setPage,
     applyFilters,

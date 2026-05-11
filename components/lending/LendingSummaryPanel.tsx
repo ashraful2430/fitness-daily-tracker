@@ -4,13 +4,14 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { HandCoins, ArrowRight, Loader2 } from "lucide-react";
 import { useLending } from "@/hooks/useLending";
+import { normalizeFinanceSummary } from "@/lib/financeSummary";
 
 export default function LendingSummaryPanel() {
   const lending = useLending();
 
-  // Normalize values to strict numbers
-  const totalLent = lending.summary?.totalLent ?? 0;
-  const totalOutstanding = lending.summary?.totalOutstandingLoans ?? 0;
+  const finance = normalizeFinanceSummary(lending.summary);
+  const totalLent = finance.lendingOutstanding;
+  const totalOutstanding = finance.lending;
 
   if (lending.isLoading) {
     return (

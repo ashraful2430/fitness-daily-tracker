@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
-import toast from "react-hot-toast";
 import { lendingAPI } from "@/lib/api";
 import type { Loan } from "@/types/money";
 
@@ -75,7 +74,6 @@ export default function RepaymentModal({
           amount: parseFloat(amount),
         });
 
-        toast.success("Repayment processed successfully!");
         setAmount("");
         setErrors({});
         onClose();
@@ -85,7 +83,7 @@ export default function RepaymentModal({
           error instanceof Error
             ? error.message
             : "Failed to process repayment";
-        toast.error(errorMessage);
+        setErrors({ form: errorMessage });
       } finally {
         setIsSubmitting(false);
       }
@@ -135,6 +133,11 @@ export default function RepaymentModal({
 
               {/* Content */}
               <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                {errors.form && (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
+                    {errors.form}
+                  </div>
+                )}
                 {/* Loan Info */}
                 <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">

@@ -175,7 +175,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-slate-950 lg:hidden">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 lg:hidden">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white">
             <Activity size={20} />
@@ -192,7 +192,7 @@ export default function Sidebar() {
         </button>
       </header>
 
-      <aside className="relative hidden h-screen w-72 shrink-0 flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(255,255,255,0.62))] p-5 shadow-[30px_0_80px_rgba(148,163,184,0.12)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.92),rgba(8,12,24,0.86))] dark:shadow-[30px_0_90px_rgba(0,0,0,0.28)] lg:flex">
+      <aside className="relative hidden h-dvh w-72 shrink-0 flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(255,255,255,0.62))] p-5 shadow-[30px_0_80px_rgba(148,163,184,0.12)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.92),rgba(8,12,24,0.86))] dark:shadow-[30px_0_90px_rgba(0,0,0,0.28)] lg:flex">
         <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent dark:via-cyan-300/20" />
         <SidebarContent
           loadingUser={loading}
@@ -210,7 +210,7 @@ export default function Sidebar() {
             onClick={() => setMobileOpen(false)}
           />
 
-          <aside className="relative flex h-full w-[85%] max-w-sm flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.8))] p-5 backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.96),rgba(8,12,24,0.92))]">
+          <aside className="relative flex h-dvh w-[min(22rem,88vw)] max-w-sm flex-col border-r border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.8))] p-5 pt-[max(1.25rem,env(safe-area-inset-top))] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(11,15,28,0.96),rgba(8,12,24,0.92))]">
             <button
               onClick={() => setMobileOpen(false)}
               className="absolute right-4 top-4 rounded-2xl bg-slate-100 p-2 dark:bg-white/10 dark:text-white"

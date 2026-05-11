@@ -175,35 +175,9 @@ export function useLending() {
         }));
 
         const res = await lendingAPI.createLoan(data);
+        await loadAllData();
+        safeSetState((prev) => ({ ...prev, isCreatingLoan: false }));
 
-        safeSetState((prev) => {
-          const currentSummary = prev.summary ?? defaultSummary;
-
-          return {
-            ...prev,
-            loans: [...prev.loans, res.loan],
-            summary: {
-              ...currentSummary,
-              totalBalance:
-                data.sourceType === "PERSONAL"
-                  ? currentSummary.totalBalance - data.amount
-                  : currentSummary.totalBalance,
-              totalLoansGiven:
-                currentSummary.totalLoansGiven +
-                (data.sourceType === "PERSONAL" ? data.amount : 0),
-              totalDebt:
-                currentSummary.totalDebt +
-                (data.sourceType === "BORROWED" ? data.amount : 0),
-              netPosition:
-                data.sourceType === "PERSONAL"
-                  ? currentSummary.netPosition - data.amount
-                  : currentSummary.netPosition,
-            },
-            isCreatingLoan: false,
-          };
-        });
-
-        toast.success("Loan created successfully");
         return res.loan;
       } catch (error) {
         handleError(error, "Failed to create loan");
@@ -216,7 +190,7 @@ export function useLending() {
         throw error;
       }
     },
-    [handleError, safeSetState],
+    [handleError, loadAllData, safeSetState],
   );
 
   const processRepayment = useCallback(
@@ -229,30 +203,13 @@ export function useLending() {
         }));
 
         const res = await lendingAPI.repayLoan(loanId, data);
+        await loadAllData();
+        safeSetState((prev) => ({
+          ...prev,
+          selectedLoan: res.loan,
+          isProcessingRepayment: false,
+        }));
 
-        safeSetState((prev) => {
-          const currentSummary = prev.summary ?? defaultSummary;
-
-          return {
-            ...prev,
-            loans: prev.loans.map((loan) =>
-              loan._id === loanId ? res.loan : loan,
-            ),
-            selectedLoan: res.loan,
-            summary: {
-              ...currentSummary,
-              totalBalance: currentSummary.totalBalance + data.amount,
-              totalLoansGiven: Math.max(
-                currentSummary.totalLoansGiven - data.amount,
-                0,
-              ),
-              netPosition: currentSummary.netPosition + data.amount,
-            },
-            isProcessingRepayment: false,
-          };
-        });
-
-        toast.success("Repayment processed successfully");
         return res;
       } catch (error) {
         handleError(error, "Failed to process repayment");
@@ -265,7 +222,7 @@ export function useLending() {
         throw error;
       }
     },
-    [handleError, safeSetState],
+    [handleError, loadAllData, safeSetState],
   );
 
   const loadLoanDetails = useCallback(

@@ -10,7 +10,7 @@ export interface MoneyExpense {
   _id: string;
   userId?: string;
   amount: number;
-  note: string;
+  note?: string;
   category: string;
   date: string;
   createdAt?: string;
@@ -28,6 +28,14 @@ export interface BalanceSource {
   _id: string;
   userId: string;
   type: "CASH" | "BANK" | "SALARY" | "EXTERNAL" | "OTHER";
+  source?:
+    | "USER_ADDED"
+    | "BALANCE_ADJUSTMENT"
+    | "EXPENSE_REFUND"
+    | "INCOME_ADDED"
+    | "SAVINGS_ADDED"
+    | "SALARY_ADDED"
+    | "LOAN_REPAID";
   amount: number;
   createdAt?: string;
   updatedAt?: string;
@@ -80,6 +88,25 @@ export interface InsightsQuery {
   year?: number;
 }
 
+export interface MonthlySummaryTopCategory {
+  category: string;
+  categoryLabel: string;
+  totalSpent: number;
+  count: number;
+  percentage?: number;
+}
+
+export interface MonthlySummaryResponse {
+  salaryAmount: number;
+  availableBalance: number;
+  totalExpenses: number;
+  expenseCount: number;
+  averageExpense: number;
+  currentMonthSpent: number;
+  remainingSalary: number;
+  topCategories: MonthlySummaryTopCategory[];
+}
+
 export interface MoneyPagination {
   page: number;
   limit: number;
@@ -106,14 +133,14 @@ export interface CreateCategoryRequest {
 
 export interface CreateExpenseRequest {
   amount: number;
-  note: string;
+  note?: string;
   category: string;
   date: string;
 }
 
 export interface UpdateExpenseRequest {
   amount: number;
-  note: string;
+  note?: string;
   category: string;
   date: string;
 }
@@ -177,6 +204,19 @@ export interface ExternalDebt {
 }
 
 export interface FinancialSummary {
+  availableBalance?: number;
+  loanDebt?: number;
+  netBalance?: number;
+  salary?: number;
+  externalIncome?: number;
+  savings?: number;
+  activeLoans?: number;
+  borrowedLending?: number;
+  repaidLoans?: number;
+  expenses?: number;
+  lendingFromPersonal?: number;
+  lendingOutstanding?: number;
+  breakdown?: FinanceSummaryBreakdown;
   totalBalance: number;
   totalExpenses: number;
   totalLoansGiven: number;
@@ -227,4 +267,104 @@ export interface LoanDetailsResponse {
   totalDisbursed: number;
   totalRepaid: number;
   remainingAmount: number;
+}
+
+// ===== NEW LOANS & LENDING API TYPES =====
+
+export type LoanStatusSimple = "ACTIVE" | "PARTIALLY_PAID" | "PAID";
+export type LendingStatusSimple = "ACTIVE" | "PARTIALLY_REPAID" | "REPAID";
+export type FundingSource = "PERSONAL" | "BORROWED";
+
+export interface LoanRecord {
+  _id: string;
+  personName: string;
+  amount: number;
+  paidAmount: number;
+  reason?: string;
+  date: string;
+  status: LoanStatusSimple;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LendingRecord {
+  _id: string;
+  personName: string;
+  amount: number;
+  repaidAmount: number;
+  fundingSource: FundingSource;
+  date: string;
+  status: LendingStatusSimple;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FinanceSummaryBreakdown {
+  directLoans?: number;
+  borrowedLendingLoans?: number;
+  lending?: number;
+  balanceAccounts?: number;
+}
+
+export interface FinanceSummary {
+  availableBalance: number;
+  loanDebt: number;
+  netBalance: number;
+  salary: number;
+  externalIncome: number;
+  savings: number;
+  activeLoans: number;
+  borrowedLending: number;
+  repaidLoans: number;
+  expenses: number;
+  lendingFromPersonal: number;
+  lendingOutstanding: number;
+  breakdown?: FinanceSummaryBreakdown;
+  totalLoanDebt?: number;
+  totalLending?: number;
+  totalBalance?: number;
+  totalDebt?: number;
+  netPosition?: number;
+  totalLent?: number;
+  totalOutstandingLoans?: number;
+  totalBorrowedLiability?: number;
+  personalBalance?: number;
+  totalExpenses?: number;
+  totalLoansGiven?: number;
+}
+
+export interface ExternalIncome {
+  _id: string;
+  userId: string;
+  amount: number;
+  source: string;
+  note?: string;
+  date: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface OtherSavings {
+  _id: string;
+  userId: string;
+  amount: number;
+  sourceName: string;
+  note?: string;
+  date: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateExternalIncomeRequest {
+  amount: number;
+  source: string;
+  note?: string;
+  date: string;
+}
+
+export interface CreateOtherSavingsRequest {
+  amount: number;
+  sourceName: string;
+  note?: string;
+  date: string;
 }
