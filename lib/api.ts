@@ -624,6 +624,8 @@ export const lendingRecordAPI = {
     personName: string;
     amount: number;
     fundingSource: FundingSource;
+    borrowedFromName?: string;
+    borrowReason?: string;
     date?: string;
   }) =>
     apiRequest<LendingRecord>("/api/lending", {

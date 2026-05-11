@@ -16,16 +16,6 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
 }
 
-const savageMessages = [
-  "Bro you're broke 💀 Top up your balance first!",
-  "Your wallet said 'lol no' 😭 Go earn more!",
-  "Not enough funds! Time to get that bag! 💪",
-  "Your bank account just ghosted you 😂",
-  "Insufficient funds! The streets are calling 🏃",
-  "You can't pay what you don't have! Hustle up! 🔥",
-  "Empty pockets can't write cheques, king 👑",
-];
-
 function PayModal({
   loan,
   availableBalance,
@@ -43,9 +33,6 @@ function PayModal({
   const [error, setError] = useState("");
   const [savageError, setSavageError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [savageMsg] = useState(
-    () => savageMessages[Math.floor(Math.random() * savageMessages.length)],
-  );
 
   const handleSubmit = async () => {
     const payAmount = mode === "full" ? remaining : parseFloat(partialAmount);
@@ -62,7 +49,7 @@ function PayModal({
     }
 
     if (payAmount > availableBalance) {
-      setSavageError(savageMsg);
+      setSavageError("You do not have enough balance to repay this loan.");
       return;
     }
 
@@ -96,7 +83,7 @@ function PayModal({
         className="fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 px-4"
       >
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl dark:bg-slate-900">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-green-50 px-6 py-4 dark:border-white/10 dark:bg-green-500/10">
+          <div className="flex items-center justify-between border-b border-slate-200 bg-rose-50 px-6 py-4 dark:border-white/10 dark:bg-rose-500/10">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
               Record Payment
             </h2>
@@ -116,7 +103,7 @@ function PayModal({
               <div className="mt-2 flex items-baseline gap-4">
                 <div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Total</p>
-                  <p className="text-lg font-bold text-slate-900 dark:text-white">
+                  <p className="text-lg font-bold text-rose-500 dark:text-rose-400">
                     ${loan.amount.toLocaleString()}
                   </p>
                 </div>
@@ -130,7 +117,7 @@ function PayModal({
                 )}
                 <div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Remaining</p>
-                  <p className="text-lg font-bold text-red-600 dark:text-red-400">
+                  <p className="text-lg font-bold text-rose-500 dark:text-rose-400">
                     ${remaining.toLocaleString()}
                   </p>
                 </div>
@@ -145,7 +132,7 @@ function PayModal({
                 className={`text-sm font-black ${
                   availableBalance > 0
                     ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-red-600 dark:text-red-400"
+                    : "text-rose-500 dark:text-rose-400"
                 }`}
               >
                 ${availableBalance.toLocaleString()}
@@ -164,7 +151,7 @@ function PayModal({
                   }}
                   className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
                     mode === m
-                      ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-500/20 dark:text-green-300"
+                      ? "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
                       : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-400 dark:hover:bg-white/5"
                   }`}
                 >
@@ -192,23 +179,23 @@ function PayModal({
                   min="0.01"
                   step="0.01"
                   max={remaining}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500"
                 />
               </motion.div>
             )}
 
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && <p className="text-xs text-rose-500">{error}</p>}
 
             {savageError && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-500/20 dark:bg-red-500/10"
+                className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-center dark:border-rose-500/20 dark:bg-rose-500/10"
               >
-                <p className="text-sm font-black text-red-600 dark:text-red-300">
+                <p className="text-sm font-black text-rose-500 dark:text-rose-400">
                   {savageError}
                 </p>
-                <p className="mt-1 text-xs text-red-500 dark:text-red-400">
+                <p className="mt-1 text-xs text-rose-500 dark:text-rose-400">
                   You have ${availableBalance.toLocaleString()}, need $
                   {(mode === "full"
                     ? remaining
@@ -231,7 +218,7 @@ function PayModal({
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={isSubmitting}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {isSubmitting ? "Saving..." : "Confirm"}
@@ -367,10 +354,10 @@ export default function LoansTable({
                     <td className="px-5 py-4 font-medium text-slate-900 dark:text-white">
                       {loan.personName}
                     </td>
-                    <td className="px-5 py-4 text-right font-bold text-slate-900 dark:text-white">
+                    <td className="px-5 py-4 text-right font-bold text-rose-500 dark:text-rose-400">
                       ${loan.amount.toLocaleString()}
                     </td>
-                    <td className="px-5 py-4 text-right font-bold text-red-600 dark:text-red-400">
+                    <td className="px-5 py-4 text-right font-bold text-rose-500 dark:text-rose-400">
                       {remaining > 0 ? `$${remaining.toLocaleString()}` : "—"}
                     </td>
                     <td className="max-w-[160px] truncate px-5 py-4 text-slate-600 dark:text-slate-300">
@@ -393,7 +380,7 @@ export default function LoansTable({
                         {loan.status !== "PAID" && (
                           <button
                             onClick={() => setPayingLoan(loan)}
-                            className="rounded-lg border border-green-200 bg-green-50 p-1.5 text-green-700 transition hover:bg-green-100 dark:border-green-500/20 dark:bg-green-500/10 dark:text-green-300 dark:hover:bg-green-500/20"
+                            className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-500 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
                             title="Record Payment"
                           >
                             <DollarSign className="h-4 w-4" />

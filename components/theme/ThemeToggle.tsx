@@ -9,7 +9,9 @@ export default function ThemeToggle() {
       return true;
     }
 
-    return localStorage.getItem("theme") !== "light";
+    const savedTheme = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    return savedTheme ? savedTheme === "dark" : prefersDark;
   });
 
   useEffect(() => {

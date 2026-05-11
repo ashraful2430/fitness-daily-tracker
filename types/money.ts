@@ -293,6 +293,9 @@ export interface LendingRecord {
   amount: number;
   repaidAmount: number;
   fundingSource: FundingSource;
+  borrowedFromName?: string;
+  borrowReason?: string;
+  linkedLoanId?: string;
   date: string;
   status: LendingStatusSimple;
   createdAt: string;
