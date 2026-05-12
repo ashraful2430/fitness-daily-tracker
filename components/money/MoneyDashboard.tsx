@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
-  BadgeDollarSign,
   Banknote,
   Calendar,
   CalendarRange,
@@ -10,6 +9,7 @@ import {
   Coins,
   CreditCard,
   Eye,
+  Gauge,
   Loader2,
   PencilLine,
   PiggyBank,
@@ -73,6 +73,14 @@ function formatAmount(value: number | null | undefined) {
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "0%";
+
+  return `${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+  }).format(value)}%`;
 }
 
 function formatDate(value: string) {
@@ -421,20 +429,23 @@ export default function MoneyDashboard() {
         monthSpent,
         expenseCount,
         averageExpense,
-        remainingSalary:
-          historicalSummary?.remainingSalary ??
-          (summary.remainingSalary && summary.currentMonthSpent === monthSpent
-            ? summary.remainingSalary
-            : effectiveSalary - monthSpent),
+        remainingSalary: effectiveSalary - monthSpent,
+        salaryUsedPercent:
+          effectiveSalary > 0 ? (monthSpent / effectiveSalary) * 100 : 0,
       };
     }
     if (historicalSummary) {
+      const historicalSalary = historicalSummary.salaryAmount;
+      const historicalSpent = historicalSummary.currentMonthSpent;
+
       return {
-        salary: historicalSummary.salaryAmount,
-        monthSpent: historicalSummary.currentMonthSpent,
+        salary: historicalSalary,
+        monthSpent: historicalSpent,
         expenseCount: historicalSummary.expenseCount,
         averageExpense: historicalSummary.averageExpense,
-        remainingSalary: historicalSummary.remainingSalary,
+        remainingSalary: historicalSalary - historicalSpent,
+        salaryUsedPercent:
+          historicalSalary > 0 ? (historicalSpent / historicalSalary) * 100 : 0,
       };
     }
     const monthSalary = monthlyReportSalary?.amount ?? 0;
@@ -444,6 +455,7 @@ export default function MoneyDashboard() {
       expenseCount: 0,
       averageExpense: 0,
       remainingSalary: monthSalary,
+      salaryUsedPercent: 0,
     };
   }, [isCurrentMonth, salary, summary, historicalSummary, monthlyReportSalary, salaryFromSources, selectedMonthTotalSpent]);
 
@@ -854,10 +866,10 @@ export default function MoneyDashboard() {
             gradient="from-rose-500 to-orange-400"
           />
           <StatCard
-            title="Remaining"
-            value={formatAmount(displayStats.remainingSalary)}
-            subtitle="Salary minus expenses."
-            icon={BadgeDollarSign}
+            title="Salary Used"
+            value={formatPercent(displayStats.salaryUsedPercent)}
+            subtitle="Of active salary spent."
+            icon={Gauge}
             gradient="from-violet-600 to-fuchsia-500"
           />
           <StatCard
@@ -1711,10 +1723,10 @@ export default function MoneyDashboard() {
                   color: "text-rose-500 dark:text-rose-300",
                 },
                 {
-                  label: "Remaining",
-                  value: formatAmount(displayStats.remainingSalary),
-                  sub: "Salary − expenses",
-                  color: displayStats.remainingSalary >= 0 ? "text-cyan-600 dark:text-cyan-300" : "text-orange-500 dark:text-orange-300",
+                  label: "Salary Used",
+                  value: formatPercent(displayStats.salaryUsedPercent),
+                  sub: "Share of salary spent",
+                  color: displayStats.salaryUsedPercent <= 75 ? "text-cyan-600 dark:text-cyan-300" : "text-orange-500 dark:text-orange-300",
                 },
                 {
                   label: "Records",
