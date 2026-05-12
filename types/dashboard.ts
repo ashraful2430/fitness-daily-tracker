@@ -18,7 +18,11 @@ export interface WeeklyStat {
 }
 
 export interface DashboardAnalytics {
-  [key: string]: unknown;
+  perfectDays: number;
+  missedDays: number;
+  bestScore: number;
+  weeklyAverageScore: number;
+  productivityTrend: "up" | "down" | "stable";
 }
 
 export interface DashboardData {
@@ -45,4 +49,31 @@ export interface DashboardData {
   recentWorkouts: Workout[];
   weeklyStats: WeeklyStat[];
   analytics: DashboardAnalytics;
+}
+
+export interface DashboardEnvelope<T> {
+  success: boolean;
+  message?: string;
+  field?: string;
+  data?: T;
+  pagination?: unknown;
+}
+
+export interface WaterPayload {
+  glassesConsumed: number;
+}
+
+export interface FocusPayload {
+  startTime: string;
+  endTime: string;
+  category: string;
+}
+
+export interface WeeklyGoalPayload {
+  completedWorkouts: number;
+  goalWorkouts: number;
+}
+
+export interface WeeklyStatsPayload {
+  dailyStats: Array<{ workouts: number; focusMinutes: number }>;
 }

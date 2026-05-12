@@ -1,249 +1,156 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { dashboardAPI, isUnauthorizedError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
-import type { DashboardData, WeeklyStat } from "@/types/dashboard";
+import {
+  DashboardApiError,
+  getDashboard,
+  getWeeklyStats,
+  postFocus,
+  postWater,
+  postWeeklyGoal,
+  postWeeklyStats,
+} from "@/lib/dashboardApi";
+import type {
+  FocusPayload,
+  WeeklyGoalPayload,
+  WeeklyStatsPayload,
+  WaterPayload,
+} from "@/types/dashboard";
 
-type DashboardCache = {
-  data: DashboardData;
-  weeklyStats: WeeklyStat[];
-  timestamp: number;
-};
+const DASHBOARD_KEY = ["dashboard", "summary"];
+const WEEKLY_STATS_KEY = ["dashboard", "weekly-stats"];
 
-let cache: DashboardCache | null = null;
-const CACHE_TTL = 60 * 1000;
-
-function recalculateScore(data: DashboardData): number {
-  const sections = [
-    [Math.min(data.waterIntake.consumed / data.waterIntake.goal, 1), true],
-    [Math.min(data.focusTime.minutes / 120, 1), true],
-    [data.workoutStreak.current > 0 ? 1 : 0, true],
-    [Math.min(data.weeklyGoal.percentage / 100, 1), true],
-  ] as [number, boolean][];
-
-  const active = sections.filter(([, enabled]) => enabled);
-  const pointsPerSection = 100 / active.length;
-  const total = active.reduce(
-    (sum, [progress]) => sum + progress * pointsPerSection,
-    0,
-  );
-
-  return Math.min(Math.round(total), 100);
+function readableError(error: unknown, fallback: string) {
+  if (error instanceof DashboardApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return fallback;
 }
 
 export function useDashboard() {
   const { isAuthenticated, loading: authLoading, clearUser } = useAuth();
-  const [data, setData] = useState<DashboardData | null>(cache?.data ?? null);
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>(
-    cache?.weeklyStats ?? [],
-  );
-  const [loading, setLoading] = useState<boolean>(!cache);
-  const [error, setError] = useState<string | null>(null);
-  const isMounted = useRef(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
+  const dashboardQuery = useQuery({
+    queryKey: DASHBOARD_KEY,
+    queryFn: getDashboard,
+    enabled: isAuthenticated && !authLoading,
+  });
 
-  const applyDashboardData = useCallback(
-    (summary: DashboardData, stats: WeeklyStat[]) => {
-      cache = {
-        data: summary,
-        weeklyStats: stats,
-        timestamp: Date.now(),
-      };
+  const weeklyStatsQuery = useQuery({
+    queryKey: WEEKLY_STATS_KEY,
+    queryFn: getWeeklyStats,
+    enabled: isAuthenticated && !authLoading,
+  });
 
-      if (!isMounted.current) return;
+  const refetchAll = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: DASHBOARD_KEY }),
+      queryClient.invalidateQueries({ queryKey: WEEKLY_STATS_KEY }),
+    ]);
+  };
 
-      setData(summary);
-      setWeeklyStats(stats);
-      setError(null);
+  const waterMutation = useMutation({
+    mutationFn: (payload: WaterPayload) => postWater(payload),
+    onSuccess: async () => {
+      await refetchAll();
+      toast.success("Water intake updated");
     },
-    [],
-  );
-
-  const clearDashboard = useCallback(() => {
-    cache = null;
-
-    if (!isMounted.current) return;
-
-    setData(null);
-    setWeeklyStats([]);
-    setError(null);
-    setLoading(false);
-  }, []);
-
-  const fetchDashboard = useCallback(
-    async (force = false) => {
-      if (authLoading) return;
-
-      if (!isAuthenticated) {
-        clearDashboard();
-        return;
+    onError: (error) => {
+      const msg = readableError(error, "Failed to update water intake");
+      if (error instanceof DashboardApiError && error.status === 401) {
+        clearUser();
       }
-
-      if (!force && cache && Date.now() - cache.timestamp < CACHE_TTL) {
-        setData(cache.data);
-        setWeeklyStats(cache.weeklyStats);
-        setLoading(false);
-        setError(null);
-        return;
-      }
-
-      try {
-        setLoading(true);
-
-        const [summary, stats] = await Promise.all([
-          dashboardAPI.getDashboard(),
-          dashboardAPI.getWeeklyStats(),
-        ]);
-
-        applyDashboardData(summary, stats);
-      } catch (error: unknown) {
-        if (!isMounted.current) return;
-
-        if (isUnauthorizedError(error)) {
-          clearUser();
-          clearDashboard();
-          return;
-        }
-
-        const message =
-          error instanceof Error ? error.message : "Failed to load dashboard";
-        setError(message);
-        toast.error(message);
-      } finally {
-        if (isMounted.current) setLoading(false);
-      }
+      toast.error(msg);
     },
-    [applyDashboardData, authLoading, clearDashboard, clearUser, isAuthenticated],
-  );
+  });
 
-  const updateWaterIntake = useCallback(
-    async (glassesConsumed: number) => {
-      if (!data) return;
-
-      const optimisticData: DashboardData = {
-        ...data,
-        waterIntake: {
-          ...data.waterIntake,
-          consumed: glassesConsumed,
-          percentage: Math.min(
-            Math.round((glassesConsumed / data.waterIntake.goal) * 100),
-            100,
-          ),
-        },
-      };
-      optimisticData.todayScore = recalculateScore(optimisticData);
-
-      setData(optimisticData);
-      if (cache) cache = { ...cache, data: optimisticData };
-
-      try {
-        await dashboardAPI.updateWaterIntake(glassesConsumed);
-      } catch (error: unknown) {
-        setData(data);
-        if (cache) cache = { ...cache, data };
-
-        if (!isUnauthorizedError(error)) {
-          toast.error("Failed to update water intake");
-        }
-      }
+  const focusMutation = useMutation({
+    mutationFn: (payload: FocusPayload) => postFocus(payload),
+    onSuccess: async () => {
+      await refetchAll();
+      toast.success("Focus session logged");
     },
-    [data],
-  );
-
-  const logFocusSession = useCallback(
-    async (startTime: Date, endTime: Date, category: string) => {
-      if (!data) return;
-
-      const addedMinutes = Math.round(
-        (endTime.getTime() - startTime.getTime()) / 60000,
-      );
-      const nextMinutes = data.focusTime.minutes + addedMinutes;
-
-      const optimisticData: DashboardData = {
-        ...data,
-        focusTime: {
-          ...data.focusTime,
-          minutes: nextMinutes,
-          hours: Math.floor(nextMinutes / 60),
-          sessionsCount: data.focusTime.sessionsCount + 1,
-        },
-      };
-      optimisticData.todayScore = recalculateScore(optimisticData);
-
-      setData(optimisticData);
-      if (cache) cache = { ...cache, data: optimisticData };
-
-      try {
-        await dashboardAPI.logFocusSession(startTime, endTime, category);
-        toast.success("Focus session logged");
-      } catch (error: unknown) {
-        setData(data);
-        if (cache) cache = { ...cache, data };
-
-        if (!isUnauthorizedError(error)) {
-          toast.error("Failed to log focus session");
-        }
+    onError: (error) => {
+      const msg = readableError(error, "Failed to log focus session");
+      if (error instanceof DashboardApiError && error.status === 401) {
+        clearUser();
       }
+      toast.error(msg);
     },
-    [data],
-  );
+  });
 
-  const updateWeeklyGoal = useCallback(
-    async (completedWorkouts: number, goalWorkouts: number) => {
-      if (!data) return;
-
-      const optimisticData: DashboardData = {
-        ...data,
-        weeklyGoal: {
-          completed: completedWorkouts,
-          goal: goalWorkouts,
-          percentage: Math.min(
-            Math.round((completedWorkouts / goalWorkouts) * 100),
-            100,
-          ),
-        },
-      };
-      optimisticData.todayScore = recalculateScore(optimisticData);
-
-      setData(optimisticData);
-      if (cache) cache = { ...cache, data: optimisticData };
-
-      try {
-        await dashboardAPI.updateWeeklyGoal(completedWorkouts, goalWorkouts);
-      } catch (error: unknown) {
-        setData(data);
-        if (cache) cache = { ...cache, data };
-
-        if (!isUnauthorizedError(error)) {
-          toast.error("Failed to update weekly goal");
-        }
+  const weeklyGoalMutation = useMutation({
+    mutationFn: (payload: WeeklyGoalPayload) => postWeeklyGoal(payload),
+    onSuccess: async () => {
+      await refetchAll();
+      toast.success("Weekly goal updated");
+    },
+    onError: (error) => {
+      const msg = readableError(error, "Failed to update weekly goal");
+      if (error instanceof DashboardApiError && error.status === 401) {
+        clearUser();
       }
+      toast.error(msg);
     },
-    [data],
-  );
+  });
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      void fetchDashboard();
-    });
-  }, [fetchDashboard]);
+  const weeklyStatsMutation = useMutation({
+    mutationFn: (payload: WeeklyStatsPayload) => postWeeklyStats(payload),
+    onSuccess: async () => {
+      await refetchAll();
+      toast.success("Weekly stats updated");
+    },
+    onError: (error) => {
+      const msg = readableError(error, "Failed to update weekly stats");
+      if (error instanceof DashboardApiError && error.status === 401) {
+        clearUser();
+      }
+      toast.error(msg);
+    },
+  });
+
+  const errorMessage =
+    readableError(dashboardQuery.error, "") ||
+    readableError(weeklyStatsQuery.error, "");
 
   return {
-    data,
-    weeklyStats,
-    loading: loading || authLoading,
-    error,
-    refresh: () => fetchDashboard(true),
-    updateWaterIntake,
-    logFocusSession,
-    updateWeeklyGoal,
+    data: dashboardQuery.data ?? null,
+    weeklyStats: weeklyStatsQuery.data ?? [],
+    loading: authLoading || dashboardQuery.isLoading || weeklyStatsQuery.isLoading,
+    error: errorMessage || null,
+    refresh: async () => {
+      await refetchAll();
+    },
+    updateWaterIntake: async (glassesConsumed: number) => {
+      await waterMutation.mutateAsync({ glassesConsumed });
+    },
+    logFocusSession: async (
+      startTime: Date,
+      endTime: Date,
+      category: string,
+    ) => {
+      await focusMutation.mutateAsync({
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        category,
+      });
+    },
+    updateWeeklyGoal: async (completedWorkouts: number, goalWorkouts: number) => {
+      await weeklyGoalMutation.mutateAsync({ completedWorkouts, goalWorkouts });
+    },
+    updateWeeklyStats: async (dailyStats: Array<{ workouts: number; focusMinutes: number }>) => {
+      await weeklyStatsMutation.mutateAsync({ dailyStats });
+    },
+    mutationLoading:
+      waterMutation.isPending ||
+      focusMutation.isPending ||
+      weeklyGoalMutation.isPending ||
+      weeklyStatsMutation.isPending,
   };
 }

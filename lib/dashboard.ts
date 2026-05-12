@@ -149,7 +149,13 @@ export function buildDashboardData(workouts: WorkoutDoc[], now = new Date()) {
     todayScore: 0,
     recentWorkouts,
     weeklyStats,
-    analytics: {},
+    analytics: {
+      perfectDays: 0,
+      missedDays: 0,
+      bestScore: 0,
+      weeklyAverageScore: 0,
+      productivityTrend: "stable",
+    },
   };
 
   return data;
