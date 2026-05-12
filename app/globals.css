@@ -21,12 +21,17 @@ html,
 body {
   margin: 0;
   font-family: var(--font-manrope), sans-serif;
-  background-color: #09090f;
-  color: #ffffff;
+  background-color: #f3ede1;
+  color: #0f172a;
   min-height: 100%;
   overflow-x: clip;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+html.dark body {
+  background-color: #09090f;
+  color: #ffffff;
 }
 
 button,

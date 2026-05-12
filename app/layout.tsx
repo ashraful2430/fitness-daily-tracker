@@ -21,22 +21,31 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{const t=localStorage.getItem("theme");const d=t?t==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}catch{document.documentElement.classList.add("dark")}`,
+          }}
+        />
+      </head>
       <body className={`${manrope.variable} font-sans antialiased`}>
         <AuthProvider>
           {children}
           <Toaster
-            position="top-right"
+            position="top-center"
             toastOptions={{
               duration: 2600,
               style: {
-                borderRadius: "14px",
-                background: "#111827",
+                maxWidth: "min(92vw, 560px)",
+                borderRadius: "16px",
+                background: "rgba(15,23,42,0.96)",
                 color: "#fff",
-                padding: "12px 16px",
+                padding: "13px 16px",
                 fontWeight: "600",
                 fontFamily: "var(--font-manrope)",
                 border: "1px solid rgba(255,255,255,0.08)",
+                boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
               },
               success: {
                 duration: 1800,
@@ -47,7 +56,15 @@ export default function RootLayout({
                 },
                 iconTheme: { primary: "#2dd4bf", secondary: "#052e2b" },
               },
-              error: { iconTheme: { primary: "#ef4444", secondary: "#fff" } },
+              error: {
+                duration: 3200,
+                style: {
+                  background: "rgba(76,5,25,0.96)",
+                  color: "#ffe4e6",
+                  border: "1px solid rgba(244,63,94,0.28)",
+                },
+                iconTheme: { primary: "#fb7185", secondary: "#fff" },
+              },
             }}
           />
         </AuthProvider>

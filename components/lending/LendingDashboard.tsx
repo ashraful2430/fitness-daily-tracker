@@ -64,16 +64,16 @@ export default function LendingDashboard() {
       value: finance.loanDebt,
       subtitle: `Direct $${finance.directLoans.toLocaleString()} + linked $${finance.borrowedLendingLoans.toLocaleString()}`,
       Icon: TrendingDown,
-      color: "text-red-600 dark:text-red-400",
-      bg: "bg-red-50 dark:bg-red-500/10",
+      color: "text-rose-500 dark:text-rose-400",
+      bg: "bg-rose-50 dark:bg-rose-500/10",
     },
     {
-      label: "Lending Outstanding",
+      label: "Active Lending",
       value: finance.lendingOutstanding,
       subtitle: `Open lending: $${finance.lending.toLocaleString()}`,
       Icon: TrendingUp,
-      color: "text-amber-600 dark:text-amber-400",
-      bg: "bg-amber-50 dark:bg-amber-500/10",
+      color: "text-cyan-600 dark:text-cyan-400",
+      bg: "bg-cyan-50 dark:bg-cyan-500/10",
     },
     {
       label: "Net Balance",
@@ -177,7 +177,8 @@ export default function LendingDashboard() {
               ["Salary", finance.salary],
               ["External Income", finance.externalIncome],
               ["Savings", finance.savings],
-              ["Active Loans", finance.activeLoans],
+              ["Active Debt", finance.activeLoans],
+              ["Borrowed Debt", finance.borrowedLending],
               ["Repaid Loans", finance.repaidLoans],
               ["Personal Lending", finance.lendingFromPersonal],
             ].map(([label, value]) => (
@@ -185,7 +186,16 @@ export default function LendingDashboard() {
                 <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {label}
                 </p>
-                <p className="mt-1 text-base font-black text-slate-950 dark:text-white">
+                <p
+                  className={`mt-1 text-base font-black ${
+                    String(label).toLowerCase().includes("debt") ||
+                    String(label).toLowerCase().includes("loan")
+                      ? "text-rose-500 dark:text-rose-400"
+                      : String(label).toLowerCase().includes("lending")
+                        ? "text-cyan-600 dark:text-cyan-400"
+                        : "text-slate-950 dark:text-white"
+                  }`}
+                >
                   ${(value as number).toLocaleString()}
                 </p>
               </div>
@@ -243,6 +253,7 @@ export default function LendingDashboard() {
         isOpen={showAddLending}
         onClose={() => setShowAddLending(false)}
         onSuccess={async () => setShowAddLending(false)}
+        availableBalance={finance.availableBalance}
         onCreate={createLending}
       />
     </div>
