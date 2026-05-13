@@ -17,7 +17,6 @@ import type {
   WeeklyStat,
   WeeklyStatsMeta,
 } from "@/types/dashboard";
-import type { BalanceSource } from "@/types/money";
 
 function monthKeyFromParts(month: number, year: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -46,22 +45,6 @@ function getErrorMessage(error: unknown) {
   return "Failed to load dashboard";
 }
 
-function calculateMonthlyEarnedFromSources(
-  sources: BalanceSource[],
-  salaryBase: number,
-) {
-  const externalIncome = sources
-    .filter((source) => {
-      return source.type === "EXTERNAL" || source.source === "INCOME_ADDED";
-    })
-    .reduce((sum, source) => sum + source.amount, 0);
-  return salaryBase + externalIncome;
-}
-
-function normalizeNumber(value: number | null | undefined) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
 export function useDashboard() {
   const { user, loading: authLoading, clearUser } = useAuth();
 
@@ -76,8 +59,6 @@ export function useDashboard() {
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actualAvailableBalance, setActualAvailableBalance] = useState<number | null>(null);
-  const [balanceSources, setBalanceSources] = useState<BalanceSource[]>([]);
-  const [currentSalaryAmount, setCurrentSalaryAmount] = useState(0);
 
   const mounted = useRef(true);
 
@@ -92,8 +73,6 @@ export function useDashboard() {
     async (
       monthKey: string,
       withLoading = true,
-      sourcesOverride?: BalanceSource[],
-      salaryOverride?: number,
     ) => {
       try {
         if (withLoading && mounted.current) {
@@ -102,21 +81,10 @@ export function useDashboard() {
 
         const { month, year } = monthKeyToParts(monthKey);
         const data = await getMonthlyOverview(month, year);
-        const computedIncome = calculateMonthlyEarnedFromSources(
-          sourcesOverride ?? balanceSources,
-          normalizeNumber(salaryOverride ?? currentSalaryAmount),
-        );
-        const syncedOverview: DashboardMonthlyOverview = {
-          ...data,
-          money: {
-            ...data.money,
-            income: computedIncome,
-          },
-        };
 
         if (!mounted.current) return;
 
-        setMonthlyOverview(syncedOverview);
+        setMonthlyOverview(data);
         setError(null);
       } catch (error: unknown) {
         if (error instanceof DashboardApiError && error.status === 401) {
@@ -132,7 +100,7 @@ export function useDashboard() {
         }
       }
     },
-    [balanceSources, clearUser, currentSalaryAmount],
+    [clearUser],
   );
 
   const refresh = useCallback(async () => {
@@ -152,11 +120,10 @@ export function useDashboard() {
         setError(null);
       }
 
-      const [dashboardData, history, balance, moneySummary] = await Promise.all([
+      const [dashboardData, history, balance] = await Promise.all([
         getDashboard(),
         getMonthlyHistory(6),
         moneyAPI.getBalanceSources(),
-        moneyAPI.getSummary(),
       ]);
 
       if (!mounted.current) return;
@@ -175,8 +142,6 @@ export function useDashboard() {
       setDashboard(syncedDashboard);
       setMonthlyHistory(history);
       setActualAvailableBalance(balance?.totalBalance ?? 0);
-      setBalanceSources(balance?.sources ?? []);
-      setCurrentSalaryAmount(normalizeNumber(moneySummary?.salaryAmount));
 
       const defaultMonthKey = history.length
         ? monthKeyFromParts(history[0].month, history[0].year)
@@ -186,8 +151,6 @@ export function useDashboard() {
       await loadMonthlyOverview(
         defaultMonthKey,
         false,
-        balance?.sources ?? [],
-        normalizeNumber(moneySummary?.salaryAmount),
       );
     } catch (error: unknown) {
       if (error instanceof DashboardApiError && error.status === 401) {

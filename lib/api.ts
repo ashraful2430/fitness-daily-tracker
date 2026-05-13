@@ -31,6 +31,8 @@ import type {
   BalanceResponse,
   BalanceSource,
   MonthlyExpenseSummary,
+  MonthlyIncomeData,
+  MonthlyIncomeHistoryItem,
   UpdateExpenseRequest,
   UpdateSalaryRequest,
   Loan,
@@ -447,6 +449,22 @@ export const moneyAPI = {
 
   getMonthlyExpenseSummary: () =>
     apiRequest<MonthlyExpenseSummary[]>("/api/money/expenses/monthly-summary"),
+
+  getMonthlyIncome: (month: number, year: number) => {
+    const params = new URLSearchParams();
+    params.set("month", String(month));
+    params.set("year", String(year));
+    return apiRequest<MonthlyIncomeData>(
+      `/api/money/monthly-income?${params.toString()}`,
+    );
+  },
+
+  getMonthlyIncomeHistory: (limit = 12) => {
+    const safeLimit = Math.max(1, Math.min(24, limit));
+    return apiRequest<MonthlyIncomeHistoryItem[]>(
+      `/api/money/monthly-income/history?limit=${safeLimit}`,
+    );
+  },
 
   createSalary: (payload: UpdateSalaryRequest) =>
     apiRequest<SalaryRecord>("/api/money/salary", {

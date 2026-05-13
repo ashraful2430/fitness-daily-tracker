@@ -264,6 +264,8 @@ export default function MoneyDashboard() {
     balanceSources,
     balanceTotal,
     monthlyExpenseSummary,
+    monthlyIncome,
+    monthlyIncomeHistory,
     summary,
     insights,
     categories,
@@ -277,6 +279,7 @@ export default function MoneyDashboard() {
     historicalSummary,
     loading,
     summaryLoading,
+    monthlyIncomeLoading,
     expensesLoading,
     salarySaving,
     salaryDeleting,
@@ -287,6 +290,7 @@ export default function MoneyDashboard() {
     expenseSaving,
     deletingExpenseId,
     error,
+    monthlyIncomeFieldError,
     refreshAll,
     saveSalary,
     resetSalary,
@@ -379,7 +383,15 @@ export default function MoneyDashboard() {
     [effectiveTopCategories],
   );
 
-  const monthOptions = useMemo(() => generateMonthOptions(), []);
+  const monthOptions = useMemo(() => {
+    if (monthlyIncomeHistory.length > 0) {
+      return monthlyIncomeHistory.map((item) => ({
+        value: `${item.year}-${String(item.month).padStart(2, "0")}`,
+        label: item.label,
+      }));
+    }
+    return generateMonthOptions();
+  }, [monthlyIncomeHistory]);
 
   const selectedMonthLabel = useMemo(() => {
     const [yearStr, monthStr] = selectedMonth.split("-");
@@ -462,14 +474,9 @@ export default function MoneyDashboard() {
     balanceTotal ||
     balanceSources.reduce((sum, source) => sum + source.amount, 0);
 
-  const externalIncome = balanceSources
-    .filter((s) => s.type !== "SALARY" && s.source !== "EXPENSE_REFUND")
-    .reduce((sum, s) => sum + s.amount, 0);
-
-  const monthlyEarned = useMemo(
-    () => salaryDisplay + externalIncome,
-    [externalIncome, salaryDisplay],
-  );
+  const salaryIncome = monthlyIncome?.salaryIncome ?? 0;
+  const externalIncome = monthlyIncome?.externalIncome ?? 0;
+  const monthlyEarned = monthlyIncome?.totalIncome ?? 0;
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -841,9 +848,9 @@ export default function MoneyDashboard() {
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="Current Salary"
-            value={formatAmount(displayStats.salary)}
-            subtitle="Your active monthly salary."
+            title="Salary Income"
+            value={formatAmount(salaryIncome)}
+            subtitle={`Salary recorded for ${selectedMonthLabel}.`}
             icon={Wallet}
             gradient="from-emerald-500 to-lime-400"
           />
@@ -864,7 +871,7 @@ export default function MoneyDashboard() {
           <StatCard
             title="Monthly Earned"
             value={formatAmount(monthlyEarned)}
-            subtitle={`Salary + external income in ${selectedMonthLabel}.`}
+            subtitle={`Authoritative monthly total income for ${selectedMonthLabel}.`}
             icon={Gauge}
             gradient="from-violet-600 to-fuchsia-500"
           />
@@ -878,11 +885,27 @@ export default function MoneyDashboard() {
           <StatCard
             title="External Income"
             value={formatAmount(externalIncome)}
-            subtitle="Non-salary sources, excluding refunds."
+            subtitle={`External income in ${selectedMonthLabel}.`}
             icon={Banknote}
             gradient="from-teal-500 to-emerald-400"
           />
         </section>
+
+        {(monthlyIncomeLoading || monthlyIncomeFieldError) ? (
+          <section className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-sm dark:border-white/[0.08] dark:bg-white/[0.04]">
+            {monthlyIncomeLoading ? (
+              <p className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-300">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading monthly income...
+              </p>
+            ) : null}
+            {monthlyIncomeFieldError ? (
+              <p className="text-rose-600 dark:text-rose-300">
+                Invalid month/year input (`{monthlyIncomeFieldError}`) for income lookup.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0f0c1f]/90 dark:shadow-black/25 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1707,9 +1730,9 @@ export default function MoneyDashboard() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 {
-                  label: "Salary",
-                  value: formatAmount(displayStats.salary),
-                  sub: isCurrentMonth ? "Active salary" : "Salary that month",
+                  label: "Salary Income",
+                  value: formatAmount(salaryIncome),
+                  sub: "From monthly-income API",
                   color: "text-emerald-600 dark:text-emerald-300",
                 },
                 {
@@ -1721,7 +1744,7 @@ export default function MoneyDashboard() {
                 {
                   label: "Monthly Earned",
                   value: formatAmount(monthlyEarned),
-                  sub: "Salary + external income",
+                  sub: "Authoritative total income",
                   color: "text-cyan-600 dark:text-cyan-300",
                 },
                 {
