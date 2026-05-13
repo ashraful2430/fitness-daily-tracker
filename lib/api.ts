@@ -1,6 +1,15 @@
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types/auth";
 import type { DashboardData, WeeklyStat } from "@/types/dashboard";
 import type {
+  AdminBlockUpdateResponse,
+  AdminRoleUpdateResponse,
+  AdminUserSummaryResponse,
+  AdminUsersParams,
+  AdminUsersMeta,
+  AdminUserListItem,
+  UserRole,
+} from "@/types/admin";
+import type {
   CreateLearningSessionRequest,
   LearningSession,
   LearningSessionsQuery,
@@ -51,6 +60,7 @@ import toast from "react-hot-toast";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
+export const AUTH_FORBIDDEN_EVENT = "auth:forbidden";
 
 interface ApiOptions extends RequestInit {
   requireAuth?: boolean;
@@ -68,6 +78,7 @@ type ApiEnvelope<T> = {
 
 type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
   pagination?: unknown;
+  meta?: unknown;
 };
 
 export class ApiError extends Error {
@@ -118,6 +129,21 @@ function showBackendSuccess(message: string | undefined, options: ApiOptions) {
 function emitUnauthorized() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+  }
+}
+
+function emitForbidden(message: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent(AUTH_FORBIDDEN_EVENT, {
+        detail: {
+          message,
+          blocked:
+            message.trim().toLowerCase() !==
+            "forbidden: admin access only",
+        },
+      }),
+    );
   }
 }
 
@@ -173,6 +199,9 @@ async function apiRequest<T = unknown>(
 
     if (response.status === 401 && requireAuth) {
       emitUnauthorized();
+    }
+    if (response.status === 403 && requireAuth) {
+      emitForbidden(message);
     }
 
     throw new ApiError(message, response.status, body, body?.field);
@@ -238,6 +267,9 @@ async function apiRequestWithMeta<T = unknown>(
 
     if (response.status === 401 && requireAuth) {
       emitUnauthorized();
+    }
+    if (response.status === 403 && requireAuth) {
+      emitForbidden(message);
     }
 
     throw new ApiError(message, response.status, body, body?.field);
@@ -647,6 +679,55 @@ export const lendingRecordAPI = {
 
 export const financeAPI = {
   getSummary: () => apiRequest<FinanceSummary>("/api/finance/summary"),
+};
+
+export const adminAPI = {
+  getUsers: async (params: AdminUsersParams = {}) => {
+    const query = new URLSearchParams();
+    query.set("page", String(params.page ?? 1));
+    query.set("limit", String(params.limit ?? 20));
+    if (params.search?.trim()) {
+      query.set("search", params.search.trim());
+    }
+
+    const response = await apiRequestWithMeta<AdminUserListItem[]>(
+      `/api/admin/users?${query.toString()}`,
+      { cacheTtlMs: 0 },
+    );
+
+    return {
+      data: response?.data ?? [],
+      meta: ((response?.meta ?? response?.pagination) as AdminUsersMeta) ?? {
+        page: params.page ?? 1,
+        limit: params.limit ?? 20,
+        total: response?.data?.length ?? 0,
+        totalPages: 1,
+      },
+    };
+  },
+
+  updateUserRole: (userId: string, role: UserRole) =>
+    apiRequest<AdminRoleUpdateResponse>(`/api/admin/users/${userId}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+
+  setUserBlockStatus: (
+    userId: string,
+    isBlocked: boolean,
+    reason?: string,
+  ) =>
+    apiRequest<AdminBlockUpdateResponse>(`/api/admin/users/${userId}/block`, {
+      method: "PATCH",
+      body: JSON.stringify(
+        isBlocked ? { isBlocked: true, reason: reason?.trim() ?? "" } : { isBlocked: false },
+      ),
+    }),
+
+  getUserSummary: (userId: string) =>
+    apiRequest<AdminUserSummaryResponse>(`/api/admin/users/${userId}/summary`, {
+      cacheTtlMs: 0,
+    }),
 };
 
 export default apiRequest;

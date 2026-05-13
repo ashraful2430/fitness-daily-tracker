@@ -9,7 +9,11 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { AUTH_UNAUTHORIZED_EVENT, authAPI } from "@/lib/api";
+import {
+  AUTH_FORBIDDEN_EVENT,
+  AUTH_UNAUTHORIZED_EVENT,
+  authAPI,
+} from "@/lib/api";
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types/auth";
 
 interface AuthContextValue {
@@ -115,6 +119,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
     };
   }, [clearUser]);
+
+  useEffect(() => {
+    function handleForbidden(event: Event) {
+      const customEvent = event as CustomEvent<{
+        message?: string;
+        blocked?: boolean;
+      }>;
+      const message = customEvent.detail?.message ?? "Access denied";
+      const blocked = Boolean(customEvent.detail?.blocked);
+
+      clearUser();
+
+      if (blocked) {
+        window.location.href = `/auth?reason=${encodeURIComponent(message)}`;
+        return;
+      }
+
+      if (!isPublicPath(pathname)) {
+        router.replace("/dashboard?denied=admin");
+      }
+    }
+
+    window.addEventListener(AUTH_FORBIDDEN_EVENT, handleForbidden);
+
+    return () => {
+      window.removeEventListener(AUTH_FORBIDDEN_EVENT, handleForbidden);
+    };
+  }, [clearUser, pathname, router]);
 
   useEffect(() => {
     if (!initialized || loading) return;

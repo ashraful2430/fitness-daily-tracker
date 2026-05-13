@@ -4,6 +4,9 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/Users";
 import { createToken } from "@/lib/auth";
 
+const LOGIN_TTL_SECONDS = 60 * 60 * 24;
+const STREAK_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export async function POST(req: Request) {
   try {
     await connectDB();
@@ -35,6 +38,32 @@ export async function POST(req: Request) {
       );
     }
 
+    const now = new Date();
+    const lastLoginDate = user.lastLoginDate ? new Date(user.lastLoginDate) : null;
+    const currentStreak = Number(user.loginStreak ?? 0);
+    const longestStreak = Number(user.longestLoginStreak ?? 0);
+
+    let nextStreak = 1;
+
+    if (lastLoginDate) {
+      const elapsedMs = now.getTime() - lastLoginDate.getTime();
+      const sameDay = now.toDateString() === lastLoginDate.toDateString();
+
+      if (sameDay) {
+        nextStreak = Math.max(currentStreak, 1);
+      } else if (elapsedMs <= STREAK_WINDOW_MS) {
+        nextStreak = Math.max(currentStreak + 1, 1);
+      } else {
+        // Missed the 24h login window: reset streak and start again from today.
+        nextStreak = 1;
+      }
+    }
+
+    user.loginStreak = nextStreak;
+    user.longestLoginStreak = Math.max(longestStreak, nextStreak);
+    user.lastLoginDate = now;
+    await user.save();
+
     const token = createToken(user._id.toString());
 
     const response = NextResponse.json({
@@ -56,7 +85,7 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: LOGIN_TTL_SECONDS,
     });
 
     return response;

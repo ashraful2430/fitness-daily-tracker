@@ -75,14 +75,6 @@ function formatAmount(value: number | null | undefined) {
   }).format(value);
 }
 
-function formatPercent(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "0%";
-
-  return `${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1,
-  }).format(value)}%`;
-}
-
 function formatDate(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -397,7 +389,6 @@ export default function MoneyDashboard() {
       1,
     ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
   }, [selectedMonth]);
-
   const selectedMonthTotalSpent = useMemo(
     () => getMonthlyTotalForMonth(monthlyExpenseSummary, selectedMonth),
     [monthlyExpenseSummary, selectedMonth],
@@ -474,6 +465,11 @@ export default function MoneyDashboard() {
   const externalIncome = balanceSources
     .filter((s) => s.type !== "SALARY" && s.source !== "EXPENSE_REFUND")
     .reduce((sum, s) => sum + s.amount, 0);
+
+  const monthlyEarned = useMemo(
+    () => salaryDisplay + externalIncome,
+    [externalIncome, salaryDisplay],
+  );
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -866,9 +862,9 @@ export default function MoneyDashboard() {
             gradient="from-rose-500 to-orange-400"
           />
           <StatCard
-            title="Salary Used"
-            value={formatPercent(displayStats.salaryUsedPercent)}
-            subtitle="Of active salary spent."
+            title="Monthly Earned"
+            value={formatAmount(monthlyEarned)}
+            subtitle={`Salary + external income in ${selectedMonthLabel}.`}
             icon={Gauge}
             gradient="from-violet-600 to-fuchsia-500"
           />
@@ -1723,10 +1719,10 @@ export default function MoneyDashboard() {
                   color: "text-rose-500 dark:text-rose-300",
                 },
                 {
-                  label: "Salary Used",
-                  value: formatPercent(displayStats.salaryUsedPercent),
-                  sub: "Share of salary spent",
-                  color: displayStats.salaryUsedPercent <= 75 ? "text-cyan-600 dark:text-cyan-300" : "text-orange-500 dark:text-orange-300",
+                  label: "Monthly Earned",
+                  value: formatAmount(monthlyEarned),
+                  sub: "Salary + external income",
+                  color: "text-cyan-600 dark:text-cyan-300",
                 },
                 {
                   label: "Records",
