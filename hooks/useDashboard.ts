@@ -1,249 +1,233 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import toast from "react-hot-toast";
-import { dashboardAPI, isUnauthorizedError } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  DashboardApiError,
+  getDashboard,
+  getMonthlyHistory,
+  getMonthlyOverview,
+  getWeeklyStats,
+} from "@/lib/dashboardApi";
+import { moneyAPI } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
-import type { DashboardData, WeeklyStat } from "@/types/dashboard";
+import type {
+  DashboardData,
+  DashboardMonthlyHistoryItem,
+  DashboardMonthlyOverview,
+  WeeklyStat,
+  WeeklyStatsMeta,
+} from "@/types/dashboard";
 
-type DashboardCache = {
-  data: DashboardData;
-  weeklyStats: WeeklyStat[];
-  timestamp: number;
-};
+function monthKeyFromParts(month: number, year: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
 
-let cache: DashboardCache | null = null;
-const CACHE_TTL = 60 * 1000;
+function monthKeyToParts(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return { month, year };
+}
 
-function recalculateScore(data: DashboardData): number {
-  const sections = [
-    [Math.min(data.waterIntake.consumed / data.waterIntake.goal, 1), true],
-    [Math.min(data.focusTime.minutes / 120, 1), true],
-    [data.workoutStreak.current > 0 ? 1 : 0, true],
-    [Math.min(data.weeklyGoal.percentage / 100, 1), true],
-  ] as [number, boolean][];
+function getErrorMessage(error: unknown) {
+  if (error instanceof DashboardApiError) {
+    if (error.status === 400) {
+      return error.field ? `${error.message} (${error.field})` : error.message;
+    }
+    if (error.status === 401) {
+      return "Unauthorized. Redirecting to login...";
+    }
+    if (error.status >= 500) {
+      return "Server error. Please try again shortly.";
+    }
+    return error.message;
+  }
 
-  const active = sections.filter(([, enabled]) => enabled);
-  const pointsPerSection = 100 / active.length;
-  const total = active.reduce(
-    (sum, [progress]) => sum + progress * pointsPerSection,
-    0,
-  );
-
-  return Math.min(Math.round(total), 100);
+  if (error instanceof Error) return error.message;
+  return "Failed to load dashboard";
 }
 
 export function useDashboard() {
-  const { isAuthenticated, loading: authLoading, clearUser } = useAuth();
-  const [data, setData] = useState<DashboardData | null>(cache?.data ?? null);
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStat[]>(
-    cache?.weeklyStats ?? [],
-  );
-  const [loading, setLoading] = useState<boolean>(!cache);
+  const { user, loading: authLoading, clearUser } = useAuth();
+
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [monthlyOverview, setMonthlyOverview] = useState<DashboardMonthlyOverview | null>(null);
+  const [monthlyHistory, setMonthlyHistory] = useState<DashboardMonthlyHistoryItem[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [weeklyInsight, setWeeklyInsight] = useState<WeeklyStat[] | null>(null);
+  const [weeklyMeta, setWeeklyMeta] = useState<WeeklyStatsMeta | null>(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [overviewLoading, setOverviewLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isMounted = useRef(true);
+  const [actualAvailableBalance, setActualAvailableBalance] = useState<number | null>(null);
+
+  const mounted = useRef(true);
 
   useEffect(() => {
-    isMounted.current = true;
+    mounted.current = true;
     return () => {
-      isMounted.current = false;
+      mounted.current = false;
     };
   }, []);
 
-  const applyDashboardData = useCallback(
-    (summary: DashboardData, stats: WeeklyStat[]) => {
-      cache = {
-        data: summary,
-        weeklyStats: stats,
-        timestamp: Date.now(),
-      };
-
-      if (!isMounted.current) return;
-
-      setData(summary);
-      setWeeklyStats(stats);
-      setError(null);
-    },
-    [],
-  );
-
-  const clearDashboard = useCallback(() => {
-    cache = null;
-
-    if (!isMounted.current) return;
-
-    setData(null);
-    setWeeklyStats([]);
-    setError(null);
-    setLoading(false);
-  }, []);
-
-  const fetchDashboard = useCallback(
-    async (force = false) => {
-      if (authLoading) return;
-
-      if (!isAuthenticated) {
-        clearDashboard();
-        return;
-      }
-
-      if (!force && cache && Date.now() - cache.timestamp < CACHE_TTL) {
-        setData(cache.data);
-        setWeeklyStats(cache.weeklyStats);
-        setLoading(false);
-        setError(null);
-        return;
-      }
-
+  const loadMonthlyOverview = useCallback(
+    async (
+      monthKey: string,
+      withLoading = true,
+    ) => {
       try {
-        setLoading(true);
+        if (withLoading && mounted.current) {
+          setOverviewLoading(true);
+        }
 
-        const [summary, stats] = await Promise.all([
-          dashboardAPI.getDashboard(),
-          dashboardAPI.getWeeklyStats(),
-        ]);
+        const { month, year } = monthKeyToParts(monthKey);
+        const data = await getMonthlyOverview(month, year);
 
-        applyDashboardData(summary, stats);
+        if (!mounted.current) return;
+
+        setMonthlyOverview(data);
+        setError(null);
       } catch (error: unknown) {
-        if (!isMounted.current) return;
-
-        if (isUnauthorizedError(error)) {
+        if (error instanceof DashboardApiError && error.status === 401) {
           clearUser();
-          clearDashboard();
           return;
         }
-
-        const message =
-          error instanceof Error ? error.message : "Failed to load dashboard";
-        setError(message);
-        toast.error(message);
+        if (mounted.current) {
+          setError(getErrorMessage(error));
+        }
       } finally {
-        if (isMounted.current) setLoading(false);
-      }
-    },
-    [applyDashboardData, authLoading, clearDashboard, clearUser, isAuthenticated],
-  );
-
-  const updateWaterIntake = useCallback(
-    async (glassesConsumed: number) => {
-      if (!data) return;
-
-      const optimisticData: DashboardData = {
-        ...data,
-        waterIntake: {
-          ...data.waterIntake,
-          consumed: glassesConsumed,
-          percentage: Math.min(
-            Math.round((glassesConsumed / data.waterIntake.goal) * 100),
-            100,
-          ),
-        },
-      };
-      optimisticData.todayScore = recalculateScore(optimisticData);
-
-      setData(optimisticData);
-      if (cache) cache = { ...cache, data: optimisticData };
-
-      try {
-        await dashboardAPI.updateWaterIntake(glassesConsumed);
-      } catch (error: unknown) {
-        setData(data);
-        if (cache) cache = { ...cache, data };
-
-        if (!isUnauthorizedError(error)) {
-          toast.error("Failed to update water intake");
+        if (withLoading && mounted.current) {
+          setOverviewLoading(false);
         }
       }
     },
-    [data],
+    [clearUser],
   );
 
-  const logFocusSession = useCallback(
-    async (startTime: Date, endTime: Date, category: string) => {
-      if (!data) return;
+  const refresh = useCallback(async () => {
+    if (authLoading) return;
 
-      const addedMinutes = Math.round(
-        (endTime.getTime() - startTime.getTime()) / 60000,
+    if (!user?.id) {
+      if (mounted.current) {
+        setLoading(false);
+        setDashboard(null);
+      }
+      return;
+    }
+
+    try {
+      if (mounted.current) {
+        setLoading(true);
+        setError(null);
+      }
+
+      const [dashboardData, history, balance] = await Promise.all([
+        getDashboard(),
+        getMonthlyHistory(6),
+        moneyAPI.getBalanceSources(),
+      ]);
+
+      if (!mounted.current) return;
+
+      const syncedDashboard: DashboardData = {
+        ...dashboardData,
+        kpis: {
+          ...dashboardData.kpis,
+          loginStreak: {
+            ...dashboardData.kpis.loginStreak,
+            current: user.loginStreak ?? dashboardData.kpis.loginStreak.current,
+          },
+        },
+      };
+
+      setDashboard(syncedDashboard);
+      setMonthlyHistory(history);
+      setActualAvailableBalance(balance?.totalBalance ?? 0);
+
+      const defaultMonthKey = history.length
+        ? monthKeyFromParts(history[0].month, history[0].year)
+        : monthKeyFromParts(new Date().getMonth() + 1, new Date().getFullYear());
+
+      setSelectedMonth((current) => current || defaultMonthKey);
+      await loadMonthlyOverview(
+        defaultMonthKey,
+        false,
       );
-      const nextMinutes = data.focusTime.minutes + addedMinutes;
-
-      const optimisticData: DashboardData = {
-        ...data,
-        focusTime: {
-          ...data.focusTime,
-          minutes: nextMinutes,
-          hours: Math.floor(nextMinutes / 60),
-          sessionsCount: data.focusTime.sessionsCount + 1,
-        },
-      };
-      optimisticData.todayScore = recalculateScore(optimisticData);
-
-      setData(optimisticData);
-      if (cache) cache = { ...cache, data: optimisticData };
-
-      try {
-        await dashboardAPI.logFocusSession(startTime, endTime, category);
-        toast.success("Focus session logged");
-      } catch (error: unknown) {
-        setData(data);
-        if (cache) cache = { ...cache, data };
-
-        if (!isUnauthorizedError(error)) {
-          toast.error("Failed to log focus session");
-        }
+    } catch (error: unknown) {
+      if (error instanceof DashboardApiError && error.status === 401) {
+        clearUser();
       }
-    },
-    [data],
-  );
-
-  const updateWeeklyGoal = useCallback(
-    async (completedWorkouts: number, goalWorkouts: number) => {
-      if (!data) return;
-
-      const optimisticData: DashboardData = {
-        ...data,
-        weeklyGoal: {
-          completed: completedWorkouts,
-          goal: goalWorkouts,
-          percentage: Math.min(
-            Math.round((completedWorkouts / goalWorkouts) * 100),
-            100,
-          ),
-        },
-      };
-      optimisticData.todayScore = recalculateScore(optimisticData);
-
-      setData(optimisticData);
-      if (cache) cache = { ...cache, data: optimisticData };
-
-      try {
-        await dashboardAPI.updateWeeklyGoal(completedWorkouts, goalWorkouts);
-      } catch (error: unknown) {
-        setData(data);
-        if (cache) cache = { ...cache, data };
-
-        if (!isUnauthorizedError(error)) {
-          toast.error("Failed to update weekly goal");
-        }
+      if (mounted.current) {
+        setError(getErrorMessage(error));
       }
-    },
-    [data],
-  );
+    } finally {
+      if (mounted.current) {
+        setLoading(false);
+      }
+    }
+  }, [authLoading, clearUser, loadMonthlyOverview, user]);
 
   useEffect(() => {
     queueMicrotask(() => {
-      void fetchDashboard();
+      void refresh();
     });
-  }, [fetchDashboard]);
+  }, [refresh]);
+
+  const changeSelectedMonth = useCallback(
+    async (monthKey: string) => {
+      setSelectedMonth(monthKey);
+      await loadMonthlyOverview(monthKey, true);
+    },
+    [loadMonthlyOverview],
+  );
+
+  const loadWeeklyDetails = useCallback(async () => {
+    try {
+      if (mounted.current) {
+        setWeeklyLoading(true);
+      }
+      const response = await getWeeklyStats();
+      if (!mounted.current) return;
+      setWeeklyInsight(response.data);
+      setWeeklyMeta(response.meta ?? null);
+    } catch (error: unknown) {
+      if (error instanceof DashboardApiError && error.status === 401) {
+        clearUser();
+        return;
+      }
+      if (mounted.current) {
+        setError(getErrorMessage(error));
+      }
+    } finally {
+      if (mounted.current) {
+        setWeeklyLoading(false);
+      }
+    }
+  }, [clearUser]);
+
+  const monthOptions = useMemo(
+    () =>
+      monthlyHistory.map((item) => ({
+        value: monthKeyFromParts(item.month, item.year),
+        label: item.label,
+      })),
+    [monthlyHistory],
+  );
 
   return {
-    data,
-    weeklyStats,
-    loading: loading || authLoading,
+    dashboard,
+    monthlyOverview,
+    monthlyHistory,
+    monthOptions,
+    selectedMonth,
+    setSelectedMonth: changeSelectedMonth,
+    weeklyInsight,
+    weeklyMeta,
+    weeklyLoading,
+    loading,
+    overviewLoading,
+    actualAvailableBalance,
     error,
-    refresh: () => fetchDashboard(true),
-    updateWaterIntake,
-    logFocusSession,
-    updateWeeklyGoal,
+    refresh,
+    loadWeeklyDetails,
   };
 }

@@ -2,7 +2,6 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
-  BadgeDollarSign,
   Banknote,
   Calendar,
   CalendarRange,
@@ -10,6 +9,7 @@ import {
   Coins,
   CreditCard,
   Eye,
+  Gauge,
   Loader2,
   PencilLine,
   PiggyBank,
@@ -37,6 +37,12 @@ import {
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
 import PremiumModal from "@/components/ui/PremiumModal";
 import type { BalanceSource, MoneyExpense } from "@/types/money";
+import {
+  detectCurrencyCode,
+  formatCurrencyByLocale,
+  getBrowserLocale,
+  getBrowserTimeZone,
+} from "@/lib/currency";
 
 type FormErrors = Record<string, string>;
 
@@ -264,6 +270,8 @@ export default function MoneyDashboard() {
     balanceSources,
     balanceTotal,
     monthlyExpenseSummary,
+    monthlyIncome,
+    monthlyIncomeHistory,
     summary,
     insights,
     categories,
@@ -277,6 +285,7 @@ export default function MoneyDashboard() {
     historicalSummary,
     loading,
     summaryLoading,
+    monthlyIncomeLoading,
     expensesLoading,
     salarySaving,
     salaryDeleting,
@@ -287,6 +296,7 @@ export default function MoneyDashboard() {
     expenseSaving,
     deletingExpenseId,
     error,
+    monthlyIncomeFieldError,
     refreshAll,
     saveSalary,
     resetSalary,
@@ -306,6 +316,10 @@ export default function MoneyDashboard() {
     applyFilters,
     goToPage,
   } = useMoneyDashboard();
+  const locale = useMemo(() => getBrowserLocale(), []);
+  const currency = detectCurrencyCode(locale, getBrowserTimeZone());
+  const formatMoney = (value: number | null | undefined) =>
+    formatCurrencyByLocale(Number(value ?? 0), locale, currency);
 
   const [salaryAmount, setSalaryAmount] = useState("");
   const [salaryDate, setSalaryDate] = useState(getToday());
@@ -379,7 +393,15 @@ export default function MoneyDashboard() {
     [effectiveTopCategories],
   );
 
-  const monthOptions = useMemo(() => generateMonthOptions(), []);
+  const monthOptions = useMemo(() => {
+    if (monthlyIncomeHistory.length > 0) {
+      return monthlyIncomeHistory.map((item) => ({
+        value: `${item.year}-${String(item.month).padStart(2, "0")}`,
+        label: item.label,
+      }));
+    }
+    return generateMonthOptions();
+  }, [monthlyIncomeHistory]);
 
   const selectedMonthLabel = useMemo(() => {
     const [yearStr, monthStr] = selectedMonth.split("-");
@@ -387,9 +409,8 @@ export default function MoneyDashboard() {
       Number(yearStr),
       Number(monthStr) - 1,
       1,
-    ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  }, [selectedMonth]);
-
+    ).toLocaleDateString(locale, { month: "long", year: "numeric" });
+  }, [locale, selectedMonth]);
   const selectedMonthTotalSpent = useMemo(
     () => getMonthlyTotalForMonth(monthlyExpenseSummary, selectedMonth),
     [monthlyExpenseSummary, selectedMonth],
@@ -421,20 +442,23 @@ export default function MoneyDashboard() {
         monthSpent,
         expenseCount,
         averageExpense,
-        remainingSalary:
-          historicalSummary?.remainingSalary ??
-          (summary.remainingSalary && summary.currentMonthSpent === monthSpent
-            ? summary.remainingSalary
-            : effectiveSalary - monthSpent),
+        remainingSalary: effectiveSalary - monthSpent,
+        salaryUsedPercent:
+          effectiveSalary > 0 ? (monthSpent / effectiveSalary) * 100 : 0,
       };
     }
     if (historicalSummary) {
+      const historicalSalary = historicalSummary.salaryAmount;
+      const historicalSpent = historicalSummary.currentMonthSpent;
+
       return {
-        salary: historicalSummary.salaryAmount,
-        monthSpent: historicalSummary.currentMonthSpent,
+        salary: historicalSalary,
+        monthSpent: historicalSpent,
         expenseCount: historicalSummary.expenseCount,
         averageExpense: historicalSummary.averageExpense,
-        remainingSalary: historicalSummary.remainingSalary,
+        remainingSalary: historicalSalary - historicalSpent,
+        salaryUsedPercent:
+          historicalSalary > 0 ? (historicalSpent / historicalSalary) * 100 : 0,
       };
     }
     const monthSalary = monthlyReportSalary?.amount ?? 0;
@@ -444,6 +468,7 @@ export default function MoneyDashboard() {
       expenseCount: 0,
       averageExpense: 0,
       remainingSalary: monthSalary,
+      salaryUsedPercent: 0,
     };
   }, [isCurrentMonth, salary, summary, historicalSummary, monthlyReportSalary, salaryFromSources, selectedMonthTotalSpent]);
 
@@ -459,9 +484,9 @@ export default function MoneyDashboard() {
     balanceTotal ||
     balanceSources.reduce((sum, source) => sum + source.amount, 0);
 
-  const externalIncome = balanceSources
-    .filter((s) => s.type !== "SALARY" && s.source !== "EXPENSE_REFUND")
-    .reduce((sum, s) => sum + s.amount, 0);
+  const salaryIncome = monthlyIncome?.salaryIncome ?? 0;
+  const externalIncome = monthlyIncome?.externalIncome ?? 0;
+  const monthlyEarned = monthlyIncome?.totalIncome ?? 0;
 
   const resetExpenseForm = () => {
     setEditingExpenseId(null);
@@ -756,10 +781,10 @@ export default function MoneyDashboard() {
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Balance
+                    Savings
                   </p>
                   <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    {formatAmount(totalBalance)}
+                    {formatMoney(totalBalance)}
                   </p>
                 </div>
 
@@ -768,16 +793,16 @@ export default function MoneyDashboard() {
                     Month Spent
                   </p>
                   <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    {formatAmount(displayStats.monthSpent)}
+                    {formatMoney(displayStats.monthSpent)}
                   </p>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Records
+                    Monthly Earned
                   </p>
                   <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    {formatAmount(summary.expenseCount)}
+                    {formatMoney(monthlyEarned)}
                   </p>
                 </div>
               </div>
@@ -806,12 +831,12 @@ export default function MoneyDashboard() {
                     value: user?.name ?? "Unknown user",
                   },
                   {
-                    label: "Available Balance",
-                    value: formatAmount(totalBalance),
+                    label: "Savings (Available Balance)",
+                    value: formatMoney(totalBalance),
                   },
                   {
                     label: "Total Spent",
-                    value: formatAmount(displayStats.monthSpent),
+                    value: formatMoney(displayStats.monthSpent),
                   },
                 ].map((item) => (
                   <div
@@ -833,31 +858,31 @@ export default function MoneyDashboard() {
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
-            title="Current Salary"
-            value={formatAmount(displayStats.salary)}
-            subtitle="Your active monthly salary."
+            title="Salary Income"
+            value={formatMoney(salaryIncome)}
+            subtitle={`Authoritative salary income for ${selectedMonthLabel}.`}
             icon={Wallet}
             gradient="from-emerald-500 to-lime-400"
           />
           <StatCard
-            title="Available Balance"
-            value={formatAmount(totalBalance)}
-            subtitle="Across all balance sources."
+            title="Savings"
+            value={formatMoney(totalBalance)}
+            subtitle="Available balance after your activity."
             icon={CreditCard}
             gradient="from-cyan-500 to-sky-400"
           />
           <StatCard
             title="Month Spent"
-            value={formatAmount(displayStats.monthSpent)}
+            value={formatMoney(displayStats.monthSpent)}
             subtitle={isCurrentMonth ? "Spending this month." : `Total spent in ${selectedMonthLabel}.`}
             icon={TrendingDown}
             gradient="from-rose-500 to-orange-400"
           />
           <StatCard
-            title="Remaining"
-            value={formatAmount(displayStats.remainingSalary)}
-            subtitle="Salary minus expenses."
-            icon={BadgeDollarSign}
+            title="Monthly Earned"
+            value={formatMoney(monthlyEarned)}
+            subtitle={`Salary + external income for ${selectedMonthLabel}.`}
+            icon={Gauge}
             gradient="from-violet-600 to-fuchsia-500"
           />
           <StatCard
@@ -869,12 +894,28 @@ export default function MoneyDashboard() {
           />
           <StatCard
             title="External Income"
-            value={formatAmount(externalIncome)}
-            subtitle="Non-salary sources, excluding refunds."
+            value={formatMoney(externalIncome)}
+            subtitle={`Authoritative external income for ${selectedMonthLabel}.`}
             icon={Banknote}
             gradient="from-teal-500 to-emerald-400"
           />
         </section>
+
+        {(monthlyIncomeLoading || monthlyIncomeFieldError) ? (
+          <section className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-3 text-sm dark:border-white/[0.08] dark:bg-white/[0.04]">
+            {monthlyIncomeLoading ? (
+              <p className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-300">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading monthly income...
+              </p>
+            ) : null}
+            {monthlyIncomeFieldError ? (
+              <p className="text-rose-600 dark:text-rose-300">
+                Invalid month/year input (`{monthlyIncomeFieldError}`) for income lookup.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-xl shadow-slate-200/60 backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#0f0c1f]/90 dark:shadow-black/25 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1699,27 +1740,27 @@ export default function MoneyDashboard() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 {
-                  label: "Salary",
-                  value: formatAmount(displayStats.salary),
-                  sub: isCurrentMonth ? "Active salary" : "Salary that month",
+                  label: "Salary Income",
+                  value: formatMoney(salaryIncome),
+                  sub: "From monthly-income API",
                   color: "text-emerald-600 dark:text-emerald-300",
                 },
                 {
                   label: "Total Spent",
-                  value: formatAmount(displayStats.monthSpent),
+                  value: formatMoney(displayStats.monthSpent),
                   sub: "All expenses",
                   color: "text-rose-500 dark:text-rose-300",
                 },
                 {
-                  label: "Remaining",
-                  value: formatAmount(displayStats.remainingSalary),
-                  sub: "Salary − expenses",
-                  color: displayStats.remainingSalary >= 0 ? "text-cyan-600 dark:text-cyan-300" : "text-orange-500 dark:text-orange-300",
+                  label: "Monthly Earned",
+                  value: formatMoney(monthlyEarned),
+                  sub: "Salary + external income",
+                  color: "text-cyan-600 dark:text-cyan-300",
                 },
                 {
                   label: "Records",
                   value: formatAmount(displayStats.expenseCount),
-                  sub: `Avg ${formatAmount(displayStats.averageExpense)} each`,
+                  sub: `Avg ${formatMoney(displayStats.averageExpense)} each`,
                   color: "text-violet-600 dark:text-violet-300",
                 },
               ].map((item) => (

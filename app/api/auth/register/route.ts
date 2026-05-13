@@ -4,6 +4,8 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/Users";
 import { createToken } from "@/lib/auth";
 
+const LOGIN_TTL_SECONDS = 60 * 60 * 24;
+
 export async function POST(req: Request) {
   try {
     await connectDB();
@@ -28,10 +30,14 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const now = new Date();
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
+      loginStreak: 1,
+      longestLoginStreak: 1,
+      lastLoginDate: now,
     });
 
     const token = createToken(user._id.toString());
@@ -55,7 +61,7 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: LOGIN_TTL_SECONDS,
     });
 
     return response;

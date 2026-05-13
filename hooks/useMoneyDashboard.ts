@@ -15,6 +15,8 @@ import type {
   MoneySummary,
   MonthlySummaryResponse,
   MonthlyExpenseSummary,
+  MonthlyIncomeData,
+  MonthlyIncomeHistoryItem,
   SalaryRecord,
   UpdateExpenseRequest,
 } from "@/types/money";
@@ -91,6 +93,17 @@ function defaultSummary(): MoneySummary {
   };
 }
 
+function defaultMonthlyIncome(monthKey: string): MonthlyIncomeData {
+  const [yearStr, monthStr] = monthKey.split("-");
+  return {
+    month: Number(monthStr),
+    year: Number(yearStr),
+    salaryIncome: 0,
+    externalIncome: 0,
+    totalIncome: 0,
+  };
+}
+
 function getMessage(error: unknown, fallbackMessage: string) {
   return error instanceof Error ? error.message : fallbackMessage;
 }
@@ -139,6 +152,12 @@ export function useMoneyDashboard() {
     MonthlyExpenseSummary[]
   >([]);
   const [summary, setSummary] = useState<MoneySummary>(defaultSummary);
+  const [monthlyIncome, setMonthlyIncome] = useState<MonthlyIncomeData>(
+    defaultMonthlyIncome(getCurrentMonthKey()),
+  );
+  const [monthlyIncomeHistory, setMonthlyIncomeHistory] = useState<
+    MonthlyIncomeHistoryItem[]
+  >([]);
   const [insights, setInsights] = useState<MoneyInsights | null>(null);
   const [historicalSummary, setHistoricalSummary] = useState<MonthlySummaryResponse | null>(null);
   const [expenses, setExpenses] = useState<MoneyExpense[]>([]);
@@ -197,6 +216,7 @@ export function useMoneyDashboard() {
   });
   const [initialLoading, setInitialLoading] = useState(true);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [monthlyIncomeLoading, setMonthlyIncomeLoading] = useState(false);
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [salarySaving, setSalarySaving] = useState(false);
   const [salaryDeleting, setSalaryDeleting] = useState(false);
@@ -211,6 +231,7 @@ export function useMoneyDashboard() {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [monthlyIncomeFieldError, setMonthlyIncomeFieldError] = useState<string | null>(null);
   const isMounted = useRef(true);
   const lastToastMessage = useRef<string | null>(null);
   const filtersRef = useRef<FiltersState>({
@@ -355,6 +376,61 @@ export function useMoneyDashboard() {
     [clearToastLock, handleError, userId],
   );
 
+  const fetchMonthlyIncome = useCallback(
+    async (monthKey: string, notify = false) => {
+      if (!userId) return;
+
+      try {
+        setMonthlyIncomeLoading(true);
+        const [yearStr, monthStr] = monthKey.split("-");
+        const response = await moneyAPI.getMonthlyIncome(
+          Number(monthStr),
+          Number(yearStr),
+        );
+
+        if (!isMounted.current) return;
+
+        setMonthlyIncome(
+          response ?? {
+            month: Number(monthStr),
+            year: Number(yearStr),
+            salaryIncome: 0,
+            externalIncome: 0,
+            totalIncome: 0,
+          },
+        );
+        setMonthlyIncomeFieldError(null);
+        clearToastLock();
+      } catch (error: unknown) {
+        if (error instanceof ApiError && error.field) {
+          setMonthlyIncomeFieldError(error.field);
+        }
+        handleError(error, "Failed to load monthly income", notify);
+      } finally {
+        if (isMounted.current) {
+          setMonthlyIncomeLoading(false);
+        }
+      }
+    },
+    [clearToastLock, handleError, userId],
+  );
+
+  const fetchMonthlyIncomeHistory = useCallback(
+    async (notify = false) => {
+      if (!userId) return;
+
+      try {
+        const response = await moneyAPI.getMonthlyIncomeHistory(12);
+        if (!isMounted.current) return;
+        setMonthlyIncomeHistory(Array.isArray(response) ? response : []);
+        clearToastLock();
+      } catch (error: unknown) {
+        handleError(error, "Failed to load income history", notify);
+      }
+    },
+    [clearToastLock, handleError, userId],
+  );
+
   const fetchHistoricalSummary = useCallback(
     async (month: number, year: number, notify = false) => {
       if (!userId) return;
@@ -477,6 +553,8 @@ export function useMoneyDashboard() {
           fetchSalaryHistory(notify),
           fetchMonthlySummary(notify),
           fetchHistoricalSummary(Number(monthStr), Number(yearStr), notify),
+          fetchMonthlyIncome(selectedMonthRef.current, notify),
+          fetchMonthlyIncomeHistory(notify),
           selectedMonthRef.current === getCurrentMonthKey()
             ? fetchInsights(notify)
             : Promise.resolve(),
@@ -494,6 +572,8 @@ export function useMoneyDashboard() {
       fetchExpenses,
       fetchHistoricalSummary,
       fetchInsights,
+      fetchMonthlyIncome,
+      fetchMonthlyIncomeHistory,
       fetchMonthlySummary,
       fetchSalaryHistory,
       fetchSummaryBundle,
@@ -512,6 +592,8 @@ export function useMoneyDashboard() {
         fetchSalaryHistory(false),
         fetchMonthlySummary(false),
         fetchHistoricalSummary(Number(monthStr), Number(yearStr), false),
+        fetchMonthlyIncome(selectedMonthRef.current, false),
+        fetchMonthlyIncomeHistory(false),
         fetchInsights(false),
         fetchExpenses(targetFilters, false),
       ]);
@@ -521,6 +603,8 @@ export function useMoneyDashboard() {
       fetchExpenses,
       fetchHistoricalSummary,
       fetchInsights,
+      fetchMonthlyIncome,
+      fetchMonthlyIncomeHistory,
       fetchMonthlySummary,
       fetchSalaryHistory,
       fetchSummaryBundle,
@@ -984,16 +1068,18 @@ export function useMoneyDashboard() {
         await Promise.all([
           fetchExpenses(nextFilters, false),
           fetchHistoricalSummary(month, year, false),
+          fetchMonthlyIncome(monthKey, false),
         ]);
       } else {
         await Promise.all([
           fetchExpenses(nextFilters, false),
           fetchHistoricalSummary(month, year, false),
+          fetchMonthlyIncome(monthKey, false),
           fetchInsights(false),
         ]);
       }
     },
-    [fetchExpenses, fetchHistoricalSummary, fetchInsights],
+    [fetchExpenses, fetchHistoricalSummary, fetchInsights, fetchMonthlyIncome],
   );
 
   const updateFilterField = useCallback(
@@ -1051,6 +1137,8 @@ export function useMoneyDashboard() {
     balanceTotal,
     monthlyExpenseSummary,
     summary: summaryWithFallback,
+    monthlyIncome,
+    monthlyIncomeHistory,
     insights,
     historicalSummary,
     categories,
@@ -1063,6 +1151,7 @@ export function useMoneyDashboard() {
     monthlyReportSalary,
     loading: initialLoading || authLoading,
     summaryLoading,
+    monthlyIncomeLoading,
     expensesLoading,
     salarySaving,
     salaryDeleting,
@@ -1073,6 +1162,7 @@ export function useMoneyDashboard() {
     expenseSaving,
     deletingExpenseId,
     error,
+    monthlyIncomeFieldError,
     refreshAll,
     refreshExpenses,
     saveSalary,

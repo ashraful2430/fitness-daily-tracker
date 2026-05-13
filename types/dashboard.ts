@@ -1,13 +1,81 @@
-// frontend/types/dashboard.ts
+export type TrendDirection = "up" | "down" | "stable";
 
-export interface Workout {
-  _id: string;
-  userId: string;
-  exercise: string;
-  duration: number;
-  calories?: number;
-  createdAt: string;
-  updatedAt: string;
+export interface DashboardKpis {
+  loginStreak: {
+    current: number;
+    longest: number;
+    lastLoginDate: string | null;
+  };
+  availableBalance: number;
+  focusToday: {
+    minutes: number;
+    sessionsCount: number;
+  };
+  workoutsToday: {
+    count: number;
+    totalDuration: number;
+    totalCalories: number;
+  };
+  todayScore: number;
+}
+
+export interface DailyProgressBreakdownItem {
+  earned: number;
+  max: number;
+  completed: boolean;
+}
+
+export interface DashboardDailyProgress {
+  percentage: number;
+  breakdown: {
+    login: DailyProgressBreakdownItem;
+    focus: DailyProgressBreakdownItem & {
+      minutes: number;
+      targetMinutes: number;
+    };
+    workout: DailyProgressBreakdownItem & {
+      count: number;
+      targetCount: number;
+    };
+    sections: DailyProgressBreakdownItem & {
+      completedSections: number;
+      totalSections: number;
+    };
+  };
+  missing: string[];
+}
+
+export interface DashboardModuleOverview {
+  fitness: {
+    weeklyWorkouts: number;
+    todayWorkouts: number;
+    trend: TrendDirection;
+  };
+  learning: {
+    weeklyFocusMinutes: number;
+    todayFocusMinutes: number;
+    trend: TrendDirection;
+  };
+  money: {
+    availableBalance: number;
+    monthIncome: number;
+    monthExpense: number;
+    trend: TrendDirection;
+  };
+  loans: {
+    activeLoans: number;
+    activeLendings: number;
+    trend: TrendDirection;
+  };
+  sections: {
+    completedToday: number;
+    totalToday: number;
+    trend: TrendDirection;
+  };
+}
+
+export interface DashboardActivity {
+  [key: string]: unknown;
 }
 
 export interface WeeklyStat {
@@ -15,34 +83,80 @@ export interface WeeklyStat {
   day: string;
   workouts: number;
   focusMinutes: number;
-}
-
-export interface DashboardAnalytics {
-  [key: string]: unknown;
+  moneyActivities: number;
 }
 
 export interface DashboardData {
-  workoutStreak: {
-    current: number;
-    longest: number;
-  };
-  waterIntake: {
-    consumed: number;
-    goal: number;
-    percentage: number;
-  };
-  focusTime: {
-    minutes: number;
-    hours: number;
-    sessionsCount: number;
-  };
-  weeklyGoal: {
-    completed: number;
-    goal: number;
-    percentage: number;
-  };
-  todayScore: number;
-  recentWorkouts: Workout[];
+  kpis: DashboardKpis;
+  dailyProgress: DashboardDailyProgress;
+  moduleOverview: DashboardModuleOverview;
+  recentActivities: DashboardActivity[];
   weeklyStats: WeeklyStat[];
-  analytics: DashboardAnalytics;
+}
+
+export interface WeeklyStatsMeta {
+  weekStartRule: string;
+  timezone: string;
+}
+
+export interface DashboardMonthlyOverview {
+  selectedMonth: {
+    month: number;
+    year: number;
+    label: string;
+  };
+  money: {
+    income: number;
+    expense: number;
+    savings: number;
+    netBalanceChange: number;
+    availableBalanceEndOfMonth: number;
+  };
+  productivity: {
+    averageDailyScore: number;
+    totalFocusMinutes: number;
+    totalWorkouts: number;
+  };
+  comparison: {
+    previousMonth: {
+      month: number;
+      year: number;
+      label: string;
+    };
+    incomePct: number;
+    expensePct: number;
+    savingsPct: number;
+    focusPct: number;
+    workoutsPct: number;
+    scorePct: number;
+  };
+  dailySeries: Array<{
+    date: string;
+    income: number;
+    expense: number;
+    focusMinutes: number;
+    workouts: number;
+    score: number;
+  }>;
+}
+
+export interface DashboardMonthlyHistoryItem {
+  month: number;
+  year: number;
+  label: string;
+  income: number;
+  expense: number;
+  savings: number;
+  netBalanceChange: number;
+  averageDailyScore: number;
+  totalFocusMinutes: number;
+  totalWorkouts: number;
+}
+
+export interface DashboardEnvelope<T, M = undefined> {
+  success: boolean;
+  message?: string;
+  field?: string;
+  data?: T;
+  meta?: M;
 }

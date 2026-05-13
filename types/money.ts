@@ -161,6 +161,18 @@ export interface MonthlyExpenseSummary {
   total: number;
 }
 
+export interface MonthlyIncomeData {
+  month: number;
+  year: number;
+  salaryIncome: number;
+  externalIncome: number;
+  totalIncome: number;
+}
+
+export interface MonthlyIncomeHistoryItem extends MonthlyIncomeData {
+  label: string;
+}
+
 // ===== LENDING TYPES =====
 
 export type LoanStatus = "ACTIVE" | "PARTIALLY_PAID" | "CLOSED";

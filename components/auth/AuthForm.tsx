@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   Activity,
@@ -22,12 +23,16 @@ type Mode = "login" | "register";
 
 export default function AuthForm() {
   const { login, register } = useAuth();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const blockedReason = searchParams.get("reason");
 
   const handleSubmit = async () => {
     if (!email || !password || (mode === "register" && !name)) {
@@ -36,6 +41,7 @@ export default function AuthForm() {
     }
 
     setLoading(true);
+    setAuthError(null);
 
     try {
       if (mode === "login") {
@@ -48,7 +54,11 @@ export default function AuthForm() {
       return;
     } catch (error: unknown) {
       if (error instanceof ApiError) {
-        toast.error(error.message);
+        if (error.status === 403) {
+          setAuthError(error.message);
+        } else {
+          toast.error(error.message);
+        }
       } else {
         toast.error("Unable to connect. Please try again.");
       }
@@ -150,6 +160,18 @@ export default function AuthForm() {
                   : "Build your personal system for learning, fitness, habits, and money."}
               </p>
             </div>
+
+            {blockedReason ? (
+              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {blockedReason}
+              </div>
+            ) : null}
+
+            {authError ? (
+              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                {authError}
+              </div>
+            ) : null}
 
             <div className="space-y-4">
               {mode === "register" && (
