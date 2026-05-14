@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -40,11 +41,6 @@ function formatPercent(value: number) {
   return `${sign}${value.toFixed(1)}%`;
 }
 
-function normalizeDateKey(value: string) {
-  if (!value) return "";
-  return value.slice(0, 10);
-}
-
 function trendStyle(trend: TrendDirection) {
   if (trend === "up") {
     return "border-emerald-300/60 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-200";
@@ -61,6 +57,80 @@ function TrendPill({ trend }: { trend: TrendDirection }) {
       {trend}
     </span>
   );
+}
+
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatDateKeyInTimeZone(value: string | null | undefined, timeZone: string) {
+  const rawValue = typeof value === "string" ? value : "";
+  if (!rawValue) return "";
+  if (dateOnlyPattern.test(rawValue)) return rawValue;
+
+  const parsed = new Date(rawValue);
+  if (Number.isNaN(parsed.getTime())) return rawValue.slice(0, 10);
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: timeZone || undefined,
+    year: "numeric",
+  }).formatToParts(parsed);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : rawValue.slice(0, 10);
+}
+
+function formatCurrentDateKey(timeZone: string) {
+  return formatDateKeyInTimeZone(new Date().toISOString(), timeZone);
+}
+
+function monthKeyFromParts(month: number, year: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function weekdayLabelFromDateKey(dateKey: string, fallback: string) {
+  if (!dateOnlyPattern.test(dateKey)) return fallback;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+    weekday: "short",
+  });
+}
+
+function hasTrackedActivity(item: {
+  completedLearningSessions?: number;
+  expense?: number;
+  focusMinutes?: number;
+  income?: number;
+  learningMinutes?: number;
+  learningSessions?: number;
+  moneyActivities?: number;
+  netBalanceChange?: number;
+  savings?: number;
+  totalFocusMinutes?: number;
+  totalLearningMinutes?: number;
+  totalLearningSessions?: number;
+  totalWorkouts?: number;
+  workouts?: number;
+}) {
+  return [
+    item.completedLearningSessions,
+    item.expense,
+    item.focusMinutes,
+    item.income,
+    item.learningMinutes,
+    item.learningSessions,
+    item.moneyActivities,
+    item.netBalanceChange,
+    item.savings,
+    item.totalFocusMinutes,
+    item.totalLearningMinutes,
+    item.totalLearningSessions,
+    item.totalWorkouts,
+    item.workouts,
+  ].some((value) => typeof value === "number" && value > 0);
 }
 
 function KPI({
@@ -104,9 +174,65 @@ export default function Dashboard() {
     error,
     refresh,
     loadWeeklyDetails,
-    actualAvailableBalance,
-    learningStats,
   } = useDashboard();
+
+  const locale = getBrowserLocale();
+  const timeZone = getBrowserTimeZone();
+
+  const weeklyData = useMemo(
+    () => {
+      return (weeklyInsight ?? dashboard?.weeklyStats ?? []).map((item) => {
+        const dateKey = formatDateKeyInTimeZone(item.date, timeZone);
+
+        return {
+          ...item,
+          dateKey,
+          day: weekdayLabelFromDateKey(dateKey, item.day),
+          completedLearningSessions: item.completedLearningSessions ?? 0,
+          focusMinutes: item.focusMinutes ?? 0,
+          learningMinutes: item.learningMinutes ?? 0,
+          learningSessions: item.learningSessions ?? 0,
+          moneyActivities: item.moneyActivities ?? 0,
+          workouts: item.workouts ?? 0,
+        };
+      });
+    },
+    [dashboard?.weeklyStats, timeZone, weeklyInsight],
+  );
+  const weeklyLearningTotals = useMemo(
+    () =>
+      weeklyData.reduce(
+        (totals, item) => ({
+          learningMinutes: totals.learningMinutes + item.learningMinutes,
+          learningSessions: totals.learningSessions + item.learningSessions,
+          completedLearningSessions:
+            totals.completedLearningSessions + item.completedLearningSessions,
+        }),
+        { learningMinutes: 0, learningSessions: 0, completedLearningSessions: 0 },
+      ),
+    [weeklyData],
+  );
+  const monthlySeriesWithLearning = useMemo(
+    () =>
+      (monthlyOverview?.dailySeries ?? []).map((item) => {
+        const nextItem = {
+          ...item,
+          dateKey: formatDateKeyInTimeZone(item.date, timeZone),
+          expense: item.expense ?? 0,
+          focusMinutes: item.focusMinutes ?? 0,
+          income: item.income ?? 0,
+          learningMinutes: item.learningMinutes ?? 0,
+          learningSessions: item.learningSessions ?? 0,
+          workouts: item.workouts ?? 0,
+        };
+
+        return {
+          ...nextItem,
+          score: hasTrackedActivity(nextItem) ? (item.score ?? 0) : 0,
+        };
+      }),
+    [monthlyOverview?.dailySeries, timeZone],
+  );
 
   if (loading) return <DashboardSkeleton />;
 
@@ -128,37 +254,32 @@ export default function Dashboard() {
 
   if (!dashboard || !monthlyOverview) return null;
 
-  const locale = getBrowserLocale();
-  const currency = detectCurrencyCode(locale, getBrowserTimeZone());
+  const currency = detectCurrencyCode(locale, timeZone);
   const formatCurrency = (value: number) =>
     formatCurrencyByLocale(value, locale, currency);
-  const displayBalance = actualAvailableBalance ?? dashboard.kpis.availableBalance;
-  const isSelectedCurrentMonth =
-    monthlyOverview.selectedMonth.month === new Date().getMonth() + 1 &&
-    monthlyOverview.selectedMonth.year === new Date().getFullYear();
+  const displayBalance = dashboard.kpis.availableBalance;
+  const currentMonthKey = formatCurrentDateKey(timeZone).slice(0, 7);
+  const selectedMonthKey = monthKeyFromParts(
+    monthlyOverview.selectedMonth.month,
+    monthlyOverview.selectedMonth.year,
+  );
+  const isSelectedCurrentMonth = selectedMonthKey === currentMonthKey;
   const monthlySavings = isSelectedCurrentMonth
     ? displayBalance
-    : monthlyOverview.money.availableBalanceEndOfMonth;
+    : monthlyOverview.money.savings;
   const spentRate =
     monthlyOverview.money.income > 0
       ? (monthlyOverview.money.expense / monthlyOverview.money.income) * 100
       : 0;
-  const todayLearningMinutes = learningStats?.todayMinutes ?? 0;
-  const weekLearningMinutes = learningStats?.weekMinutes ?? 0;
-  const learningCompletionRate = learningStats?.completionRate ?? 0;
-  const learningActiveSessions = learningStats?.activeSessions ?? 0;
+  const todayWeeklyStat = weeklyData.find((item) => item.dateKey === formatCurrentDateKey(timeZone));
+  const todayLearningMinutes = todayWeeklyStat?.learningMinutes ?? 0;
+  const weekLearningMinutes = weeklyLearningTotals.learningMinutes;
+  const learningCompletionRate =
+    weeklyLearningTotals.learningSessions > 0
+      ? Math.round((weeklyLearningTotals.completedLearningSessions / weeklyLearningTotals.learningSessions) * 100)
+      : 0;
   const combinedLearningFocusToday =
-    dashboard.moduleOverview.learning.todayFocusMinutes + todayLearningMinutes;
-  const learningByDate = new Map(
-    (learningStats?.dailyBreakdown ?? []).map((item) => [
-      normalizeDateKey(item.date),
-      {
-        learningMinutes: item.totalMinutes,
-        learningSessions: item.completedSessions ?? item.plannedSessions ?? 0,
-      },
-    ]),
-  );
-
+    dashboard.kpis.focusToday.minutes + todayLearningMinutes;
   const modules = [
     {
       key: "fitness",
@@ -181,11 +302,11 @@ export default function Dashboard() {
       metrics: [
         { label: "Today Learning", value: `${todayLearningMinutes} min` },
         { label: "Week Learning", value: `${weekLearningMinutes} min` },
-        { label: "Today Focus", value: `${dashboard.moduleOverview.learning.todayFocusMinutes} min` },
+        { label: "Today Focus", value: `${dashboard.kpis.focusToday.minutes} min` },
         { label: "Completion", value: `${learningCompletionRate}%` },
       ],
       trend: dashboard.moduleOverview.learning.trend,
-      note: `${combinedLearningFocusToday} min combined today${learningActiveSessions ? ` | ${learningActiveSessions} active` : ""}`,
+      note: `${combinedLearningFocusToday} min combined today`,
     },
     {
       key: "money",
@@ -226,32 +347,36 @@ export default function Dashboard() {
     },
   ];
 
-  const weeklyData = (weeklyInsight ?? dashboard.weeklyStats).map((item) => {
-    const learning = learningByDate.get(normalizeDateKey(item.date));
-    return {
-      ...item,
-      learningMinutes: item.learningMinutes ?? learning?.learningMinutes ?? 0,
-      learningSessions: item.learningSessions ?? learning?.learningSessions ?? 0,
-    };
+  const monthlyLearningTotal = monthlyOverview.productivity.totalLearningMinutes;
+  const monthlyLearningSessions = monthlyOverview.productivity.totalLearningSessions;
+  const monthlyCompletedLearningSessions = monthlyOverview.productivity.completedLearningSessions;
+  const monthlyFocusTotal = monthlyOverview.productivity.totalFocusMinutes;
+  const selectedMonthHasActivity = hasTrackedActivity({
+    completedLearningSessions: monthlyCompletedLearningSessions,
+    expense: monthlyOverview.money.expense,
+    income: monthlyOverview.money.income,
+    savings: monthlyOverview.money.savings,
+    totalFocusMinutes: monthlyFocusTotal,
+    totalLearningMinutes: monthlyLearningTotal,
+    totalLearningSessions: monthlyLearningSessions,
+    totalWorkouts: monthlyOverview.productivity.totalWorkouts,
   });
-  const monthlySeriesWithLearning = monthlyOverview.dailySeries.map((item) => {
-    const learning = learningByDate.get(normalizeDateKey(item.date));
-    return {
-      ...item,
-      learningMinutes: item.learningMinutes ?? learning?.learningMinutes ?? 0,
-      learningSessions: item.learningSessions ?? learning?.learningSessions ?? 0,
-    };
-  });
-  const monthlyLearningTotalFromSeries = monthlySeriesWithLearning.reduce(
-    (sum, item) => sum + (item.learningMinutes ?? 0),
-    0,
+  const previousMonthHistory = monthlyHistory.find(
+    (month) =>
+      month.month === monthlyOverview.comparison.previousMonth.month &&
+      month.year === monthlyOverview.comparison.previousMonth.year,
   );
-  const monthlyLearningTotal =
-    monthlyOverview.productivity.totalLearningMinutes ??
-    (isSelectedCurrentMonth ? learningStats?.monthMinutes ?? monthlyLearningTotalFromSeries : monthlyLearningTotalFromSeries);
-  const monthlyLearningSessions =
-    monthlyOverview.productivity.totalLearningSessions ??
-    monthlySeriesWithLearning.reduce((sum, item) => sum + (item.learningSessions ?? 0), 0);
+  const previousMonthHasActivity = previousMonthHistory
+    ? hasTrackedActivity(previousMonthHistory)
+    : false;
+  const displayAverageDailyScore = selectedMonthHasActivity
+    ? monthlyOverview.productivity.averageDailyScore
+    : 0;
+  const learningFocusComparison = monthlyOverview.comparison.focusPct;
+  const scoreComparison =
+    selectedMonthHasActivity && previousMonthHasActivity
+      ? monthlyOverview.comparison.scorePct
+      : 0;
 
   return (
     <main className="relative space-y-5 overflow-hidden bg-slate-50 px-4 py-5 dark:bg-[#08111f] sm:px-6 lg:px-8">
@@ -302,9 +427,18 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             <Breakdown label="Login" data={dashboard.dailyProgress.breakdown.login} detail={dashboard.dailyProgress.breakdown.login.completed ? "Done" : "Not completed"} />
-            <Breakdown label="Learning / Focus" data={dashboard.dailyProgress.breakdown.focus} detail={`${combinedLearningFocusToday}/${dashboard.dailyProgress.breakdown.focus.targetMinutes} min combined`} />
+            <Breakdown
+              label="Learning / Focus"
+              data={dashboard.dailyProgress.breakdown.focus}
+              value={`${combinedLearningFocusToday}/${dashboard.dailyProgress.breakdown.focus.targetMinutes} min`}
+              detail={`${dashboard.dailyProgress.breakdown.focus.earned}/${dashboard.dailyProgress.breakdown.focus.max} pts earned`}
+            />
             <Breakdown label="Workout" data={dashboard.dailyProgress.breakdown.workout} detail={`${dashboard.dailyProgress.breakdown.workout.count}/${dashboard.dailyProgress.breakdown.workout.targetCount} workout`} />
-            <Breakdown label="Sections" data={dashboard.dailyProgress.breakdown.sections} detail={`${dashboard.dailyProgress.breakdown.sections.completedSections}/${dashboard.dailyProgress.breakdown.sections.totalSections} sections`} />
+            <Breakdown
+              label="Daily Tasks"
+              data={dashboard.dailyProgress.breakdown.sections}
+              detail={`${dashboard.dailyProgress.breakdown.sections.completedSections}/${dashboard.dailyProgress.breakdown.sections.totalSections} score tasks completed`}
+            />
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {dashboard.dailyProgress.missing.length ? (
@@ -397,6 +531,11 @@ export default function Dashboard() {
             Load Detailed Weekly
           </button>
         </div>
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <MetricTile label="Weekly Learning Minutes" value={`${weeklyLearningTotals.learningMinutes} min`} />
+          <MetricTile label="Learning Sessions" value={`${weeklyLearningTotals.learningSessions}`} />
+          <MetricTile label="Completed Learning" value={`${weeklyLearningTotals.completedLearningSessions}`} />
+        </div>
         <div className="h-72 rounded-2xl border border-slate-200/80 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-950/55">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={weeklyData}>
@@ -406,10 +545,12 @@ export default function Dashboard() {
               <YAxis yAxisId="right" orientation="right" />
               <Tooltip />
               <Legend />
-              <Bar yAxisId="left" dataKey="workouts" name="Workouts" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="focusMinutes" name="Focus Minutes" stroke="#f97316" strokeWidth={2.8} />
-              <Line yAxisId="right" type="monotone" dataKey="learningMinutes" name="Learning Minutes" stroke="#a855f7" strokeWidth={2.8} />
-              <Line yAxisId="left" type="monotone" dataKey="moneyActivities" name="Money Activity" stroke="#22c55e" strokeWidth={2} />
+              <Line yAxisId="left" type="monotone" dataKey="workouts" name="Workouts" stroke="#0ea5e9" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="left" type="monotone" dataKey="learningSessions" name="Learning Sessions" stroke="#f59e0b" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="left" type="monotone" dataKey="completedLearningSessions" name="Completed Learning" stroke="#14b8a6" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="right" type="monotone" dataKey="focusMinutes" name="Focus Minutes" stroke="#f97316" strokeWidth={2.8} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="right" type="monotone" dataKey="learningMinutes" name="Learning Minutes" stroke="#a855f7" strokeWidth={2.8} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="left" type="monotone" dataKey="moneyActivities" name="Money Activity" stroke="#22c55e" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -447,7 +588,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Money Summary</p>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Savings matches the available balance shown on the Money page.
+                  Savings matches the Money page available balance.
                 </p>
               </div>
               <span className="rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-bold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
@@ -477,58 +618,91 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <MetricTile label="Avg Daily Score" value={`${monthlyOverview.productivity.averageDailyScore}%`} />
-              <MetricTile label="Total Focus" value={`${monthlyOverview.productivity.totalFocusMinutes} min`} />
+              <MetricTile label="Avg Daily Score" value={`${displayAverageDailyScore}%`} />
+              <MetricTile label="Total Focus" value={`${monthlyFocusTotal} min`} />
               <MetricTile label="Total Learning" value={`${monthlyLearningTotal} min`} />
               <MetricTile label="Learning Sessions" value={`${monthlyLearningSessions}`} />
+              <MetricTile label="Completed Learning" value={`${monthlyCompletedLearningSessions}`} />
               <MetricTile label="Total Workouts" value={`${monthlyOverview.productivity.totalWorkouts}`} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <ComparisonLine label="Income" value={monthlyOverview.comparison.incomePct} />
               <ComparisonLine label="Expense" value={monthlyOverview.comparison.expensePct} />
               <ComparisonLine label="Savings" value={monthlyOverview.comparison.savingsPct} />
-              <ComparisonLine label="Focus" value={monthlyOverview.comparison.focusPct} />
+              <ComparisonLine label="Learning/Focus" value={learningFocusComparison} />
               <ComparisonLine label="Workouts" value={monthlyOverview.comparison.workoutsPct} />
-              <ComparisonLine label="Score" value={monthlyOverview.comparison.scorePct} />
+              <ComparisonLine label="Score" value={scoreComparison} />
             </div>
           </div>
         </div>
 
         <div className="mt-4 h-80 rounded-2xl border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/55">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={monthlySeriesWithLearning}>
+            <ComposedChart data={monthlySeriesWithLearning} barCategoryGap="10%" barGap={5}>
               <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
               <XAxis dataKey="date" tickFormatter={(value: string) => value.slice(8)} />
               <YAxis yAxisId="money" />
               <YAxis yAxisId="activity" orientation="right" />
               <Tooltip />
               <Legend />
-              <Bar yAxisId="money" dataKey="income" name="Income" fill="#16a34a" />
-              <Bar yAxisId="money" dataKey="expense" name="Expense" fill="#ef4444" />
-              <Line yAxisId="activity" dataKey="focusMinutes" name="Focus Minutes" stroke="#0ea5e9" strokeWidth={2.2} />
-              <Line yAxisId="activity" dataKey="learningMinutes" name="Learning Minutes" stroke="#a855f7" strokeWidth={2.2} />
-              <Line yAxisId="activity" dataKey="score" name="Score" stroke="#f59e0b" strokeWidth={2} />
+              <Bar yAxisId="money" dataKey="income" name="Income" fill="#16a34a" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="money" dataKey="expense" name="Expense" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="focusMinutes" name="Focus Minutes" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="learningMinutes" name="Learning Minutes" fill="#a855f7" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="learningSessions" name="Learning Sessions" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="score" name="Score" fill="#22c55e" radius={[6, 6, 0, 0]} barSize={18} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </section>
 
       <section className="relative z-10 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
-        <p className="mb-3 text-lg font-black text-slate-900 dark:text-white">Monthly History</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {monthlyHistory.map((month) => (
-            <button
-              key={`${month.year}-${month.month}`}
-              onClick={() => void setSelectedMonth(`${month.year}-${String(month.month).padStart(2, "0")}`)}
-              className="rounded-2xl border border-slate-200/80 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:border-slate-700 dark:bg-slate-950/50 dark:hover:border-cyan-500/40 dark:hover:bg-slate-950"
-            >
-              <p className="text-sm font-black text-slate-900 dark:text-white">{month.label}</p>
-              <p className="mt-2 text-xs text-slate-500">Income {formatCurrency(month.income)} | Expense {formatCurrency(month.expense)}</p>
-              <p className="text-xs text-slate-500">Focus {month.totalFocusMinutes} min | Learning {month.totalLearningMinutes ?? (isSelectedCurrentMonth && month.month === monthlyOverview.selectedMonth.month && month.year === monthlyOverview.selectedMonth.year ? monthlyLearningTotal : 0)} min</p>
-              <p className="text-xs text-slate-500">Workouts {month.totalWorkouts} | Learning sessions {month.totalLearningSessions ?? 0}</p>
-              <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Score {month.averageDailyScore}%</p>
-            </button>
-          ))}
+        <div className="mb-4">
+          <p className="text-lg font-black text-slate-900 dark:text-white">Monthly History</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jump to a month and compare money, learning, focus, workouts, and score at a glance.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {monthlyHistory.map((month) => {
+            const monthKey = monthKeyFromParts(month.month, month.year);
+            const monthHasActivity = hasTrackedActivity(month);
+            const monthScore = monthHasActivity ? month.averageDailyScore : 0;
+            const monthSavings =
+              monthKey === currentMonthKey ? displayBalance : month.savings;
+            return (
+              <button
+                key={`${month.year}-${month.month}`}
+                onClick={() => void setSelectedMonth(monthKey)}
+                className="group rounded-2xl border border-slate-200/80 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-white hover:shadow-[0_16px_34px_rgba(14,165,233,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:border-slate-700 dark:bg-slate-950/50 dark:hover:border-cyan-500/40 dark:hover:bg-slate-950"
+              >
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-black text-slate-900 dark:text-white">{month.label}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Monthly snapshot</p>
+                  </div>
+                  <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 dark:border-cyan-400/25 dark:bg-cyan-400/10 dark:text-cyan-200">
+                    Score {monthScore}%
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <HistoryStat label="Income" value={formatCurrency(month.income)} tone="positive" />
+                  <HistoryStat label="Expense" value={formatCurrency(month.expense)} tone="danger" />
+                  <HistoryStat label="Savings" value={formatCurrency(monthSavings)} tone="neutral" />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <HistoryStat label="Focus" value={`${month.totalFocusMinutes}m`} />
+                  <HistoryStat label="Learning" value={`${month.totalLearningMinutes}m`} />
+                  <HistoryStat label="Sessions" value={`${month.completedLearningSessions}/${month.totalLearningSessions}`} />
+                  <HistoryStat label="Workouts" value={`${month.totalWorkouts}`} />
+                </div>
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-300 transition-all group-hover:from-cyan-300 group-hover:to-amber-200"
+                    style={{ width: `${Math.max(0, Math.min(monthScore, 100))}%` }}
+                  />
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
     </main>
@@ -539,10 +713,12 @@ function Breakdown({
   label,
   data,
   detail,
+  value,
 }: {
   label: string;
   data: { earned: number; max: number; completed: boolean };
   detail: string;
+  value?: string;
 }) {
   return (
     <div className="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/50">
@@ -552,7 +728,7 @@ function Breakdown({
           {data.completed ? "Done" : "Pending"}
         </span>
       </div>
-      <p className="text-sm font-black text-slate-900 dark:text-white">{data.earned}/{data.max}</p>
+      <p className="text-sm font-black text-slate-900 dark:text-white">{value ?? `${data.earned}/${data.max}`}</p>
       <p className="text-xs text-slate-500">{detail}</p>
     </div>
   );
@@ -563,6 +739,32 @@ function MetricTile({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900/80">
       <p className="text-[11px] uppercase text-slate-500">{label}</p>
       <p className="mt-1 text-base font-black text-slate-900 dark:text-white">{value}</p>
+    </div>
+  );
+}
+
+function HistoryStat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "positive" | "danger" | "neutral";
+}) {
+  const color =
+    tone === "positive"
+      ? "text-emerald-600 dark:text-emerald-300"
+      : tone === "danger"
+        ? "text-rose-600 dark:text-rose-300"
+        : tone === "neutral"
+          ? "text-cyan-700 dark:text-cyan-200"
+          : "text-slate-900 dark:text-white";
+
+  return (
+    <div className="rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/80">
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-1 text-sm font-black ${color}`}>{value}</p>
     </div>
   );
 }

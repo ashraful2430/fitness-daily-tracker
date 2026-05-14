@@ -252,6 +252,7 @@ function normalizeMonthlyHistory(value: unknown): DashboardMonthlyHistoryItem[] 
       totalFocusMinutes: toNumber(row.totalFocusMinutes),
       totalLearningMinutes: toNumber(row.totalLearningMinutes),
       totalLearningSessions: toNumber(row.totalLearningSessions),
+      completedLearningSessions: toNumber(row.completedLearningSessions),
       totalWorkouts: toNumber(row.totalWorkouts),
     };
   });

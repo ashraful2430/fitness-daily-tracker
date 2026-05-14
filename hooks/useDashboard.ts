@@ -9,7 +9,6 @@ import {
   getWeeklyStats,
 } from "@/lib/dashboardApi";
 import { moneyAPI } from "@/lib/api";
-import { getLearningStats } from "@/lib/learningApi";
 import { useAuth } from "@/hooks/useAuth";
 import type {
   DashboardData,
@@ -18,7 +17,6 @@ import type {
   WeeklyStat,
   WeeklyStatsMeta,
 } from "@/types/dashboard";
-import type { LearningStats } from "@/types/learning";
 
 function monthKeyFromParts(month: number, year: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -47,6 +45,17 @@ function getErrorMessage(error: unknown) {
   return "Failed to load dashboard";
 }
 
+function getMoneySavingsBalance(balance: Awaited<ReturnType<typeof moneyAPI.getBalanceSources>>) {
+  if (typeof balance?.totalBalance === "number" && Number.isFinite(balance.totalBalance)) {
+    return balance.totalBalance;
+  }
+
+  return (balance?.sources ?? []).reduce(
+    (total, source) => total + (Number.isFinite(source.amount) ? source.amount : 0),
+    0,
+  );
+}
+
 export function useDashboard() {
   const { user, loading: authLoading, clearUser } = useAuth();
 
@@ -60,8 +69,6 @@ export function useDashboard() {
   const [loading, setLoading] = useState(true);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [actualAvailableBalance, setActualAvailableBalance] = useState<number | null>(null);
-  const [learningStats, setLearningStats] = useState<LearningStats | null>(null);
 
   const mounted = useRef(true);
 
@@ -123,15 +130,16 @@ export function useDashboard() {
         setError(null);
       }
 
-      const [dashboardData, history, balance, learning] = await Promise.all([
+      const [dashboardData, history, initialOverview, moneyBalance] = await Promise.all([
         getDashboard(),
         getMonthlyHistory(6),
+        getMonthlyOverview(),
         moneyAPI.getBalanceSources(),
-        getLearningStats(),
       ]);
 
       if (!mounted.current) return;
 
+      const savingsBalance = getMoneySavingsBalance(moneyBalance);
       const syncedDashboard: DashboardData = {
         ...dashboardData,
         kpis: {
@@ -140,23 +148,27 @@ export function useDashboard() {
             ...dashboardData.kpis.loginStreak,
             current: user.loginStreak ?? dashboardData.kpis.loginStreak.current,
           },
+          availableBalance: savingsBalance,
+        },
+        moduleOverview: {
+          ...dashboardData.moduleOverview,
+          money: {
+            ...dashboardData.moduleOverview.money,
+            availableBalance: savingsBalance,
+          },
         },
       };
 
       setDashboard(syncedDashboard);
       setMonthlyHistory(history);
-      setActualAvailableBalance(balance?.totalBalance ?? 0);
-      setLearningStats(learning);
+      setMonthlyOverview(initialOverview);
 
-      const defaultMonthKey = history.length
-        ? monthKeyFromParts(history[0].month, history[0].year)
-        : monthKeyFromParts(new Date().getMonth() + 1, new Date().getFullYear());
+      const defaultMonthKey = monthKeyFromParts(
+        initialOverview.selectedMonth.month || new Date().getMonth() + 1,
+        initialOverview.selectedMonth.year || new Date().getFullYear(),
+      );
 
       setSelectedMonth((current) => current || defaultMonthKey);
-      await loadMonthlyOverview(
-        defaultMonthKey,
-        false,
-      );
     } catch (error: unknown) {
       if (error instanceof DashboardApiError && error.status === 401) {
         clearUser();
@@ -169,7 +181,7 @@ export function useDashboard() {
         setLoading(false);
       }
     }
-  }, [authLoading, clearUser, loadMonthlyOverview, user]);
+  }, [authLoading, clearUser, user]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -230,8 +242,6 @@ export function useDashboard() {
     weeklyLoading,
     loading,
     overviewLoading,
-    actualAvailableBalance,
-    learningStats,
     error,
     refresh,
     loadWeeklyDetails,

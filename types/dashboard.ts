@@ -83,9 +83,9 @@ export interface WeeklyStat {
   day: string;
   workouts: number;
   focusMinutes: number;
-  learningMinutes?: number;
-  learningSessions?: number;
-  completedLearningSessions?: number;
+  learningMinutes: number;
+  learningSessions: number;
+  completedLearningSessions: number;
   moneyActivities: number;
 }
 
@@ -118,9 +118,9 @@ export interface DashboardMonthlyOverview {
   productivity: {
     averageDailyScore: number;
     totalFocusMinutes: number;
-    totalLearningMinutes?: number;
-    totalLearningSessions?: number;
-    completedLearningSessions?: number;
+    totalLearningMinutes: number;
+    totalLearningSessions: number;
+    completedLearningSessions: number;
     totalWorkouts: number;
   };
   comparison: {
@@ -141,8 +141,8 @@ export interface DashboardMonthlyOverview {
     income: number;
     expense: number;
     focusMinutes: number;
-    learningMinutes?: number;
-    learningSessions?: number;
+    learningMinutes: number;
+    learningSessions: number;
     workouts: number;
     score: number;
   }>;
@@ -158,8 +158,9 @@ export interface DashboardMonthlyHistoryItem {
   netBalanceChange: number;
   averageDailyScore: number;
   totalFocusMinutes: number;
-  totalLearningMinutes?: number;
-  totalLearningSessions?: number;
+  totalLearningMinutes: number;
+  totalLearningSessions: number;
+  completedLearningSessions: number;
   totalWorkouts: number;
 }
 
