@@ -1,11 +1,22 @@
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types/auth";
 import type { DashboardData, WeeklyStat } from "@/types/dashboard";
 import type {
+  AdminBlockUpdateResponse,
+  AdminRoleUpdateResponse,
+  AdminUserSummaryResponse,
+  AdminUsersParams,
+  AdminUsersMeta,
+  AdminUserListItem,
+  UserRole,
+} from "@/types/admin";
+import type {
   CreateLearningSessionRequest,
+  LearningTemplate,
   LearningSession,
   LearningSessionsQuery,
   LearningSessionsResponse,
   LearningSummary,
+  TimerPreset,
   UpdateLearningSessionRequest,
 } from "@/types/learning";
 import type {
@@ -22,6 +33,8 @@ import type {
   BalanceResponse,
   BalanceSource,
   MonthlyExpenseSummary,
+  MonthlyIncomeData,
+  MonthlyIncomeHistoryItem,
   UpdateExpenseRequest,
   UpdateSalaryRequest,
   Loan,
@@ -51,6 +64,7 @@ import toast from "react-hot-toast";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
+export const AUTH_FORBIDDEN_EVENT = "auth:forbidden";
 
 interface ApiOptions extends RequestInit {
   requireAuth?: boolean;
@@ -68,6 +82,7 @@ type ApiEnvelope<T> = {
 
 type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
   pagination?: unknown;
+  meta?: unknown;
 };
 
 export class ApiError extends Error {
@@ -121,6 +136,21 @@ function emitUnauthorized() {
   }
 }
 
+function emitForbidden(message: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent(AUTH_FORBIDDEN_EVENT, {
+        detail: {
+          message,
+          blocked:
+            message.trim().toLowerCase() !==
+            "forbidden: admin access only",
+        },
+      }),
+    );
+  }
+}
+
 function getPayload<T>(body: unknown): T {
   if (body && typeof body === "object") {
     const envelope = body as ApiEnvelope<T>;
@@ -163,7 +193,12 @@ async function apiRequest<T = unknown>(
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config).catch(() => {
+    throw new ApiError(
+      "Service is temporarily unavailable. You can keep browsing, but actions need the backend connection.",
+      0,
+    );
+  });
   const body = (await response
     .json()
     .catch(() => null)) as ApiEnvelope<T> | null;
@@ -173,6 +208,9 @@ async function apiRequest<T = unknown>(
 
     if (response.status === 401 && requireAuth) {
       emitUnauthorized();
+    }
+    if (response.status === 403 && requireAuth) {
+      emitForbidden(message);
     }
 
     throw new ApiError(message, response.status, body, body?.field);
@@ -228,7 +266,12 @@ async function apiRequestWithMeta<T = unknown>(
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config).catch(() => {
+    throw new ApiError(
+      "Service is temporarily unavailable. You can keep browsing, but actions need the backend connection.",
+      0,
+    );
+  });
   const body = (await response
     .json()
     .catch(() => null)) as PaginatedApiEnvelope<T> | null;
@@ -238,6 +281,9 @@ async function apiRequestWithMeta<T = unknown>(
 
     if (response.status === 401 && requireAuth) {
       emitUnauthorized();
+    }
+    if (response.status === 403 && requireAuth) {
+      emitForbidden(message);
     }
 
     throw new ApiError(message, response.status, body, body?.field);
@@ -416,6 +462,22 @@ export const moneyAPI = {
   getMonthlyExpenseSummary: () =>
     apiRequest<MonthlyExpenseSummary[]>("/api/money/expenses/monthly-summary"),
 
+  getMonthlyIncome: (month: number, year: number) => {
+    const params = new URLSearchParams();
+    params.set("month", String(month));
+    params.set("year", String(year));
+    return apiRequest<MonthlyIncomeData>(
+      `/api/money/monthly-income?${params.toString()}`,
+    );
+  },
+
+  getMonthlyIncomeHistory: (limit = 12) => {
+    const safeLimit = Math.max(1, Math.min(24, limit));
+    return apiRequest<MonthlyIncomeHistoryItem[]>(
+      `/api/money/monthly-income/history?limit=${safeLimit}`,
+    );
+  },
+
   createSalary: (payload: UpdateSalaryRequest) =>
     apiRequest<SalaryRecord>("/api/money/salary", {
       method: "POST",
@@ -545,6 +607,32 @@ export const learningAPI = {
     apiRequest<void>(`/api/learning/session/${id}`, {
       method: "DELETE",
     }),
+
+  startSession: (id: string) =>
+    apiRequest<LearningSession>(`/api/learning/session/${id}/start`, {
+      method: "POST",
+    }),
+
+  pauseSession: (id: string) =>
+    apiRequest<LearningSession>(`/api/learning/session/${id}/pause`, {
+      method: "POST",
+    }),
+
+  completeSession: (id: string) =>
+    apiRequest<LearningSession>(`/api/learning/session/${id}/complete`, {
+      method: "POST",
+    }),
+
+  getTemplates: () => apiRequest<LearningTemplate[]>("/api/learning/templates"),
+
+  getTimerPresets: () =>
+    apiRequest<TimerPreset[]>("/api/learning/timer-presets"),
+
+  saveTimerPreset: (payload: TimerPreset) =>
+    apiRequest<TimerPreset>("/api/learning/timer-presets", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
 
 export type ScoreGoalType = "count" | "duration" | "boolean";
@@ -624,6 +712,8 @@ export const lendingRecordAPI = {
     personName: string;
     amount: number;
     fundingSource: FundingSource;
+    borrowedFromName?: string;
+    borrowReason?: string;
     date?: string;
   }) =>
     apiRequest<LendingRecord>("/api/lending", {
@@ -645,6 +735,55 @@ export const lendingRecordAPI = {
 
 export const financeAPI = {
   getSummary: () => apiRequest<FinanceSummary>("/api/finance/summary"),
+};
+
+export const adminAPI = {
+  getUsers: async (params: AdminUsersParams = {}) => {
+    const query = new URLSearchParams();
+    query.set("page", String(params.page ?? 1));
+    query.set("limit", String(params.limit ?? 20));
+    if (params.search?.trim()) {
+      query.set("search", params.search.trim());
+    }
+
+    const response = await apiRequestWithMeta<AdminUserListItem[]>(
+      `/api/admin/users?${query.toString()}`,
+      { cacheTtlMs: 0 },
+    );
+
+    return {
+      data: response?.data ?? [],
+      meta: ((response?.meta ?? response?.pagination) as AdminUsersMeta) ?? {
+        page: params.page ?? 1,
+        limit: params.limit ?? 20,
+        total: response?.data?.length ?? 0,
+        totalPages: 1,
+      },
+    };
+  },
+
+  updateUserRole: (userId: string, role: UserRole) =>
+    apiRequest<AdminRoleUpdateResponse>(`/api/admin/users/${userId}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+
+  setUserBlockStatus: (
+    userId: string,
+    isBlocked: boolean,
+    reason?: string,
+  ) =>
+    apiRequest<AdminBlockUpdateResponse>(`/api/admin/users/${userId}/block`, {
+      method: "PATCH",
+      body: JSON.stringify(
+        isBlocked ? { isBlocked: true, reason: reason?.trim() ?? "" } : { isBlocked: false },
+      ),
+    }),
+
+  getUserSummary: (userId: string) =>
+    apiRequest<AdminUserSummaryResponse>(`/api/admin/users/${userId}/summary`, {
+      cacheTtlMs: 0,
+    }),
 };
 
 export default apiRequest;

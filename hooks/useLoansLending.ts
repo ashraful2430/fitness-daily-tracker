@@ -249,6 +249,8 @@ export function useLoansLending() {
       personName: string;
       amount: number;
       fundingSource: FundingSource;
+      borrowedFromName?: string;
+      borrowReason?: string;
       date?: string;
     }) => {
       try {

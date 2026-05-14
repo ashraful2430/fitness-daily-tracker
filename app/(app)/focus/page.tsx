@@ -9,9 +9,5 @@ const PomodoroTimer = dynamic(
 );
 
 export default function FocusPage() {
-  return (
-    <div className="py-10">
-      <PomodoroTimer />
-    </div>
-  );
+  return <PomodoroTimer />;
 }

@@ -89,8 +89,8 @@ function RepayModal({
               </p>
               <div className="mt-2 flex items-baseline gap-4">
                 <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Total lent</p>
-                  <p className="text-lg font-bold text-slate-900 dark:text-white">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Lent Money</p>
+                  <p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">
                     ${record.amount.toLocaleString()}
                   </p>
                 </div>
@@ -103,8 +103,14 @@ function RepayModal({
                   </div>
                 )}
                 <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Remaining</p>
-                  <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Active Lending</p>
+                  <p
+                    className={`text-lg font-bold ${
+                      record.fundingSource === "BORROWED"
+                        ? "text-rose-500 dark:text-rose-400"
+                        : "text-cyan-600 dark:text-cyan-400"
+                    }`}
+                  >
                     ${remaining.toLocaleString()}
                   </p>
                 </div>
@@ -266,10 +272,10 @@ export default function LendingTable({
                   Person
                 </th>
                 <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Total
+                  Lent Money
                 </th>
                 <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Remaining
+                  Active Lending
                 </th>
                 <th className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Source
@@ -296,10 +302,16 @@ export default function LendingTable({
                     <td className="px-5 py-4 font-medium text-slate-900 dark:text-white">
                       {record.personName}
                     </td>
-                    <td className="px-5 py-4 text-right font-bold text-slate-900 dark:text-white">
+                    <td className="px-5 py-4 text-right font-bold text-cyan-600 dark:text-cyan-400">
                       ${record.amount.toLocaleString()}
                     </td>
-                    <td className="px-5 py-4 text-right font-bold text-orange-600 dark:text-orange-400">
+                    <td
+                      className={`px-5 py-4 text-right font-bold ${
+                        record.fundingSource === "BORROWED"
+                          ? "text-rose-500 dark:text-rose-400"
+                          : "text-cyan-600 dark:text-cyan-400"
+                      }`}
+                    >
                       {remaining > 0 ? `$${remaining.toLocaleString()}` : "—"}
                     </td>
                     <td className="px-5 py-4">
@@ -307,7 +319,7 @@ export default function LendingTable({
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                           record.fundingSource === "PERSONAL"
                             ? "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"
-                            : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                            : "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
                         }`}
                       >
                         {record.fundingSource}

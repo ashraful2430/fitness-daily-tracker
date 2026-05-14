@@ -1,850 +1,816 @@
 "use client";
 
-import { useDashboard } from "@/hooks/useDashboard";
-import { useAuth } from "@/hooks/useAuth";
-import type { Workout, WeeklyStat } from "@/types/dashboard";
+import { useMemo } from "react";
+import Link from "next/link";
 import {
-  Activity,
   ArrowRight,
-  CheckCircle2,
-  Clock,
+  CalendarRange,
   Flame,
-  Hash,
-  Plus,
-  Target,
+  Gauge,
+  Loader2,
+  Timer,
+  TrendingDown,
   TrendingUp,
-  Zap,
-  type LucideIcon,
+  Wallet,
+  Dumbbell,
+  CircleDot,
 } from "lucide-react";
-import { motion, useMotionValue, useSpring } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import DashboardSkeleton from "./DashboardSkeleton";
-import ScoreSections from "./ScoreSections";
-import LearningSummaryPanel from "./LearningSummaryPanel";
-import type { ScoreSection } from "@/lib/api";
+import { useDashboard } from "@/hooks/useDashboard";
+import type { TrendDirection } from "@/types/dashboard";
+import {
+  detectCurrencyCode,
+  formatCurrencyByLocale,
+  getBrowserLocale,
+  getBrowserTimeZone,
+} from "@/lib/currency";
 
-type CK = "orange" | "cyan" | "violet" | "emerald" | "indigo";
+function formatPercent(value: number) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)}%`;
+}
 
-const grad: Record<CK, string> = {
-  orange: "from-orange-500 to-amber-400",
-  cyan: "from-cyan-500 to-teal-400",
-  violet: "from-violet-600 to-purple-500",
-  emerald: "from-emerald-500 to-green-400",
-  indigo: "from-indigo-500 to-blue-400",
-};
+function trendStyle(trend: TrendDirection) {
+  if (trend === "up") {
+    return "border-emerald-300/60 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-200";
+  }
+  if (trend === "down") {
+    return "border-rose-300/60 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-500/15 dark:text-rose-200";
+  }
+  return "border-slate-300/70 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300";
+}
 
-function ScoreRing({ score }: { score: number }) {
-  const r = 84;
-  const circ = 2 * Math.PI * r;
-  const raw = useMotionValue(0);
-  const spr = useSpring(raw, { stiffness: 55, damping: 16 });
-  const ref = useRef<SVGCircleElement>(null);
-
-  useEffect(() => {
-    raw.set(score);
-  }, [score, raw]);
-
-  useEffect(
-    () =>
-      spr.on("change", (v) => {
-        if (ref.current) {
-          ref.current.style.strokeDashoffset = `${circ * (1 - v / 100)}`;
-        }
-      }),
-    [spr, circ],
-  );
-
+function TrendPill({ trend }: { trend: TrendDirection }) {
   return (
-    <svg className="-rotate-90 h-full w-full" viewBox="0 0 220 220">
-      <defs>
-        <linearGradient
-          id="scoreRingGradient"
-          x1="0%"
-          y1="0%"
-          x2="100%"
-          y2="100%"
-        >
-          <stop offset="0%" stopColor="#c084fc" />
-          <stop offset="45%" stopColor="#8b5cf6" />
-          <stop offset="100%" stopColor="#38bdf8" />
-        </linearGradient>
-
-        <filter id="scoreGlow">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-          <feMerge>
-            <feMergeNode in="coloredBlur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-
-      <circle
-        cx="110"
-        cy="110"
-        r={r}
-        stroke="rgba(255,255,255,0.08)"
-        strokeWidth="14"
-        fill="none"
-      />
-
-      <circle
-        cx="110"
-        cy="110"
-        r="68"
-        stroke="rgba(255,255,255,0.04)"
-        strokeWidth="24"
-        fill="none"
-      />
-
-      <circle
-        ref={ref}
-        cx="110"
-        cy="110"
-        r={r}
-        stroke="url(#scoreRingGradient)"
-        strokeWidth="14"
-        fill="none"
-        strokeLinecap="round"
-        strokeDasharray={circ}
-        strokeDashoffset={circ}
-        filter="url(#scoreGlow)"
-      />
-    </svg>
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase ${trendStyle(trend)}`}>
+      {trend}
+    </span>
   );
 }
 
-function getSectionProgress(section: ScoreSection) {
-  if (!section.goalValue) return 0;
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
-  return Math.min(
-    Math.round((section.currentValue / section.goalValue) * 100),
-    100,
-  );
+function formatDateKeyInTimeZone(value: string | null | undefined, timeZone: string) {
+  const rawValue = typeof value === "string" ? value : "";
+  if (!rawValue) return "";
+  if (dateOnlyPattern.test(rawValue)) return rawValue;
+
+  const parsed = new Date(rawValue);
+  if (Number.isNaN(parsed.getTime())) return rawValue.slice(0, 10);
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: timeZone || undefined,
+    year: "numeric",
+  }).formatToParts(parsed);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : rawValue.slice(0, 10);
 }
 
-function durationAverageProgress(sections: ScoreSection[]) {
-  if (!sections.length) return 0;
+function formatCurrentDateKey(timeZone: string) {
+  return formatDateKeyInTimeZone(new Date().toISOString(), timeZone);
+}
 
+function monthKeyFromParts(month: number, year: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function weekdayLabelFromDateKey(dateKey: string, fallback: string) {
+  if (!dateOnlyPattern.test(dateKey)) return fallback;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+    weekday: "short",
+  });
+}
+
+function hasTrackedActivity(item: {
+  completedLearningSessions?: number;
+  expense?: number;
+  focusMinutes?: number;
+  income?: number;
+  learningMinutes?: number;
+  learningSessions?: number;
+  moneyActivities?: number;
+  netBalanceChange?: number;
+  savings?: number;
+  totalFocusMinutes?: number;
+  totalLearningMinutes?: number;
+  totalLearningSessions?: number;
+  totalWorkouts?: number;
+  workouts?: number;
+}) {
+  return [
+    item.completedLearningSessions,
+    item.expense,
+    item.focusMinutes,
+    item.income,
+    item.learningMinutes,
+    item.learningSessions,
+    item.moneyActivities,
+    item.netBalanceChange,
+    item.savings,
+    item.totalFocusMinutes,
+    item.totalLearningMinutes,
+    item.totalLearningSessions,
+    item.totalWorkouts,
+    item.workouts,
+  ].some((value) => typeof value === "number" && value > 0);
+}
+
+function KPI({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
   return (
-    sections.reduce((sum, section) => sum + getSectionProgress(section), 0) /
-    sections.length
+    <article className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_16px_36px_rgba(14,165,233,0.10)] dark:border-slate-700/80 dark:bg-slate-900 dark:shadow-black/20 dark:hover:border-cyan-500/40">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{title}</p>
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition group-hover:bg-cyan-100 group-hover:text-cyan-700 dark:bg-slate-800 dark:text-slate-200 dark:group-hover:bg-cyan-500/15 dark:group-hover:text-cyan-200">
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">{value}</p>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
+    </article>
   );
-}
-
-function countAverageProgress(sections: ScoreSection[]) {
-  if (!sections.length) return 0;
-
-  return (
-    sections.reduce((sum, section) => sum + getSectionProgress(section), 0) /
-    sections.length
-  );
-}
-
-function getSectionStats(sections: ScoreSection[]) {
-  const durationSections = sections.filter(
-    (section) => section.goalType === "duration",
-  );
-
-  const countSections = sections.filter(
-    (section) => section.goalType === "count",
-  );
-
-  const booleanSections = sections.filter(
-    (section) => section.goalType === "boolean",
-  );
-
-  const totalDurationMinutes = durationSections.reduce(
-    (sum, section) => sum + section.currentValue,
-    0,
-  );
-
-  const totalCountProgress = countSections.reduce(
-    (sum, section) => sum + section.currentValue,
-    0,
-  );
-
-  const doneCompleted = booleanSections.filter(
-    (section) => section.currentValue >= section.goalValue,
-  ).length;
-
-  const overallCompletion = sections.length
-    ? Math.round(
-        sections.reduce(
-          (sum, section) => sum + getSectionProgress(section),
-          0,
-        ) / sections.length,
-      )
-    : 0;
-
-  return {
-    durationSections,
-    countSections,
-    booleanSections,
-    totalDurationMinutes,
-    totalCountProgress,
-    doneCompleted,
-    overallCompletion,
-  };
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  const { data, weeklyStats, loading, error, refresh } = useDashboard();
-  const [dynamicScore, setDynamicScore] = useState<number | null>(null);
-  const [scoreSections, setScoreSections] = useState<ScoreSection[]>([]);
-  const router = useRouter();
+  const {
+    dashboard,
+    monthlyOverview,
+    monthlyHistory,
+    monthOptions,
+    selectedMonth,
+    setSelectedMonth,
+    weeklyInsight,
+    weeklyMeta,
+    weeklyLoading,
+    loading,
+    overviewLoading,
+    error,
+    refresh,
+    loadWeeklyDetails,
+  } = useDashboard();
 
-  const sectionStats = useMemo(
-    () => getSectionStats(scoreSections),
-    [scoreSections],
+  const locale = getBrowserLocale();
+  const timeZone = getBrowserTimeZone();
+
+  const weeklyData = useMemo(
+    () => {
+      return (weeklyInsight ?? dashboard?.weeklyStats ?? []).map((item) => {
+        const dateKey = formatDateKeyInTimeZone(item.date, timeZone);
+
+        return {
+          ...item,
+          dateKey,
+          day: weekdayLabelFromDateKey(dateKey, item.day),
+          completedLearningSessions: item.completedLearningSessions ?? 0,
+          focusMinutes: item.focusMinutes ?? 0,
+          learningMinutes: item.learningMinutes ?? 0,
+          learningSessions: item.learningSessions ?? 0,
+          moneyActivities: item.moneyActivities ?? 0,
+          workouts: item.workouts ?? 0,
+        };
+      });
+    },
+    [dashboard?.weeklyStats, timeZone, weeklyInsight],
+  );
+  const weeklyLearningTotals = useMemo(
+    () =>
+      weeklyData.reduce(
+        (totals, item) => ({
+          learningMinutes: totals.learningMinutes + item.learningMinutes,
+          learningSessions: totals.learningSessions + item.learningSessions,
+          completedLearningSessions:
+            totals.completedLearningSessions + item.completedLearningSessions,
+        }),
+        { learningMinutes: 0, learningSessions: 0, completedLearningSessions: 0 },
+      ),
+    [weeklyData],
+  );
+  const monthlySeriesWithLearning = useMemo(
+    () =>
+      (monthlyOverview?.dailySeries ?? []).map((item) => {
+        const nextItem = {
+          ...item,
+          dateKey: formatDateKeyInTimeZone(item.date, timeZone),
+          expense: item.expense ?? 0,
+          focusMinutes: item.focusMinutes ?? 0,
+          income: item.income ?? 0,
+          learningMinutes: item.learningMinutes ?? 0,
+          learningSessions: item.learningSessions ?? 0,
+          workouts: item.workouts ?? 0,
+        };
+
+        return {
+          ...nextItem,
+          score: hasTrackedActivity(nextItem) ? (item.score ?? 0) : 0,
+        };
+      }),
+    [monthlyOverview?.dailySeries, timeZone],
   );
 
   if (loading) return <DashboardSkeleton />;
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-[#09090f]">
-        <div className="w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-8 text-center shadow-xl shadow-slate-200/70 dark:border-white/[0.08] dark:bg-[#110d2e] dark:shadow-black/30">
-          <h2 className="text-2xl font-black text-slate-950 dark:text-white">
-            Unable to load dashboard
-          </h2>
-          <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400">
-            {error}
-          </p>
+      <div className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-500/10">
+          <p className="text-sm font-semibold text-rose-700 dark:text-rose-200">{error}</p>
           <button
-            onClick={refresh}
-            className="mt-6 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.02]"
+            onClick={() => void refresh()}
+            className="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
           >
-            Try again
+            Retry
           </button>
         </div>
       </div>
     );
   }
 
-  if (!data) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-[#09090f]">
-        <div className="w-full max-w-md rounded-[2rem] border border-dashed border-slate-200 bg-white p-8 text-center dark:border-white/[0.08] dark:bg-[#110d2e]">
-          <h2 className="text-2xl font-black text-slate-950 dark:text-white">
-            No dashboard data yet
-          </h2>
-          <p className="mt-3 text-sm font-medium text-slate-500 dark:text-slate-400">
-            Start logging activity and your summary cards will appear here.
-          </p>
-          <button
-            onClick={refresh}
-            className="mt-6 rounded-2xl bg-violet-600 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.02]"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (!dashboard || !monthlyOverview) return null;
 
-  const score = dynamicScore ?? 0;
-  const loginStreak = user?.loginStreak ?? 0;
-  const longestLoginStreak = user?.longestLoginStreak ?? 0;
-  const maxWeeklyWorkouts = Math.max(
-    ...weeklyStats.map((stat) => stat.workouts),
-    1,
+  const currency = detectCurrencyCode(locale, timeZone);
+  const formatCurrency = (value: number) =>
+    formatCurrencyByLocale(value, locale, currency);
+  const displayBalance = dashboard.kpis.availableBalance;
+  const currentMonthKey = formatCurrentDateKey(timeZone).slice(0, 7);
+  const selectedMonthKey = monthKeyFromParts(
+    monthlyOverview.selectedMonth.month,
+    monthlyOverview.selectedMonth.year,
   );
-
-  const dynamicCards = [
+  const isSelectedCurrentMonth = selectedMonthKey === currentMonthKey;
+  const monthlySavings = isSelectedCurrentMonth
+    ? displayBalance
+    : monthlyOverview.money.savings;
+  const spentRate =
+    monthlyOverview.money.income > 0
+      ? (monthlyOverview.money.expense / monthlyOverview.money.income) * 100
+      : 0;
+  const todayWeeklyStat = weeklyData.find((item) => item.dateKey === formatCurrentDateKey(timeZone));
+  const todayLearningMinutes = todayWeeklyStat?.learningMinutes ?? 0;
+  const weekLearningMinutes = weeklyLearningTotals.learningMinutes;
+  const learningCompletionRate =
+    weeklyLearningTotals.learningSessions > 0
+      ? Math.round((weeklyLearningTotals.completedLearningSessions / weeklyLearningTotals.learningSessions) * 100)
+      : 0;
+  const combinedLearningFocusToday =
+    dashboard.kpis.focusToday.minutes + todayLearningMinutes;
+  const modules = [
     {
-      icon: Flame,
-      title: "Login Streak",
-      color: "orange" as CK,
-      value: String(loginStreak),
-      unit: "days",
-      sub: `Longest login streak: ${longestLoginStreak} days`,
-      progress: undefined,
+      key: "fitness",
+      title: "Fitness / Workouts",
+      route: "/fitness",
+      quick: "Add Workout",
+      quickRoute: "/fitness",
+      metrics: [
+        { label: "Weekly", value: `${dashboard.moduleOverview.fitness.weeklyWorkouts}` },
+        { label: "Today", value: `${dashboard.moduleOverview.fitness.todayWorkouts}` },
+      ],
+      trend: dashboard.moduleOverview.fitness.trend,
     },
     {
-      icon: Clock,
-      title: "Time Progress",
-      color: "indigo" as CK,
-      value: `${sectionStats.totalDurationMinutes}`,
-      unit: "min",
-      sub: sectionStats.durationSections.length
-        ? `${sectionStats.durationSections.length} time-based goal${
-            sectionStats.durationSections.length > 1 ? "s" : ""
-          } active today`
-        : "No time-based goals added yet",
-      progress: sectionStats.durationSections.length
-        ? Math.round(durationAverageProgress(sectionStats.durationSections))
-        : 0,
+      key: "learning",
+      title: "Learning / Focus",
+      route: "/learning",
+      quick: "Log Session",
+      quickRoute: "/learning",
+      metrics: [
+        { label: "Today Learning", value: `${todayLearningMinutes} min` },
+        { label: "Week Learning", value: `${weekLearningMinutes} min` },
+        { label: "Today Focus", value: `${dashboard.kpis.focusToday.minutes} min` },
+        { label: "Completion", value: `${learningCompletionRate}%` },
+      ],
+      trend: dashboard.moduleOverview.learning.trend,
+      note: `${combinedLearningFocusToday} min combined today`,
     },
     {
-      icon: Hash,
-      title: "Count Progress",
-      color: "cyan" as CK,
-      value: String(sectionStats.totalCountProgress),
-      unit: "count",
-      sub: sectionStats.countSections.length
-        ? `${sectionStats.countSections.length} count-based goal${
-            sectionStats.countSections.length > 1 ? "s" : ""
-          } active today`
-        : "No count-based goals added yet",
-      progress: sectionStats.countSections.length
-        ? Math.round(countAverageProgress(sectionStats.countSections))
-        : 0,
+      key: "money",
+      title: "Money / Finance",
+      route: "/money",
+      quick: "Add Expense",
+      quickRoute: "/money",
+      metrics: [
+        { label: "Balance", value: formatCurrency(displayBalance) },
+        { label: "Income", value: formatCurrency(dashboard.moduleOverview.money.monthIncome) },
+        { label: "Expense", value: formatCurrency(dashboard.moduleOverview.money.monthExpense) },
+      ],
+      trend: dashboard.moduleOverview.money.trend,
     },
     {
-      icon: CheckCircle2,
-      title: "Done Progress",
-      color: "emerald" as CK,
-      value: `${sectionStats.doneCompleted}/${sectionStats.booleanSections.length}`,
-      unit: "done",
-      sub: sectionStats.booleanSections.length
-        ? `${sectionStats.doneCompleted} completed from ${
-            sectionStats.booleanSections.length
-          } done goal${sectionStats.booleanSections.length > 1 ? "s" : ""}`
-        : "No done/not-done goals added yet",
-      progress: sectionStats.booleanSections.length
-        ? Math.round(
-            (sectionStats.doneCompleted / sectionStats.booleanSections.length) *
-              100,
-          )
-        : 0,
+      key: "loans",
+      title: "Loans / Lending",
+      route: "/lending",
+      quick: "Open Lending",
+      quickRoute: "/lending",
+      metrics: [
+        { label: "Active Loans", value: `${dashboard.moduleOverview.loans.activeLoans}` },
+        { label: "Active Lendings", value: `${dashboard.moduleOverview.loans.activeLendings}` },
+      ],
+      trend: dashboard.moduleOverview.loans.trend,
+    },
+    {
+      key: "sections",
+      title: "Score Sections",
+      route: "/habits",
+      quick: "Update Sections",
+      quickRoute: "/habits",
+      metrics: [
+        { label: "Done", value: `${dashboard.moduleOverview.sections.completedToday}` },
+        { label: "Total", value: `${dashboard.moduleOverview.sections.totalToday}` },
+      ],
+      trend: dashboard.moduleOverview.sections.trend,
     },
   ];
 
+  const monthlyLearningTotal = monthlyOverview.productivity.totalLearningMinutes;
+  const monthlyLearningSessions = monthlyOverview.productivity.totalLearningSessions;
+  const monthlyCompletedLearningSessions = monthlyOverview.productivity.completedLearningSessions;
+  const monthlyFocusTotal = monthlyOverview.productivity.totalFocusMinutes;
+  const selectedMonthHasActivity = hasTrackedActivity({
+    completedLearningSessions: monthlyCompletedLearningSessions,
+    expense: monthlyOverview.money.expense,
+    income: monthlyOverview.money.income,
+    savings: monthlyOverview.money.savings,
+    totalFocusMinutes: monthlyFocusTotal,
+    totalLearningMinutes: monthlyLearningTotal,
+    totalLearningSessions: monthlyLearningSessions,
+    totalWorkouts: monthlyOverview.productivity.totalWorkouts,
+  });
+  const previousMonthHistory = monthlyHistory.find(
+    (month) =>
+      month.month === monthlyOverview.comparison.previousMonth.month &&
+      month.year === monthlyOverview.comparison.previousMonth.year,
+  );
+  const previousMonthHasActivity = previousMonthHistory
+    ? hasTrackedActivity(previousMonthHistory)
+    : false;
+  const displayAverageDailyScore = selectedMonthHasActivity
+    ? monthlyOverview.productivity.averageDailyScore
+    : 0;
+  const learningFocusComparison = monthlyOverview.comparison.focusPct;
+  const scoreComparison =
+    selectedMonthHasActivity && previousMonthHasActivity
+      ? monthlyOverview.comparison.scorePct
+      : 0;
+
   return (
-    <div className="min-h-screen bg-transparent text-slate-950 dark:text-white">
-      <div className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/4 h-[600px] w-[600px] rounded-full bg-violet-700/10 blur-[140px]" />
-        <div className="absolute top-1/2 -right-32 h-[400px] w-[400px] rounded-full bg-indigo-600/10 blur-[100px]" />
-      </div>
+    <main className="relative space-y-5 overflow-hidden bg-slate-50 px-4 py-5 dark:bg-[#08111f] sm:px-6 lg:px-8">
+      <section className="relative z-10 rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-gradient-to-r dark:from-slate-900 dark:to-slate-950">
+        <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Command Center</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Live overview across fitness, learning, finance, and daily execution.</p>
+      </section>
 
-      <div className="relative z-10 w-full max-w-none space-y-5 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 dark:border-white/[0.07] dark:bg-[#110d2e] dark:shadow-black/30 md:p-10"
-        >
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-500/60 to-transparent" />
-          <div className="absolute -right-20 top-10 h-72 w-72 rounded-full bg-violet-600/15 blur-[90px]" />
-          <div className="absolute right-0 top-1/2 h-px w-[60%] bg-gradient-to-r from-transparent via-violet-400/30 to-cyan-400/20 blur-sm" />
-          <div className="absolute bottom-0 right-[20%] h-40 w-40 rounded-full border border-violet-400/10" />
+      <section className="relative z-10 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <KPI
+          title="Login Streak"
+          value={`${dashboard.kpis.loginStreak.current} days`}
+          subtitle={`Longest streak ${dashboard.kpis.loginStreak.longest} days`}
+          icon={Flame}
+        />
+        <KPI
+          title="Available Balance"
+          value={formatCurrency(displayBalance)}
+          subtitle="Synced with Money page source"
+          icon={Wallet}
+        />
+        <KPI
+          title="Learning / Focus Today"
+          value={`${combinedLearningFocusToday} min`}
+          subtitle={`${todayLearningMinutes} learning + ${dashboard.kpis.focusToday.minutes} focus`}
+          icon={Timer}
+        />
+        <KPI
+          title="Workout Summary"
+          value={`${dashboard.kpis.workoutsToday.count} done`}
+          subtitle={`${dashboard.kpis.workoutsToday.totalDuration} min | ${dashboard.kpis.workoutsToday.totalCalories} cal`}
+          icon={Dumbbell}
+        />
+        <KPI title="Today Score" value={`${dashboard.kpis.todayScore}%`} subtitle="Backend dynamic score" icon={Gauge} />
+      </section>
 
-          <div className="relative z-10 grid grid-cols-1 items-center gap-8 xl:grid-cols-[1.25fr_480px]">
-            <div className="max-w-4xl">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.25em] text-violet-600 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-violet-300">
-                <Zap className="h-3.5 w-3.5" />
-                Planify Life
-              </div>
-
-              <h1 className="mb-6 font-black leading-[0.95] tracking-[-0.03em]">
-                <span className="block text-[clamp(2.8rem,6vw,5.5rem)] text-slate-950 dark:text-white">
-                  Build habits,
+      <section className="relative z-10 grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]">
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition dark:border-slate-700/80 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-lg font-black text-slate-900 dark:text-white">Daily Progress</p>
+            <p className="text-sm font-semibold text-slate-500">{dashboard.dailyProgress.percentage}%</p>
+          </div>
+          <div className="mb-4 h-3 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500"
+              style={{ width: `${Math.max(0, Math.min(dashboard.dailyProgress.percentage, 100))}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <Breakdown label="Login" data={dashboard.dailyProgress.breakdown.login} detail={dashboard.dailyProgress.breakdown.login.completed ? "Done" : "Not completed"} />
+            <Breakdown
+              label="Learning / Focus"
+              data={dashboard.dailyProgress.breakdown.focus}
+              value={`${combinedLearningFocusToday}/${dashboard.dailyProgress.breakdown.focus.targetMinutes} min`}
+              detail={`${dashboard.dailyProgress.breakdown.focus.earned}/${dashboard.dailyProgress.breakdown.focus.max} pts earned`}
+            />
+            <Breakdown label="Workout" data={dashboard.dailyProgress.breakdown.workout} detail={`${dashboard.dailyProgress.breakdown.workout.count}/${dashboard.dailyProgress.breakdown.workout.targetCount} workout`} />
+            <Breakdown
+              label="Daily Tasks"
+              data={dashboard.dailyProgress.breakdown.sections}
+              detail={`${dashboard.dailyProgress.breakdown.sections.completedSections}/${dashboard.dailyProgress.breakdown.sections.totalSections} score tasks completed`}
+            />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {dashboard.dailyProgress.missing.length ? (
+              dashboard.dailyProgress.missing.map((item) => (
+                <span key={item} className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                  {item}
                 </span>
-                <span className="block text-[clamp(2.8rem,6vw,5.5rem)] text-slate-950 dark:text-white">
-                  track fitness,
-                </span>
-                <span className="block bg-gradient-to-r from-violet-500 via-purple-500 to-cyan-500 bg-clip-text text-[clamp(2.8rem,6vw,5.5rem)] text-transparent">
-                  protect your focus.
-                </span>
-              </h1>
+              ))
+            ) : (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                100% completed today
+              </span>
+            )}
+          </div>
+        </article>
 
-              <p className="mb-8 max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg dark:text-slate-300/80">
-                Your premium personal operating system for habits, learning,
-                focus, wellness, and measurable life optimization.
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-lg font-black text-slate-900 dark:text-white">Recent Activities</p>
+            <CalendarRange className="h-5 w-5 text-slate-500" />
+          </div>
+          <div className="space-y-2">
+            {dashboard.recentActivities.length ? (
+              dashboard.recentActivities.slice(0, 6).map((activity, index) => (
+                <div key={`act-${index}`} className="rounded-xl border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/50">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Activity #{index + 1}</p>
+                  <p className="mt-1 break-all text-xs text-slate-500">{JSON.stringify(activity)}</p>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-white/20 dark:text-slate-400">
+                No recent activity available.
               </p>
+            )}
+          </div>
+        </article>
+      </section>
 
-              <div className="flex flex-wrap gap-4">
-                <button
-                  onClick={() => router.push("/fitness")}
-                  className="group flex items-center gap-3 rounded-3xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-7 py-4 text-base font-black text-white shadow-[0_20px_60px_-15px_rgba(139,92,246,0.65)] transition-all hover:scale-[1.02] active:scale-95"
-                >
-                  Start today
-                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </button>
+      <section className="relative z-10 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {modules.map((module) => (
+          <article key={module.key} className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_14px_36px_rgba(14,165,233,0.10)] dark:border-slate-700/80 dark:bg-slate-900 dark:hover:border-cyan-500/40">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-slate-600 dark:text-slate-300">{module.title}</p>
+              <TrendPill trend={module.trend} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {module.metrics.map((metric) => (
+                <div key={metric.label} className="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/50">
+                  <p className="text-[11px] uppercase text-slate-500">{metric.label}</p>
+                  <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">{metric.value}</p>
+                </div>
+              ))}
+            </div>
+            {"note" in module && module.note ? (
+              <p className="mt-3 rounded-xl border border-cyan-200/70 bg-cyan-50 px-3 py-2 text-xs font-bold text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200">
+                {module.note}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href={module.route} className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300">
+                Go to {module.title.split("/")[0].trim()}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+              {module.quick ? (
+                <Link href={module.quickRoute ?? module.route} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:border-white/20 dark:text-slate-200 dark:hover:border-cyan-300 dark:hover:text-cyan-200">
+                  {module.quick}
+                </Link>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </section>
 
-                <button
-                  onClick={() => router.push("/reports")}
-                  className="rounded-3xl border border-slate-200 bg-slate-50 px-7 py-4 text-base font-bold text-slate-700 transition-all hover:bg-slate-100 active:scale-95 dark:border-white/[0.10] dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
-                >
-                  View analytics
-                </button>
+      <section className="relative z-10 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-lg font-black text-slate-900 dark:text-white">Weekly Insight (Read-only)</p>
+            {weeklyMeta ? (
+              <p className="text-xs text-slate-500">{weeklyMeta.weekStartRule} | {weeklyMeta.timezone}</p>
+            ) : (
+              <p className="text-xs text-slate-500">Using dashboard snapshot data</p>
+            )}
+          </div>
+          <button
+            onClick={() => void loadWeeklyDetails()}
+            disabled={weeklyLoading}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:border-white/20 dark:text-slate-200 dark:hover:border-cyan-300 dark:hover:text-cyan-200"
+          >
+            {weeklyLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CircleDot className="h-3.5 w-3.5" />}
+            Load Detailed Weekly
+          </button>
+        </div>
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <MetricTile label="Weekly Learning Minutes" value={`${weeklyLearningTotals.learningMinutes} min`} />
+          <MetricTile label="Learning Sessions" value={`${weeklyLearningTotals.learningSessions}`} />
+          <MetricTile label="Completed Learning" value={`${weeklyLearningTotals.completedLearningSessions}`} />
+        </div>
+        <div className="h-72 rounded-2xl border border-slate-200/80 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-950/55">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={weeklyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+              <XAxis dataKey="day" />
+              <YAxis yAxisId="left" />
+              <YAxis yAxisId="right" orientation="right" />
+              <Tooltip />
+              <Legend />
+              <Line yAxisId="left" type="monotone" dataKey="workouts" name="Workouts" stroke="#0ea5e9" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="left" type="monotone" dataKey="learningSessions" name="Learning Sessions" stroke="#f59e0b" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="left" type="monotone" dataKey="completedLearningSessions" name="Completed Learning" stroke="#14b8a6" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="right" type="monotone" dataKey="focusMinutes" name="Focus Minutes" stroke="#f97316" strokeWidth={2.8} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="right" type="monotone" dataKey="learningMinutes" name="Learning Minutes" stroke="#a855f7" strokeWidth={2.8} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line yAxisId="left" type="monotone" dataKey="moneyActivities" name="Money Activity" stroke="#22c55e" strokeWidth={2.4} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="relative z-10 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-lg font-black text-slate-900 dark:text-white">Monthly Overview</p>
+            <p className="text-sm text-slate-500">{monthlyOverview.selectedMonth.label}</p>
+          </div>
+          <select
+            value={selectedMonth}
+            onChange={(e) => {
+              void setSelectedMonth(e.target.value);
+            }}
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-cyan-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+          >
+            {monthOptions.map((month) => (
+              <option key={month.value} value={month.value}>{month.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {overviewLoading ? (
+          <div className="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 p-4 text-sm font-semibold text-slate-500 dark:bg-slate-950/50">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Refreshing month overview...
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/70 to-cyan-50/70 p-4 shadow-sm dark:border-emerald-500/30 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/40">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Money Summary</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Savings matches the Money page available balance.
+                </p>
               </div>
+              <span className="rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-bold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                {monthlyOverview.selectedMonth.label}
+              </span>
             </div>
 
-            <div className="relative flex flex-col items-center justify-center xl:pr-6">
-              <div className="absolute h-[260px] w-[260px] rounded-full bg-violet-600/20 blur-[105px] sm:h-[360px] sm:w-[360px]" />
-
-              <div className="relative flex h-[240px] w-[240px] items-center justify-center rounded-full sm:h-[310px] sm:w-[310px]">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white via-violet-50 to-slate-100 shadow-[inset_18px_18px_60px_rgba(255,255,255,0.55),inset_-24px_-24px_70px_rgba(15,23,42,0.08),0_35px_100px_-35px_rgba(139,92,246,0.9)] dark:from-white/[0.08] dark:via-white/[0.02] dark:to-black/20 dark:shadow-[inset_18px_18px_60px_rgba(255,255,255,0.035),inset_-24px_-24px_70px_rgba(0,0,0,0.45),0_35px_100px_-35px_rgba(139,92,246,0.9)]" />
-                <div className="absolute inset-5 rounded-full border border-violet-100 dark:border-white/[0.055]" />
-                <div className="absolute inset-10 rounded-full bg-white/80 shadow-[inset_0_20px_55px_rgba(15,23,42,0.08)] dark:bg-[#120b33]/70 dark:shadow-[inset_0_20px_55px_rgba(0,0,0,0.55)]" />
-                <div className="absolute left-1/2 top-4 h-4 w-4 -translate-x-1/2 rounded-full bg-gradient-to-br from-cyan-300 to-violet-500 shadow-[0_0_30px_rgba(56,189,248,0.8)]" />
-
-                <div className="relative h-[200px] w-[200px] sm:h-[270px] sm:w-[270px]">
-                  <ScoreRing score={score} />
-
-                  <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center sm:px-10">
-                    <span className="mb-2 text-xs font-bold text-slate-500 dark:text-slate-300 sm:mb-3 sm:text-sm">
-                      Today&apos;s Score
-                    </span>
-
-                    <span className="text-5xl font-black leading-none text-slate-950 tabular-nums dark:text-white sm:text-6xl xl:text-7xl">
-                      {score}%
-                    </span>
-
-                    <span className="mt-3 max-w-[130px] text-xs font-semibold leading-relaxed text-slate-500 dark:text-slate-400 sm:mt-5 sm:max-w-[170px] sm:text-sm">
-                      {score === 0
-                        ? "Add sections below."
-                        : score < 40
-                          ? "Keep going."
-                          : score < 70
-                            ? "Crushing it."
-                            : score < 100
-                              ? "Almost there."
-                              : "Perfect day."}
-                    </span>
-                  </div>
-                </div>
+            <div className="grid gap-3 sm:grid-cols-[1.15fr_1fr]">
+              <div className="rounded-2xl border border-emerald-200/80 bg-white/85 p-4 dark:border-emerald-500/30 dark:bg-slate-950/60">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Savings</p>
+                <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">{formatCurrency(monthlySavings)}</p>
               </div>
 
-              <div className="mt-4 grid w-full max-w-full grid-cols-3 gap-3 sm:max-w-[350px]">
-                {[
-                  { v: `${loginStreak}d`, l: "Login" },
-                  { v: `${sectionStats.totalDurationMinutes}m`, l: "Time" },
-                  { v: `${sectionStats.overallCompletion}%`, l: "Progress" },
-                ].map((p, i) => (
-                  <div
-                    key={i}
-                    className="rounded-3xl border border-slate-200 bg-white px-3 py-3 text-center shadow-md shadow-slate-200/70 dark:border-white/[0.08] dark:bg-white/[0.055] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_20px_45px_-28px_rgba(139,92,246,0.7)]"
-                  >
-                    <p className="text-xl font-black leading-none text-slate-950 dark:text-white">
-                      {p.v}
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                      {p.l}
-                    </p>
-                  </div>
-                ))}
+              <div className="grid gap-3">
+                <MoneyMetric label="Income" value={formatCurrency(monthlyOverview.money.income)} tone="income" />
+                <MoneyMetric label="Expense" value={formatCurrency(monthlyOverview.money.expense)} tone="expense" />
+                <MoneyMetric label="Spent Rate" value={`${spentRate.toFixed(1)}%`} tone="neutral" />
               </div>
             </div>
           </div>
-        </motion.div>
 
-        <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {dynamicCards.map((card, i) => (
-            <motion.div
-              key={card.title}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                delay: 0.08 + i * 0.07,
-                duration: 0.4,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className="h-full"
-            >
-              <StatCard {...card} />
-            </motion.div>
-          ))}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-700/80 dark:bg-slate-950/45">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Productivity Summary</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Compared with {monthlyOverview.comparison.previousMonth.label}.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <MetricTile label="Avg Daily Score" value={`${displayAverageDailyScore}%`} />
+              <MetricTile label="Total Focus" value={`${monthlyFocusTotal} min`} />
+              <MetricTile label="Total Learning" value={`${monthlyLearningTotal} min`} />
+              <MetricTile label="Learning Sessions" value={`${monthlyLearningSessions}`} />
+              <MetricTile label="Completed Learning" value={`${monthlyCompletedLearningSessions}`} />
+              <MetricTile label="Total Workouts" value={`${monthlyOverview.productivity.totalWorkouts}`} />
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <ComparisonLine label="Income" value={monthlyOverview.comparison.incomePct} />
+              <ComparisonLine label="Expense" value={monthlyOverview.comparison.expensePct} />
+              <ComparisonLine label="Savings" value={monthlyOverview.comparison.savingsPct} />
+              <ComparisonLine label="Learning/Focus" value={learningFocusComparison} />
+              <ComparisonLine label="Workouts" value={monthlyOverview.comparison.workoutsPct} />
+              <ComparisonLine label="Score" value={scoreComparison} />
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28 }}
-            className="h-full"
-          >
-            <ScoreSections
-              onScoreChange={setDynamicScore}
-              onSectionsChange={setScoreSections}
-            />
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.34 }}
-            className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
-          >
-            <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl" />
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/40 to-transparent" />
-
-            <div className="relative z-10 mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
-                  Performance
-                </p>
-                <h3 className="text-xl font-black text-slate-950 dark:text-white">
-                  Weekly Activity
-                </h3>
-                <p className="mt-1 text-sm font-medium text-slate-500">
-                  Last 7 days progress overview
-                </p>
-              </div>
-
-              <div className="hidden items-center gap-3 text-[11px] font-bold text-slate-500 sm:flex">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-violet-500" />
-                  Workouts
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-cyan-500" />
-                  Focus
-                </span>
-              </div>
-            </div>
-
-            <div className="relative z-10 space-y-3">
-              {weeklyStats.length > 0 ? (
-                weeklyStats.map((stat: WeeklyStat, index: number) => {
-                  const pct = Math.round(
-                    (stat.workouts / maxWeeklyWorkouts) * 100,
-                  );
-
-                  return (
-                    <div key={stat.date || index} className="flex items-center gap-3">
-                      <span className="w-9 shrink-0 text-xs font-bold text-slate-500">
-                        {stat.day}
-                      </span>
-
-                      <div className="h-9 flex-1 overflow-hidden rounded-2xl bg-slate-100 dark:bg-white/[0.05]">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.max(pct, 2)}%` }}
-                          transition={{
-                            delay: 0.4 + index * 0.06,
-                            duration: 0.6,
-                            ease: "easeOut",
-                          }}
-                          className="flex h-full items-center rounded-2xl bg-gradient-to-r from-violet-600 to-purple-500 pl-3 shadow-[0_0_22px_rgba(139,92,246,0.35)]"
-                        >
-                          {stat.workouts > 0 && (
-                            <span className="text-xs font-black text-white">
-                              {stat.workouts}
-                            </span>
-                          )}
-                        </motion.div>
-                      </div>
-
-                      <span className="w-12 shrink-0 text-right text-xs font-bold text-slate-500">
-                        {stat.focusMinutes > 0 ? `${stat.focusMinutes}m` : "—"}
-                      </span>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-white/[0.08] dark:bg-white/[0.03]">
-                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                    No weekly stats available yet.
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
+        <div className="mt-4 h-80 rounded-2xl border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/55">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={monthlySeriesWithLearning} barCategoryGap="10%" barGap={5}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
+              <XAxis dataKey="date" tickFormatter={(value: string) => value.slice(8)} />
+              <YAxis yAxisId="money" />
+              <YAxis yAxisId="activity" orientation="right" />
+              <Tooltip />
+              <Legend />
+              <Bar yAxisId="money" dataKey="income" name="Income" fill="#16a34a" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="money" dataKey="expense" name="Expense" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="focusMinutes" name="Focus Minutes" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="learningMinutes" name="Learning Minutes" fill="#a855f7" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="learningSessions" name="Learning Sessions" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={18} />
+              <Bar yAxisId="activity" dataKey="score" name="Score" fill="#22c55e" radius={[6, 6, 0, 0]} barSize={18} />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
-          >
-            <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-violet-500/10 blur-3xl" />
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/40 to-transparent" />
-
-            <div className="relative z-10 mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
-                  Fitness Log
-                </p>
-                <h3 className="text-xl font-black text-slate-950 dark:text-white">
-                  Recent Workouts
-                </h3>
-                <p className="mt-1 text-sm font-medium text-slate-500">
-                  Your latest 5 fitness sessions
-                </p>
-              </div>
-
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-400">
-                <Activity className="h-5 w-5" />
-              </div>
-            </div>
-
-            <div className="relative z-10">
-              {data.recentWorkouts.length > 0 ? (
-                <div className="space-y-3">
-                  {data.recentWorkouts
-                    .slice(0, 5)
-                    .map((workout: Workout, index: number) => (
-                      <motion.div
-                        key={workout._id || index}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.44 + index * 0.05 }}
-                        className="group flex items-center gap-4 rounded-[1.35rem] border border-slate-200 bg-slate-50 p-4 transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:bg-white hover:shadow-lg hover:shadow-violet-100/60 dark:border-white/[0.06] dark:bg-white/[0.035] dark:hover:border-violet-400/30 dark:hover:bg-white/[0.06] dark:hover:shadow-black/20"
-                      >
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-lg shadow-violet-950/25">
-                          <Activity className="h-5 w-5 text-white" />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-slate-950 dark:text-white">
-                            {workout.exercise}
-                          </p>
-                          <p className="mt-1 text-xs font-medium text-slate-500">
-                            {workout.duration} min ·{" "}
-                            {new Date(workout.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-
-                        <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right shadow-sm dark:border-white/[0.06] dark:bg-white/[0.05]">
-                          <p className="text-sm font-black text-violet-500">
-                            {workout.calories ?? 0}
-                          </p>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                            cal
-                          </p>
-                        </div>
-                      </motion.div>
-                    ))}
-                </div>
-              ) : (
-                <div className="flex min-h-[270px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-slate-500 shadow-sm dark:bg-white/[0.06] dark:text-slate-400">
-                    <Activity className="h-7 w-7" />
+      <section className="relative z-10 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+        <div className="mb-4">
+          <p className="text-lg font-black text-slate-900 dark:text-white">Monthly History</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jump to a month and compare money, learning, focus, workouts, and score at a glance.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {monthlyHistory.map((month) => {
+            const monthKey = monthKeyFromParts(month.month, month.year);
+            const monthHasActivity = hasTrackedActivity(month);
+            const monthScore = monthHasActivity ? month.averageDailyScore : 0;
+            const monthSavings =
+              monthKey === currentMonthKey ? displayBalance : month.savings;
+            return (
+              <button
+                key={`${month.year}-${month.month}`}
+                onClick={() => void setSelectedMonth(monthKey)}
+                className="group rounded-2xl border border-slate-200/80 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-white hover:shadow-[0_16px_34px_rgba(14,165,233,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:border-slate-700 dark:bg-slate-950/50 dark:hover:border-cyan-500/40 dark:hover:bg-slate-950"
+              >
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-black text-slate-900 dark:text-white">{month.label}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Monthly snapshot</p>
                   </div>
-
-                  <h4 className="text-lg font-black text-slate-950 dark:text-white">
-                    No workouts yet
-                  </h4>
-
-                  <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                    Log your first workout and start building your activity
-                    history.
-                  </p>
-
-                  <button
-                    onClick={() => router.push("/fitness")}
-                    className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-violet-950/30 transition hover:scale-[1.02]"
-                  >
-                    Log Workout
-                  </button>
+                  <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 dark:border-cyan-400/25 dark:bg-cyan-400/10 dark:text-cyan-200">
+                    Score {monthScore}%
+                  </span>
                 </div>
-              )}
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.46 }}
-            className="relative h-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
-          >
-            <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
-
-            <div className="relative z-10 mb-6">
-              <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
-                Shortcuts
-              </p>
-              <h3 className="text-xl font-black text-slate-950 dark:text-white">
-                Quick Actions
-              </h3>
-              <p className="mt-1 text-sm font-medium text-slate-500">
-                Jump into your most useful daily tools
-              </p>
-            </div>
-
-            <div className="relative z-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {[
-                {
-                  icon: Plus,
-                  label: "Add Section",
-                  desc: "Create a daily goal",
-                  color: "violet" as CK,
-                  onClick: () =>
-                    window.scrollTo({ top: 620, behavior: "smooth" }),
-                },
-                {
-                  icon: Target,
-                  label: "Daily Score",
-                  desc: "Review today's score",
-                  color: "cyan" as CK,
-                  onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
-                },
-                {
-                  icon: Clock,
-                  label: "Start Focus",
-                  desc: "Begin focus timer",
-                  color: "indigo" as CK,
-                  onClick: () => router.push("/focus"),
-                },
-                {
-                  icon: TrendingUp,
-                  label: "View Reports",
-                  desc: "Analyze progress",
-                  color: "emerald" as CK,
-                  onClick: () => router.push("/reports"),
-                },
-              ].map((action, index) => (
-                <motion.button
-                  key={index}
-                  onClick={action.onClick}
-                  whileHover={{ y: -3, scale: 1.01 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="group relative min-h-[125px] overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4 text-left transition-all hover:border-violet-200 hover:bg-white hover:shadow-lg hover:shadow-violet-100/60 dark:border-white/[0.06] dark:bg-white/[0.035] dark:hover:border-violet-400/30 dark:hover:bg-white/[0.06] dark:hover:shadow-black/20"
-                >
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <HistoryStat label="Income" value={formatCurrency(month.income)} tone="positive" />
+                  <HistoryStat label="Expense" value={formatCurrency(month.expense)} tone="danger" />
+                  <HistoryStat label="Savings" value={formatCurrency(monthSavings)} tone="neutral" />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <HistoryStat label="Focus" value={`${month.totalFocusMinutes}m`} />
+                  <HistoryStat label="Learning" value={`${month.totalLearningMinutes}m`} />
+                  <HistoryStat label="Sessions" value={`${month.completedLearningSessions}/${month.totalLearningSessions}`} />
+                  <HistoryStat label="Workouts" value={`${month.totalWorkouts}`} />
+                </div>
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                   <div
-                    className={`absolute -right-8 -top-8 h-20 w-20 rounded-full bg-gradient-to-br ${grad[action.color]} opacity-10 blur-2xl transition group-hover:opacity-20`}
+                    className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-300 transition-all group-hover:from-cyan-300 group-hover:to-amber-200"
+                    style={{ width: `${Math.max(0, Math.min(monthScore, 100))}%` }}
                   />
-
-                  <div className="relative z-10 flex h-full flex-col justify-between">
-                    <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${grad[action.color]} shadow-lg shadow-violet-950/25`}
-                    >
-                      <action.icon className="h-5 w-5 text-white" />
-                    </div>
-
-                    <div className="mt-4">
-                      <p className="text-sm font-black text-slate-950 dark:text-white">
-                        {action.label}
-                      </p>
-                      <p className="mt-1 text-xs font-medium text-slate-500">
-                        {action.desc}
-                      </p>
-                    </div>
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
+                </div>
+              </button>
+            );
+          })}
         </div>
+      </section>
+    </main>
+  );
+}
 
-        <LearningSummaryPanel />
+function Breakdown({
+  label,
+  data,
+  detail,
+  value,
+}: {
+  label: string;
+  data: { earned: number; max: number; completed: boolean };
+  detail: string;
+  value?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/50">
+      <div className="mb-1 flex items-center justify-between">
+        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <span className={`text-[11px] font-bold ${data.completed ? "text-emerald-600 dark:text-emerald-300" : "text-slate-500"}`}>
+          {data.completed ? "Done" : "Pending"}
+        </span>
       </div>
+      <p className="text-sm font-black text-slate-900 dark:text-white">{value ?? `${data.earned}/${data.max}`}</p>
+      <p className="text-xs text-slate-500">{detail}</p>
     </div>
   );
 }
 
-interface SCP {
-  icon: LucideIcon;
-  title: string;
-  color: CK;
-  value: string;
-  unit: string;
-  sub: string;
-  progress?: number;
-  action?: () => void;
+function MetricTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900/80">
+      <p className="text-[11px] uppercase text-slate-500">{label}</p>
+      <p className="mt-1 text-base font-black text-slate-900 dark:text-white">{value}</p>
+    </div>
+  );
 }
 
-function StatCard({
-  icon: Icon,
-  title,
-  color,
+function HistoryStat({
+  label,
   value,
-  unit,
-  sub,
-  progress,
-  action,
-}: SCP) {
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "positive" | "danger" | "neutral";
+}) {
+  const color =
+    tone === "positive"
+      ? "text-emerald-600 dark:text-emerald-300"
+      : tone === "danger"
+        ? "text-rose-600 dark:text-rose-300"
+        : tone === "neutral"
+          ? "text-cyan-700 dark:text-cyan-200"
+          : "text-slate-900 dark:text-white";
+
   return (
-    <motion.div
-      whileHover={{ y: -4, scale: 1.01 }}
-      transition={{ duration: 0.18 }}
-      className="group relative flex h-full min-h-[210px] overflow-hidden rounded-[30px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-gradient-to-br dark:from-[#17122d] dark:via-[#100d1f] dark:to-[#0a0815] dark:shadow-[0_30px_80px_-40px_rgba(0,0,0,1)]"
-    >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/50 to-transparent dark:via-white/20" />
+    <div className="rounded-xl border border-slate-200/70 bg-white/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/80">
+      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-1 text-sm font-black ${color}`}>{value}</p>
+    </div>
+  );
+}
 
-      <div
-        className={`absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br ${grad[color]} opacity-[0.12] blur-3xl transition-all duration-500 group-hover:opacity-[0.22]`}
-      />
+function MoneyMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "income" | "expense" | "neutral";
+}) {
+  const color =
+    tone === "income"
+      ? "text-emerald-700 dark:text-emerald-200"
+      : tone === "expense"
+        ? "text-rose-700 dark:text-rose-200"
+        : "text-slate-900 dark:text-white";
 
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.7),transparent_35%,transparent_65%,rgba(139,92,246,0.05))] dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.05),transparent_35%,transparent_65%,rgba(255,255,255,0.03))]" />
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-3 dark:border-slate-700 dark:bg-slate-950/55">
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className={`mt-1 text-lg font-black ${color}`}>{value}</p>
+    </div>
+  );
+}
 
-      <div className="absolute bottom-2 right-3 opacity-[0.04] transition-all duration-500 group-hover:opacity-[0.08] dark:opacity-[0.035] dark:group-hover:opacity-[0.07]">
-        <Icon
-          className="h-28 w-28 text-slate-950 dark:text-white"
-          strokeWidth={1.2}
-        />
-      </div>
+function ComparisonLine({ label, value }: { label: string; value: number }) {
+  if (value === 0) {
+    return (
+      <p className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
+        <span>{label}</span>
+        <span className="font-bold">0.0%</span>
+      </p>
+    );
+  }
 
-      <div className="relative z-10 flex h-full w-full flex-col">
-        <div className="mb-5 flex items-start justify-between">
-          <div
-            className={`flex h-14 w-14 items-center justify-center rounded-[20px] bg-gradient-to-br ${grad[color]} shadow-[0_20px_40px_-18px_rgba(139,92,246,0.85)]`}
-          >
-            <Icon className="h-6 w-6 text-white" />
-          </div>
+  const up = value > 0;
+  const Icon = up ? TrendingUp : TrendingDown;
 
-          {action ? (
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={action}
-              className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 backdrop-blur-xl transition-all hover:bg-slate-100 hover:text-slate-950 dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-slate-400 dark:hover:bg-white/[0.12] dark:hover:text-white"
-            >
-              <Plus className="h-4 w-4" />
-            </motion.button>
-          ) : (
-            <div className="h-9 w-9" />
-          )}
-        </div>
-
-        <p className="mb-3 text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-          {title}
-        </p>
-
-        <div className="mb-3 flex min-h-[58px] items-end gap-1">
-          <span className="text-[2.6rem] font-black leading-none tracking-[-0.03em] text-slate-950 tabular-nums dark:text-white">
-            {value}
-          </span>
-
-          {unit && (
-            <span className="pb-1 text-sm font-semibold text-slate-500">
-              {unit}
-            </span>
-          )}
-        </div>
-
-        <p className="mb-5 min-h-[34px] text-xs leading-relaxed text-slate-500">
-          {sub}
-        </p>
-
-        <div className="mt-auto">
-          {progress !== undefined ? (
-            <>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">
-                  Progress
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                  {Math.min(progress, 100)}%
-                </span>
-              </div>
-
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100 shadow-inner dark:bg-white/[0.06]">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(progress, 100)}%` }}
-                  transition={{
-                    duration: 0.9,
-                    ease: "easeOut",
-                    delay: 0.2,
-                  }}
-                  className={`relative h-full rounded-full bg-gradient-to-r ${grad[color]}`}
-                >
-                  <div className="absolute inset-0 bg-white/20 blur-[2px]" />
-                </motion.div>
-              </div>
-            </>
-          ) : (
-            <div className="h-2 rounded-full bg-slate-100 dark:bg-white/[0.035]" />
-          )}
-        </div>
-      </div>
-    </motion.div>
+  return (
+    <p className={`inline-flex items-center gap-1 ${up ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}`}>
+      <span className="text-slate-500 dark:text-slate-400">{label}</span>
+      <Icon className="h-3.5 w-3.5" />
+      <span className="font-bold">{formatPercent(value)}</span>
+    </p>
   );
 }

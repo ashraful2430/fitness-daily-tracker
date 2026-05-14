@@ -26,6 +26,7 @@ type ActiveTimerState = {
   sessionId: string;
   title: string;
   subject: string;
+  goal?: string;
   plannedMinutes: number;
   baseActualMinutes: number;
   startRemainingSeconds: number;
@@ -38,11 +39,21 @@ function defaultSummary(): LearningSummary {
   return {
     todayMinutes: 0,
     weekMinutes: 0,
+    monthMinutes: 0,
     totalMinutes: 0,
+    activeSessions: 0,
+    plannedSessions: 0,
+    missedSessions: 0,
     totalSessions: 0,
     completedSessions: 0,
     completionRate: 0,
     currentStreak: 0,
+    longestStreak: 0,
+    averageSessionMinutes: 0,
+    subjectBreakdown: [],
+    dailyBreakdown: [],
+    learningTypeBreakdown: [],
+    priorityBreakdown: [],
     activeSession: null,
     topSubjects: [],
     recentSessions: [],
@@ -408,6 +419,10 @@ export function useLearningDashboard() {
         errors.subject = "Subject is required.";
       }
 
+      if (!payload.goal?.trim()) {
+        errors.goal = "Goal is required.";
+      }
+
       if (!Number.isFinite(payload.plannedMinutes) || payload.plannedMinutes <= 0) {
         errors.plannedMinutes = "Planned minutes must be greater than zero.";
       }
@@ -427,7 +442,14 @@ export function useLearningDashboard() {
         ...payload,
         title: payload.title.trim(),
         subject: payload.subject.trim(),
+        goal: payload.goal?.trim() || "Complete the planned learning block.",
+        studyDate: payload.studyDate ?? payload.date ?? getToday(),
+        learnerMode: payload.learnerMode ?? "self_learner",
+        learningType: payload.learningType ?? "reading",
+        difficulty: payload.difficulty ?? "medium",
+        priority: payload.priority ?? "medium",
         notes: payload.notes?.trim() || undefined,
+        tags: payload.tags?.map((tag) => tag.trim()).filter(Boolean),
       };
       const errors = validateSession(normalizedPayload);
       if (Object.keys(errors).length > 0) {
@@ -464,7 +486,13 @@ export function useLearningDashboard() {
         subject: payload.subject ?? "existing",
         plannedMinutes: payload.plannedMinutes ?? 1,
         notes: payload.notes,
-        date: payload.date ?? getToday(),
+        goal: payload.goal ?? "existing",
+        studyDate: payload.studyDate ?? payload.date ?? getToday(),
+        learnerMode: payload.learnerMode ?? "self_learner",
+        learningType: payload.learningType ?? "reading",
+        difficulty: payload.difficulty ?? "medium",
+        priority: payload.priority ?? "medium",
+        date: payload.date ?? payload.studyDate ?? getToday(),
       } satisfies CreateLearningSessionRequest;
       const errors =
         payload.title !== undefined ||
@@ -567,6 +595,7 @@ export function useLearningDashboard() {
         sessionId: session._id,
         title: session.title,
         subject: session.subject,
+        goal: session.goal,
         plannedMinutes: session.plannedMinutes,
         baseActualMinutes: session.actualMinutes,
         startRemainingSeconds,
@@ -662,6 +691,20 @@ export function useLearningDashboard() {
     stopAlarm,
   ]);
 
+  const resetSessionTimer = useCallback(() => {
+    if (!activeTimer) return;
+
+    const resetSeconds = activeTimer.plannedMinutes * 60;
+    setActiveTimer({
+      ...activeTimer,
+      baseActualMinutes: 0,
+      startRemainingSeconds: resetSeconds,
+      targetEndAt: Date.now() + resetSeconds * 1000,
+    });
+    setRemainingSeconds(resetSeconds);
+    stopAlarm();
+  }, [activeTimer, stopAlarm]);
+
   const updateFilterField = useCallback(
     (field: "status" | "subject", value: string) => {
       setFilters((current) => ({
@@ -733,6 +776,7 @@ export function useLearningDashboard() {
     startSessionTimer,
     pauseSessionTimer,
     completeSessionManually,
+    resetSessionTimer,
     stopAlarm,
     updateFilterField,
     applyFilters,

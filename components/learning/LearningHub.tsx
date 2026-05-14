@@ -1,13 +1,18 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import {
   AlarmClock,
   BookOpen,
   Brain,
+  BriefcaseBusiness,
+  CalendarClock,
   CalendarDays,
   CheckCircle2,
   Clock3,
+  GraduationCap,
   Loader2,
   Pause,
   PencilLine,
@@ -15,9 +20,13 @@ import {
   Plus,
   RefreshCcw,
   RotateCcw,
+  Save,
   Sparkles,
+  Star,
   Trash2,
   Trophy,
+  UserRound,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -31,21 +40,128 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useLearningDashboard } from "@/hooks/useLearningDashboard";
-import type { LearningSession, LearningSessionStatus } from "@/types/learning";
+import {
+  cancelLearningSession,
+  completeLearningSession,
+  createSessionNote,
+  createLearningSession,
+  createTimerPreset,
+  defaultLearningTemplates,
+  defaultTimerPresets,
+  deleteLearningSession,
+  deleteSessionNote,
+  deleteTimerPreset,
+  getSessionNotes,
+  getLearningTemplates,
+  getLearningGoals,
+  getTimerPresets,
+  getLearningSessions,
+  getLearningStats,
+  learningQueryKeys,
+  pauseLearningSession,
+  rescheduleLearningSession,
+  resumeLearningSession,
+  startLearningSession,
+  updateSessionNote,
+  updateChildControls,
+  getChildControls,
+  updateLearningGoals,
+  updateLearningSession,
+} from "@/lib/learningApi";
+import type {
+  LearnerMode,
+  LearningDifficulty,
+  LearningPriority,
+  LearningSession,
+  LearningSessionStatus,
+  LearningSessionsQuery,
+  LearningStats,
+  LearningType,
+  LearningNote,
+  TimerPreset,
+} from "@/types/learning";
 
 type FormErrors = Record<string, string>;
 
 type SessionFormState = {
   title: string;
   subject: string;
+  goal: string;
   plannedMinutes: string;
-  notes: string;
   date: string;
+  learningType: LearningType;
+  difficulty: LearningDifficulty;
+  priority: LearningPriority;
+  tags: string;
+  notes: string;
 };
 
-const presetDurations = [25, 45, 60, 90];
-const subjectChartColors = ["#14b8a6", "#8b5cf6", "#f97316", "#06b6d4", "#ec4899"];
+type ParentControlsState = {
+  parentPin: string;
+  dailyLimitMinutes: string;
+  rewardPointsEnabled: boolean;
+  allowedSubjects: string;
+  messagePreview: string;
+};
+
+const learnerModes: Array<{
+  value: LearnerMode;
+  label: string;
+  icon: LucideIcon;
+  helper: string;
+  presets: string[];
+}> = [
+  {
+    value: "student",
+    label: "Student",
+    icon: GraduationCap,
+    helper: "Exam prep, assignments, revision, and subject study.",
+    presets: ["Exam prep", "Assignment", "Revision", "Subject study"],
+  },
+  {
+    value: "job_holder",
+    label: "Job Holder",
+    icon: BriefcaseBusiness,
+    helper: "Skill learning, certification, and office learning.",
+    presets: ["Skill learning", "Certification", "Office learning"],
+  },
+  {
+    value: "child",
+    label: "Child",
+    icon: Star,
+    helper: "Short sessions, simple labels, and reward-friendly study.",
+    presets: ["10 minute reading", "Homework", "Fun practice", "Reward goal"],
+  },
+  {
+    value: "self_learner",
+    label: "Self Learner",
+    icon: UserRound,
+    helper: "Books, courses, hobbies, and personal growth.",
+    presets: ["Book reading", "Course", "Hobby practice", "Personal growth"],
+  },
+];
+
+const learningTypes: LearningType[] = [
+  "reading",
+  "video",
+  "practice",
+  "revision",
+  "assignment",
+  "exam_prep",
+  "course",
+  "other",
+];
+
+const difficulties: LearningDifficulty[] = ["easy", "medium", "hard"];
+const priorities: LearningPriority[] = ["low", "medium", "high"];
+const subjectChartColors = ["#14b8a6", "#f59e0b", "#06b6d4", "#22c55e", "#f43f5e"];
+
+const panelClass =
+  "rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/50 dark:border-cyan-300/10 dark:bg-[#0b1424] dark:shadow-black/20 sm:p-6";
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:bg-white focus:ring-4 focus:ring-cyan-500/10 dark:border-cyan-200/10 dark:bg-[#07101e] dark:text-slate-100 dark:focus:bg-[#0d1829]";
+const secondaryButton =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-cyan-200/10 dark:bg-[#07101e] dark:text-slate-200 dark:hover:border-cyan-300/25 dark:hover:bg-[#0d1b2e]";
 
 function toLocalDateInputValue(date: Date) {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -57,15 +173,13 @@ function getToday() {
 }
 
 function formatMinutes(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 }
 
-function formatDate(value: string) {
+function formatDate(value?: string | null) {
+  if (!value) return "Not set";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-
   return parsed.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -77,13 +191,9 @@ function formatCountdown(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-
   if (hours > 0) {
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(
-      seconds,
-    ).padStart(2, "0")}`;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
-
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
@@ -91,9 +201,14 @@ function emptyForm(defaultSubject = ""): SessionFormState {
   return {
     title: "",
     subject: defaultSubject,
-    plannedMinutes: "60",
-    notes: "",
+    goal: "",
+    plannedMinutes: "25",
     date: getToday(),
+    learningType: "reading",
+    difficulty: "medium",
+    priority: "medium",
+    tags: "",
+    notes: "",
   };
 }
 
@@ -101,10 +216,22 @@ function sessionToForm(session: LearningSession): SessionFormState {
   return {
     title: session.title,
     subject: session.subject,
+    goal: session.goal ?? "",
     plannedMinutes: String(session.plannedMinutes),
-    notes: session.notes ?? "",
     date: session.date.slice(0, 10),
+    learningType: session.learningType ?? "reading",
+    difficulty: session.difficulty ?? "medium",
+    priority: session.priority ?? "medium",
+    tags: session.tags?.join(", ") ?? "",
+    notes: session.notes ?? "",
   };
+}
+
+function parseTags(value: string) {
+  return value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
 }
 
 function statusTone(status: LearningSessionStatus) {
@@ -116,8 +243,14 @@ function statusTone(status: LearningSessionStatus) {
     case "completed":
       return "bg-cyan-100 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300";
     default:
-      return "bg-slate-100 text-slate-700 dark:bg-white/[0.08] dark:text-slate-300";
+      return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
   }
+}
+
+function priorityTone(priority?: LearningPriority) {
+  if (priority === "high") return "text-rose-600 dark:text-rose-300";
+  if (priority === "low") return "text-slate-500 dark:text-slate-400";
+  return "text-amber-600 dark:text-amber-300";
 }
 
 function StatCard({
@@ -135,22 +268,16 @@ function StatCard({
 }) {
   return (
     <motion.div
-      whileHover={{ y: -4, scale: 1.01 }}
-      className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#120d27] dark:shadow-black/30"
+      whileHover={{ y: -3, scale: 1.01 }}
+      className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-900 dark:shadow-black/20"
     >
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/35 to-transparent" />
-      <div
-        className={`absolute -right-10 -top-10 h-28 w-28 rounded-full bg-gradient-to-br ${gradient} opacity-15 blur-3xl`}
-      />
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[1.15rem] bg-gradient-to-br ${gradient} text-white shadow-lg shadow-slate-900/10`}
-      >
+      <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${gradient} text-white`}>
         <Icon className="h-5 w-5" />
       </div>
-      <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
         {title}
       </p>
-      <p className="mt-2 text-3xl font-black tracking-[-0.03em] text-slate-950 dark:text-white">
+      <p className="mt-2 text-3xl font-black text-slate-950 dark:text-white">
         {value}
       </p>
       <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
@@ -161,120 +288,634 @@ function StatCard({
 }
 
 export default function LearningHub() {
-  const {
-    summary,
-    sessions,
-    pagination,
-    filters,
-    loading,
-    summaryLoading,
-    sessionsLoading,
-    sessionSaving,
-    deletingSessionId,
-    error,
-    activeTimer,
-    remainingSeconds,
-    alarmRinging,
-    subjectOptions,
-    refreshAll,
-    createSession,
-    updateSession,
-    deleteSession,
-    startSessionTimer,
-    pauseSessionTimer,
-    completeSessionManually,
-    stopAlarm,
-    updateFilterField,
-    applyFilters,
-    goToPage,
-  } = useLearningDashboard();
+  const queryClient = useQueryClient();
+  const [filters, setFilters] = useState<LearningSessionsQuery>({
+    page: 1,
+    limit: 10,
+    status: "",
+    subject: "",
+    learnerMode: "",
+    fromDate: "",
+    toDate: "",
+    studyDate: "",
+  });
+  const [activeTimer, setActiveTimer] = useState<LearningSession | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [alarmRinging, setAlarmRinging] = useState(false);
 
+  const [learnerMode, setLearnerMode] = useState<LearnerMode>("student");
   const [form, setForm] = useState<SessionFormState>(emptyForm());
   const [errors, setErrors] = useState<FormErrors>({});
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [customMinutes, setCustomMinutes] = useState("");
+  const [enableAlarm, setEnableAlarm] = useState(true);
+  const [alarmSound, setAlarmSound] = useState("Classic beep");
+  const [autoStartBreak, setAutoStartBreak] = useState(false);
+  const [breakDuration, setBreakDuration] = useState("5");
+  const [dailyGoalDraft, setDailyGoalDraft] = useState<string | null>(null);
+  const [weeklyGoalDraft, setWeeklyGoalDraft] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<LearningSession | null>(null);
+  const [detailsSession, setDetailsSession] = useState<LearningSession | null>(null);
+  const [completeTarget, setCompleteTarget] = useState<LearningSession | null>(null);
+  const [completeMinutes, setCompleteMinutes] = useState("");
+  const [rescheduleTarget, setRescheduleTarget] = useState<LearningSession | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState(getToday());
+  const [deleteTarget, setDeleteTarget] = useState<LearningSession | null>(null);
+  const [parentControlsDraft, setParentControlsDraft] = useState<ParentControlsState | null>(null);
+  const [localSessions, setLocalSessions] = useState<LearningSession[]>([]);
   const formRef = useRef<HTMLDivElement | null>(null);
 
-  const chartData = useMemo(
-    () =>
-      summary.topSubjects.map((subject) => ({
-        name: subject._id,
-        totalMinutes: subject.totalMinutes,
-      })),
-    [summary.topSubjects],
+  const sessionsQuery = useQuery({
+    queryKey: learningQueryKeys.sessions(filters),
+    queryFn: () => getLearningSessions(filters),
+  });
+  const statsQuery = useQuery({
+    queryKey: learningQueryKeys.stats,
+    queryFn: getLearningStats,
+  });
+  const presetsQuery = useQuery({
+    queryKey: learningQueryKeys.presets,
+    queryFn: getTimerPresets,
+  });
+  const templatesQuery = useQuery({
+    queryKey: learningQueryKeys.templates,
+    queryFn: getLearningTemplates,
+  });
+  const goalsQuery = useQuery({
+    queryKey: learningQueryKeys.goals,
+    queryFn: getLearningGoals,
+  });
+  const childControlsQuery = useQuery({
+    queryKey: learningQueryKeys.childControls,
+    queryFn: getChildControls,
+  });
+
+  const sessions = useMemo(() => {
+    const backendSessions = sessionsQuery.data?.data ?? [];
+    const byId = new Map<string, LearningSession>();
+    [...localSessions, ...backendSessions].forEach((session) => {
+      byId.set(session._id, { ...byId.get(session._id), ...session });
+    });
+    return Array.from(byId.values());
+  }, [sessionsQuery.data?.data, localSessions]);
+  const pagination = sessionsQuery.data?.pagination ?? {
+    page: filters.page ?? 1,
+    limit: filters.limit ?? 10,
+    total: sessions.length,
+    totalPages: 1,
+  };
+  const visiblePagination = {
+    ...pagination,
+    total: Math.max(pagination.total, sessions.length),
+    totalPages: Math.max(1, Math.max(pagination.totalPages, Math.ceil(Math.max(pagination.total, sessions.length) / pagination.limit))),
+  };
+  const stats: LearningStats = statsQuery.data ?? {
+    todayMinutes: 0,
+    weekMinutes: 0,
+    monthMinutes: 0,
+    totalMinutes: 0,
+    completedSessions: 0,
+    activeSessions: 0,
+    plannedSessions: 0,
+    missedSessions: 0,
+    completionRate: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    averageSessionMinutes: 0,
+    subjectBreakdown: [],
+    dailyBreakdown: [],
+    learningTypeBreakdown: [],
+    priorityBreakdown: [],
+  };
+  const loading = sessionsQuery.isLoading || statsQuery.isLoading;
+  const sessionsLoading = sessionsQuery.isFetching;
+  const summaryLoading = statsQuery.isFetching;
+  const serviceOffline =
+    sessionsQuery.isError ||
+    statsQuery.isError ||
+    presetsQuery.isError ||
+    templatesQuery.isError ||
+    goalsQuery.isError ||
+    childControlsQuery.isError;
+  const subjectOptions = Array.from(
+    new Set([
+      ...sessions.map((session) => session.subject),
+      ...stats.subjectBreakdown.map((item) => item._id ?? item.label ?? item.key ?? ""),
+    ].filter(Boolean)),
   );
+  const templates = templatesQuery.data ?? defaultLearningTemplates;
+  const timerPresets = presetsQuery.data ?? defaultTimerPresets;
+  const dailyGoal = dailyGoalDraft ?? String(goalsQuery.data?.dailyGoalMinutes ?? 60);
+  const weeklyGoal = weeklyGoalDraft ?? String(goalsQuery.data?.weeklyGoalMinutes ?? 300);
+  const parentControls: ParentControlsState =
+    parentControlsDraft ?? {
+      parentPin: "",
+      dailyLimitMinutes: String(childControlsQuery.data?.dailyLimitMinutes ?? 45),
+      rewardPointsEnabled: childControlsQuery.data?.rewardPointsEnabled ?? true,
+      allowedSubjects:
+        childControlsQuery.data?.allowedSubjects?.join(", ") || "Math, English, Science",
+      messagePreview:
+        childControlsQuery.data?.messagePreview ??
+        "Great job. Finish one short session and earn a reward point.",
+    };
+  const setParentControls: React.Dispatch<React.SetStateAction<ParentControlsState>> = (value) => {
+    setParentControlsDraft((current) => {
+      const base = current ?? parentControls;
+      return typeof value === "function" ? value(base) : value;
+    });
+  };
+
+  const invalidateLearning = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["learningSessions"] }),
+      queryClient.invalidateQueries({ queryKey: learningQueryKeys.stats }),
+    ]);
+  };
+  const invalidateLearningStats = () =>
+    queryClient.invalidateQueries({ queryKey: learningQueryKeys.stats });
+
+  const upsertSessionInCache = (session: LearningSession) => {
+    setLocalSessions((current) => {
+      const exists = current.some((item) => item._id === session._id);
+      return exists
+        ? current.map((item) => (item._id === session._id ? session : item))
+        : [session, ...current];
+    });
+    queryClient.setQueriesData<{ data: LearningSession[]; pagination: typeof pagination }>(
+      { queryKey: ["learningSessions"] },
+      (current) => {
+        if (!current) return current;
+        const exists = current.data.some((item) => item._id === session._id);
+        const data = exists
+          ? current.data.map((item) => (item._id === session._id ? session : item))
+          : [session, ...current.data];
+        return {
+          ...current,
+          data,
+          pagination: {
+            ...current.pagination,
+            total: exists ? current.pagination.total : current.pagination.total + 1,
+            totalPages: Math.max(
+              current.pagination.totalPages,
+              Math.ceil((exists ? current.pagination.total : current.pagination.total + 1) / current.pagination.limit),
+            ),
+          },
+        };
+      },
+    );
+  };
+
+  const mergeCreatedSession = (
+    session: LearningSession,
+    payload: Parameters<typeof createLearningSession>[0],
+  ): LearningSession => ({
+    ...session,
+    title: session.title === "Learning session" ? payload.title : session.title,
+    subject: session.subject === "Learning" ? payload.subject : session.subject,
+    goal: session.goal || payload.goal,
+    plannedMinutes: session.plannedMinutes || payload.plannedMinutes,
+    studyDate: session.studyDate || payload.studyDate,
+    date: session.date || payload.date || payload.studyDate,
+    learnerMode: session.learnerMode || payload.learnerMode,
+    learningType: session.learningType || payload.learningType,
+    difficulty: session.difficulty || payload.difficulty,
+    priority: session.priority || payload.priority,
+    tags: session.tags?.length ? session.tags : payload.tags ?? [],
+    notes: session.notes || payload.notes,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createLearningSession,
+    onSuccess: async (session, payload) => {
+      const displaySession = mergeCreatedSession(session, payload);
+      upsertSessionInCache(displaySession);
+      setSelectedSession(displaySession);
+      toast.success("Learning session created");
+      await invalidateLearningStats();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to create session"),
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateLearningSession>[1] }) =>
+      updateLearningSession(id, payload),
+    onSuccess: async (session) => {
+      upsertSessionInCache(session);
+      toast.success("Learning session updated");
+      await invalidateLearningStats();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update session"),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteLearningSession,
+    onSuccess: async (_, id) => {
+      setLocalSessions((current) => current.filter((session) => session._id !== id));
+      toast.success("Learning session deleted");
+      await invalidateLearning();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to delete session"),
+  });
+  const lifecycleMutation = useMutation({
+    mutationFn: async ({ action, session, actualMinutes, studyDate }: { action: string; session: LearningSession; actualMinutes?: number; studyDate?: string }) => {
+      if (action === "start") return startLearningSession(session._id);
+      if (action === "pause") return pauseLearningSession(session._id);
+      if (action === "resume") return resumeLearningSession(session._id);
+      if (action === "complete") return completeLearningSession(session._id, actualMinutes);
+      if (action === "cancel") return cancelLearningSession(session._id);
+      if (action === "reschedule") return rescheduleLearningSession(session._id, studyDate ?? getToday());
+      return session;
+    },
+    onSuccess: async (session) => {
+      upsertSessionInCache(session);
+      if (session.status === "active") {
+        setActiveTimer(session);
+        setRemainingSeconds(Math.max(0, session.plannedMinutes - session.actualMinutes) * 60);
+      }
+      if (session.status !== "active") setActiveTimer(null);
+      await invalidateLearningStats();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Session action failed"),
+  });
+  const lifecycleMutationRef = useRef(lifecycleMutation);
+  useEffect(() => {
+    lifecycleMutationRef.current = lifecycleMutation;
+  }, [lifecycleMutation]);
+  const presetMutation = useMutation({
+    mutationFn: createTimerPreset,
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: learningQueryKeys.presets }),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to save preset"),
+  });
+  const deletePresetMutation = useMutation({
+    mutationFn: deleteTimerPreset,
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: learningQueryKeys.presets }),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to delete preset"),
+  });
+  const goalsMutation = useMutation({
+    mutationFn: updateLearningGoals,
+    onSuccess: async () => {
+      toast.success("Learning goals saved");
+      await queryClient.invalidateQueries({ queryKey: learningQueryKeys.goals });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to save goals"),
+  });
+  const childControlsMutation = useMutation({
+    mutationFn: updateChildControls,
+    onSuccess: async () => {
+      toast.success("Child controls saved");
+      await queryClient.invalidateQueries({ queryKey: learningQueryKeys.childControls });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to save child controls"),
+  });
+
+  const summary = {
+    ...stats,
+    totalSessions: visiblePagination.total,
+    activeSession: sessions.find((session) => session.status === "active") ?? null,
+    topSubjects: stats.subjectBreakdown.map((item) => ({
+      _id: item._id ?? item.label ?? item.key ?? "Learning",
+      totalMinutes: item.totalMinutes,
+      sessionCount: item.sessionCount ?? item.count ?? 0,
+    })),
+    recentSessions: sessions.filter((session) => session.status === "completed").slice(0, 5),
+  };
+  const sessionSaving = createMutation.isPending || updateMutation.isPending;
+  const deletingSessionId = deleteMutation.variables ?? null;
+
+  const refreshAll = async (notify = false) => {
+    await invalidateLearning();
+    if (notify) toast.success("Learning data refreshed");
+  };
+
+  const createSession = async (payload: Parameters<typeof createLearningSession>[0]) => {
+    const errors: FormErrors = {};
+    if (!payload.title.trim()) errors.title = "Session title is required.";
+    if (!payload.subject.trim()) errors.subject = "Subject is required.";
+    if (!payload.goal.trim()) errors.goal = "Goal is required.";
+    if (!payload.studyDate) errors.date = "Study date is required.";
+    if (!Number.isFinite(payload.plannedMinutes) || payload.plannedMinutes < 1 || payload.plannedMinutes > 600) {
+      errors.plannedMinutes = "Planned minutes must be between 1 and 600.";
+    }
+    if (Object.keys(errors).length > 0) return { ok: false as const, errors };
+    try {
+      await createMutation.mutateAsync(payload);
+      return { ok: true as const, errors: {} };
+    } catch {
+      return { ok: false as const, errors: {} };
+    }
+  };
+
+  const updateSession = async (id: string, payload: Parameters<typeof updateLearningSession>[1]) => {
+    try {
+      await updateMutation.mutateAsync({ id, payload });
+      return { ok: true as const, errors: {} };
+    } catch {
+      return { ok: false as const, errors: {} };
+    }
+  };
+
+  const deleteSession = async (id: string) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const startSessionTimer = async (session: LearningSession) => {
+    setSelectedSession(session);
+    await lifecycleMutation.mutateAsync({ action: session.status === "paused" ? "resume" : "start", session });
+  };
+
+  const pauseSessionTimer = async () => {
+    if (!activeTimer) return;
+    await lifecycleMutation.mutateAsync({ action: "pause", session: activeTimer });
+  };
+
+  const completeSessionManually = async () => {
+    if (!activeTimer) return;
+    await lifecycleMutation.mutateAsync({
+      action: "complete",
+      session: activeTimer,
+      actualMinutes: activeTimer.plannedMinutes,
+    });
+    setAlarmRinging(false);
+  };
+
+  const resetSessionTimer = () => {
+    if (!activeTimer) return;
+    setRemainingSeconds(activeTimer.plannedMinutes * 60);
+  };
+
+  const stopAlarm = () => setAlarmRinging(false);
+
+  const saveGoals = async () => {
+    const dailyGoalMinutes = Number(dailyGoal);
+    const weeklyGoalMinutes = Number(weeklyGoal);
+    if (
+      !Number.isFinite(dailyGoalMinutes) ||
+      !Number.isFinite(weeklyGoalMinutes) ||
+      dailyGoalMinutes < 1 ||
+      dailyGoalMinutes > 600 ||
+      weeklyGoalMinutes < 1
+    ) {
+      toast.error("Use valid goal minutes. Daily goal must be 1-600.");
+      return;
+    }
+    await goalsMutation.mutateAsync({
+      dailyGoalMinutes,
+      weeklyGoalMinutes,
+      learnerMode,
+    });
+    setDailyGoalDraft(null);
+    setWeeklyGoalDraft(null);
+  };
+
+  const saveChildControls = async () => {
+    const dailyLimitMinutes = Number(parentControls.dailyLimitMinutes);
+    if (!Number.isFinite(dailyLimitMinutes) || dailyLimitMinutes < 1 || dailyLimitMinutes > 600) {
+      toast.error("Daily child limit must be between 1 and 600 minutes.");
+      return;
+    }
+    await childControlsMutation.mutateAsync({
+      dailyLimitMinutes,
+      rewardPointsEnabled: parentControls.rewardPointsEnabled,
+      allowedSubjects: parseTags(parentControls.allowedSubjects),
+      messagePreview: parentControls.messagePreview,
+      parentPin: parentControls.parentPin || undefined,
+    });
+    setParentControlsDraft(null);
+  };
+
+  const updateFilterField = (field: "status" | "subject" | "learnerMode" | "studyDate" | "fromDate" | "toDate", value: string) => {
+    setFilters((current) => ({ ...current, [field]: value, page: 1 }));
+  };
+
+  const applyFilters = async (nextFilters: Partial<LearningSessionsQuery> = {}) => {
+    setFilters((current) => ({ ...current, ...nextFilters }));
+  };
+
+  const goToPage = async (page: number) => {
+    setFilters((current) => ({ ...current, page }));
+  };
+
+  useEffect(() => {
+    if (!activeTimer) return;
+    const timer = window.setInterval(() => {
+      setRemainingSeconds((current) => {
+        if (current <= 1) {
+          window.clearInterval(timer);
+          setAlarmRinging(enableAlarm);
+          void lifecycleMutationRef.current.mutateAsync({
+            action: "complete",
+            session: activeTimer,
+            actualMinutes: activeTimer.plannedMinutes,
+          });
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeTimer, enableAlarm]);
+
+  const selectedMode = learnerModes.find((mode) => mode.value === learnerMode) ?? learnerModes[0];
+  const chartData = useMemo(() => {
+    const bySubject = new Map<string, number>();
+    sessions.forEach((session) => {
+      const subject = session.subject?.trim() || "Learning";
+      const minutes = session.actualMinutes || session.plannedMinutes || 0;
+      bySubject.set(subject, (bySubject.get(subject) ?? 0) + minutes);
+    });
+    const localData = Array.from(bySubject.entries()).map(([name, totalMinutes]) => ({
+      name,
+      totalMinutes,
+    }));
+    if (localData.length > 0) return localData;
+    return summary.topSubjects.map((subject) => ({
+      name: subject._id?.trim() || "Learning",
+      totalMinutes: subject.totalMinutes,
+    }));
+  }, [sessions, summary.topSubjects]);
+  const goalProgress = Math.min(100, Math.round((summary.todayMinutes / Math.max(1, Number(dailyGoal))) * 100));
+  const nextSessionMessage =
+    summary.todayMinutes >= Number(dailyGoal)
+      ? "Daily goal complete. A light review session is enough now."
+      : `You studied ${formatMinutes(summary.todayMinutes)} of ${formatMinutes(Number(dailyGoal) || 0)} minutes today. Try a ${learnerMode === "child" ? "10" : "25"} minute session next.`;
+  const starterSession = selectedSession ?? sessions.find((session) => session.status !== "completed") ?? null;
 
   const resetForm = () => {
     setEditingSessionId(null);
+    setSelectedTemplate("");
     setErrors({});
     setForm(emptyForm(subjectOptions[0] ?? ""));
   };
 
+  const patchForm = (patch: Partial<SessionFormState>) => {
+    setForm((current) => ({ ...current, ...patch }));
+    setErrors({});
+  };
+
+  const applyTemplate = (templateName: string) => {
+    setSelectedTemplate(templateName);
+    const template = templates.find((item) => item.name === templateName);
+    if (!template) return;
+    patchForm({
+      title: template.title,
+      subject: template.subject,
+      goal: template.goal,
+      plannedMinutes: String(template.plannedMinutes),
+      learningType: template.learningType,
+      notes: template.notes,
+    });
+  };
+
+  const buildPayload = () => ({
+    title: form.title,
+    subject: form.subject,
+    goal: form.goal,
+    plannedMinutes: Number(form.plannedMinutes),
+    studyDate: form.date,
+    date: form.date,
+    learnerMode,
+    learningType: form.learningType,
+    difficulty: form.difficulty,
+    priority: form.priority,
+    tags: parseTags(form.tags),
+    notes: form.notes,
+  });
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    const payload = {
-      title: form.title,
-      subject: form.subject,
-      plannedMinutes: Number(form.plannedMinutes),
-      notes: form.notes,
-      date: form.date,
-    };
-
+    const payload = buildPayload();
     const result = editingSessionId
       ? await updateSession(editingSessionId, payload)
       : await createSession(payload);
-
     setErrors(result.errors);
-
-    if (result.ok) {
-      resetForm();
-    }
+    if (result.ok) resetForm();
   };
 
   const handleEdit = (session: LearningSession) => {
     setEditingSessionId(session._id);
+    setSelectedSession(session);
+    setDetailsSession(null);
     setErrors({});
     setForm(sessionToForm(session));
     requestAnimationFrame(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
+  const handleCompleteSession = async (session: LearningSession) => {
+    if (activeTimer?._id === session._id) {
+      await completeSessionManually();
+      return;
+    }
+    setCompleteTarget(session);
+    setCompleteMinutes(String(session.actualMinutes || session.plannedMinutes));
+  };
+
+  const submitCompleteSession = async () => {
+    if (!completeTarget) return;
+    const actualMinutes = Number(completeMinutes);
+    if (!Number.isFinite(actualMinutes) || actualMinutes < 0) {
+      toast.error("Actual minutes must be 0 or more.");
+      return;
+    }
+    await lifecycleMutation.mutateAsync({
+      action: "complete",
+      session: completeTarget,
+      actualMinutes,
+    });
+    setCompleteTarget(null);
+  };
+
+  const openRescheduleModal = (session: LearningSession) => {
+    setRescheduleTarget(session);
+    setRescheduleDate((session.studyDate ?? session.date ?? getToday()).slice(0, 10));
+  };
+
+  const submitRescheduleSession = async () => {
+    if (!rescheduleTarget) return;
+    if (!rescheduleDate) {
+      toast.error("Choose a new study date.");
+      return;
+    }
+    await lifecycleMutation.mutateAsync({
+      action: "reschedule",
+      session: rescheduleTarget,
+      studyDate: rescheduleDate,
+    });
+    setRescheduleTarget(null);
+  };
+
   const handleDelete = async (session: LearningSession) => {
-    const confirmed = window.confirm(
-      `Delete learning session "${session.title}"?`,
-    );
+    setDeleteTarget(session);
+  };
 
-    if (!confirmed) return;
-
+  const submitDeleteSession = async () => {
+    if (!deleteTarget) return;
+    const session = deleteTarget;
     const ok = await deleteSession(session._id);
-
-    if (ok && editingSessionId === session._id) {
-      resetForm();
+    if (ok) {
+      if (editingSessionId === session._id) resetForm();
+      if (selectedSession?._id === session._id) setSelectedSession(null);
+      if (detailsSession?._id === session._id) setDetailsSession(null);
+      setDeleteTarget(null);
     }
   };
 
-  const handleApplyFilters = async (
-    event?: React.FormEvent<HTMLFormElement>,
-  ) => {
+  const handleApplyFilters = async (event?: React.FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-    await applyFilters({ page: 1 }, true);
+    await applyFilters({ page: 1 });
+  };
+
+  const handleSavePreset = async () => {
+    const minutes = Number(customMinutes);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 600) {
+      toast.error("Preset minutes must be between 1 and 600.");
+      return;
+    }
+    await presetMutation.mutateAsync({ minutes, label: `${minutes} min` });
+    patchForm({ plannedMinutes: String(minutes) });
+    setCustomMinutes("");
+  };
+
+  const handleRemovePreset = async (preset: TimerPreset) => {
+    if (preset.isDefault || defaultTimerPresets.some((item) => item.minutes === preset.minutes)) return;
+    const id = preset._id ?? preset.id;
+    if (id) {
+      await deletePresetMutation.mutateAsync(id);
+      return;
+    }
+    toast("Custom preset will disappear after backend returns an id for it.");
+  };
+
+  const createSampleSession = async () => {
+    await createSession({
+      title: "Starter study block",
+      subject: learnerMode === "child" ? "Reading" : "Learning",
+      goal: "Start with a simple focused session.",
+      plannedMinutes: 10,
+      studyDate: getToday(),
+      date: getToday(),
+      learnerMode,
+      learningType: "reading",
+      difficulty: "easy",
+      priority: "medium",
+      tags: ["starter"],
+      notes: "Begin with 10 minutes and write one thing you learned.",
+    });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 px-4 py-6 dark:bg-[#09090f] sm:px-6 lg:px-8 xl:px-10">
+      <div className="min-h-screen bg-slate-50 px-4 py-6 dark:bg-[#08111f] sm:px-6 lg:px-8 xl:px-10">
         <div className="grid gap-5">
-          <div className="h-56 animate-pulse rounded-[2rem] bg-white shadow-xl shadow-slate-200/60 dark:bg-white/[0.04]" />
+          <div className="h-56 animate-pulse rounded-2xl bg-white shadow-xl shadow-slate-200/60 dark:bg-slate-900" />
           <div className="grid gap-4 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-40 animate-pulse rounded-[2rem] bg-white shadow-xl shadow-slate-200/60 dark:bg-white/[0.04]"
-              />
+              <div key={index} className="h-40 animate-pulse rounded-2xl bg-white shadow-xl shadow-slate-200/60 dark:bg-slate-900" />
             ))}
           </div>
         </div>
@@ -283,726 +924,1011 @@ export default function LearningHub() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-[#09090f] dark:text-white">
-      <div className="pointer-events-none fixed inset-0 -z-0 overflow-hidden">
-        <div className="absolute left-[10%] top-0 h-[420px] w-[420px] rounded-full bg-cyan-500/10 blur-[120px]" />
-        <div className="absolute bottom-0 right-[8%] h-[360px] w-[360px] rounded-full bg-violet-600/10 blur-[110px]" />
-      </div>
-
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),linear-gradient(180deg,#f8fafc,#eef6fb)] text-slate-950 dark:bg-[radial-gradient(circle_at_12%_0%,rgba(20,184,166,0.2),transparent_32%),radial-gradient(circle_at_92%_18%,rgba(59,130,246,0.16),transparent_28%),linear-gradient(180deg,#06101e,#08111f_45%,#06101e)] dark:text-white">
       <div className="relative z-10 space-y-5 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-        <section className="relative overflow-hidden rounded-[2.3rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 dark:border-white/[0.08] dark:bg-[#110d2e] dark:shadow-black/30 md:p-8">
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
-          <div className="absolute -right-14 top-10 h-44 w-44 rounded-full bg-cyan-400/10 blur-3xl" />
-
-          <div className="relative z-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-100 bg-cyan-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-cyan-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-cyan-300">
+        <section className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-200/70 dark:border-cyan-300/10 dark:bg-[#081120]/95 dark:shadow-cyan-950/30 sm:p-6 md:p-8">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 left-10 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
+          <div className="relative z-10 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
+            <div className="flex min-h-[280px] flex-col justify-between">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-100 bg-cyan-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.22em] text-cyan-700 dark:border-cyan-500/25 dark:bg-cyan-500/10 dark:text-cyan-300">
                 <Brain className="h-3.5 w-3.5" />
                 Learning Lab
               </div>
-
-              <h1 className="mt-5 text-[clamp(2.4rem,5vw,4.6rem)] font-black leading-[0.95] tracking-[-0.04em] text-slate-950 dark:text-white">
-                Plan your study,
-                <span className="block bg-gradient-to-r from-cyan-500 via-teal-500 to-violet-500 bg-clip-text text-transparent">
-                  run the timer, and finish with intent.
-                </span>
-              </h1>
-
-              <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300/85">
-                Create study sessions, track real learning time, and let the
-                built-in alarm pull you out of deep work when your block ends.
-              </p>
+              <div className="mt-8 max-w-4xl">
+                <h1 className="text-[clamp(2.1rem,7vw,5rem)] font-black leading-[0.95] tracking-[-0.055em] text-slate-950 dark:text-white">
+                  Learning that feels calm, guided, and finishable.
+                </h1>
+                <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">
+                  Build sessions for school, work, children, or self-study. The page stays visible even when the backend is offline; actions simply wait until the service returns.
+                </p>
+              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 shadow-inner shadow-white dark:border-cyan-300/10 dark:bg-[#0d192b]/85 dark:shadow-none">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-500">Today Cockpit</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">Fast read, no clutter</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${serviceOffline ? "bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-200" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200"}`}>
+                  {serviceOffline ? "Offline-safe" : "Live"}
+                </span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
               {[
                 { label: "Today", value: `${formatMinutes(summary.todayMinutes)}m` },
                 { label: "Streak", value: `${summary.currentStreak} days` },
-                {
-                  label: "Active",
-                  value: activeTimer ? activeTimer.subject : "No timer",
-                },
+                { label: "Active", value: activeTimer ? activeTimer.subject : "No timer" },
               ].map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-[1.45rem] border border-slate-200 bg-slate-50 px-4 py-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
-                >
-                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-500">
-                    {item.label}
-                  </p>
-                  <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
-                    {item.value}
-                  </p>
+                <div key={item.label} className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-cyan-300/10 dark:bg-[#07101e]">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+                  <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">{item.value}</p>
                 </div>
               ))}
+              </div>
             </div>
+          </div>
+        </section>
+
+        <section className={panelClass}>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-500 dark:text-cyan-300">Learner Mode</p>
+              <h2 className="mt-2 text-2xl font-black">Pick the context for today</h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{selectedMode.helper}</p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-4">
+            {learnerModes.map((mode) => {
+              const Icon = mode.icon;
+              const active = learnerMode === mode.value;
+              return (
+                <button
+                  key={mode.value}
+                  type="button"
+                  onClick={() => setLearnerMode(mode.value)}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    active
+                      ? "border-cyan-300 bg-cyan-50 shadow-lg shadow-cyan-500/10 dark:border-cyan-500/40 dark:bg-cyan-500/10"
+                      : "border-slate-200 bg-slate-50 hover:border-cyan-200 dark:border-slate-700 dark:bg-slate-950/60"
+                  }`}
+                >
+                  <Icon className={`h-5 w-5 ${active ? "text-cyan-600 dark:text-cyan-300" : "text-slate-500"}`} />
+                  <p className="mt-3 text-sm font-black">{mode.label}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{mode.presets.join(" | ")}</p>
+                </button>
+              );
+            })}
           </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            title="Today Minutes"
-            value={`${formatMinutes(summary.todayMinutes)}m`}
-            subtitle="Learning time logged today."
-            icon={Clock3}
-            gradient="from-cyan-500 to-sky-400"
-          />
-          <StatCard
-            title="Week Minutes"
-            value={`${formatMinutes(summary.weekMinutes)}m`}
-            subtitle="Your rolling weekly study load."
-            icon={CalendarDays}
-            gradient="from-violet-600 to-fuchsia-500"
-          />
-          <StatCard
-            title="Completion Rate"
-            value={`${summary.completionRate}%`}
-            subtitle="Completed sessions versus total."
-            icon={CheckCircle2}
-            gradient="from-emerald-500 to-lime-400"
-          />
-          <StatCard
-            title="Current Streak"
-            value={`${summary.currentStreak}`}
-            subtitle="Consecutive learning days."
-            icon={Trophy}
-            gradient="from-orange-500 to-amber-400"
-          />
+          <StatCard title="Today Minutes" value={`${formatMinutes(summary.todayMinutes)}m`} subtitle="Learning time logged today." icon={Clock3} gradient="from-cyan-500 to-sky-400" />
+          <StatCard title="Week Minutes" value={`${formatMinutes(summary.weekMinutes)}m`} subtitle="Your weekly study load." icon={CalendarDays} gradient="from-amber-500 to-orange-400" />
+          <StatCard title="Completion Rate" value={`${summary.completionRate}%`} subtitle="Completed sessions versus total." icon={CheckCircle2} gradient="from-emerald-500 to-lime-400" />
+          <StatCard title="Current Streak" value={`${summary.currentStreak}`} subtitle="Consecutive learning days." icon={Trophy} gradient="from-rose-500 to-orange-400" />
         </section>
 
-        {error ? (
-          <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
-            {error}
+        <section className={`${panelClass} overflow-hidden`}>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] xl:items-center">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-500 dark:text-emerald-300">Learning Goals</p>
+              <h2 className="mt-2 text-2xl font-black">Progress for today</h2>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{nextSessionMessage}</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
+              <label className="space-y-2">
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Daily goal minutes</span>
+                <input className={inputClass} type="number" min="1" value={dailyGoal} onChange={(e) => setDailyGoalDraft(e.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Weekly goal minutes</span>
+                <input className={inputClass} type="number" min="1" value={weeklyGoal} onChange={(e) => setWeeklyGoalDraft(e.target.value)} />
+              </label>
+            </div>
+          </div>
+          <div className="mt-6 rounded-[1.35rem] border border-slate-200 bg-slate-50 p-4 dark:border-cyan-300/10 dark:bg-[#07101e]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-4 text-sm font-bold">
+                  <span>Current progress</span>
+                  <span className="text-lg font-black text-cyan-600 dark:text-cyan-300">{goalProgress}%</span>
+                </div>
+                <div className="mt-3 h-4 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-sky-500 shadow-[0_0_24px_rgba(34,211,238,0.45)]" style={{ width: `${goalProgress}%` }} />
+                </div>
+              </div>
+              <button type="button" onClick={() => void saveGoals()} disabled={goalsMutation.isPending} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-300 dark:text-slate-950">
+                {goalsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save goals
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {serviceOffline ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+            Backend connection is unavailable right now. You can still view the Learning dashboard layout, but save/start actions need the service to reconnect.
           </div>
         ) : null}
 
         <section className="grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
-          <div
-            ref={formRef}
-            className="scroll-mt-24 rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20"
-          >
+          <div ref={formRef} className={panelClass}>
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-500 dark:text-cyan-300">
-                  Session Builder
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  {editingSessionId ? "Edit learning session" : "Create a learning session"}
-                </h2>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-500 dark:text-cyan-300">Session Builder</p>
+                <h2 className="mt-2 text-2xl font-black">{editingSessionId ? "Edit learning session" : "Create a learning session"}</h2>
               </div>
-
               {editingSessionId ? (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                >
-                  Cancel edit
+                <button type="button" onClick={resetForm} className={secondaryButton}>
+                  <X className="h-4 w-4" />
+                  Cancel
                 </button>
               ) : null}
             </div>
 
             <form onSubmit={handleSubmit} className="grid gap-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Session title
-                  </label>
-                  <input
-                    value={form.title}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, title: event.target.value }));
-                      if (errors.title) setErrors({});
-                    }}
-                    placeholder="DSA revision"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                  />
-                  {errors.title ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
-                      {errors.title}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Subject
-                  </label>
-                  <input
-                    value={form.subject}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, subject: event.target.value }));
-                      if (errors.subject) setErrors({});
-                    }}
-                    placeholder="Algorithms"
-                    list="learning-subjects"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                  />
-                  <datalist id="learning-subjects">
-                    {subjectOptions.map((subject) => (
-                      <option key={subject} value={subject} />
-                    ))}
-                  </datalist>
-                  {errors.subject ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
-                      {errors.subject}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Planned minutes
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={form.plannedMinutes}
-                    onChange={(event) => {
-                      setForm((current) => ({
-                        ...current,
-                        plannedMinutes: event.target.value,
-                      }));
-                      if (errors.plannedMinutes) setErrors({});
-                    }}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                  />
-                  {errors.plannedMinutes ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
-                      {errors.plannedMinutes}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                    Study date
-                  </label>
-                  <input
-                    type="date"
-                    value={form.date}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, date: event.target.value }));
-                      if (errors.date) setErrors({});
-                    }}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
-                  />
-                  {errors.date ? (
-                    <p className="mt-2 text-sm font-semibold text-rose-500">
-                      {errors.date}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-sm font-bold text-slate-600 dark:text-slate-300">
-                  Quick presets
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {presetDurations.map((duration) => (
-                    <button
-                      key={duration}
-                      type="button"
-                      onClick={() =>
-                        setForm((current) => ({
-                          ...current,
-                          plannedMinutes: String(duration),
-                        }))
-                      }
-                      className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200 dark:hover:border-cyan-400/30 dark:hover:bg-cyan-500/10 dark:hover:text-cyan-200"
-                    >
-                      {duration} min
-                    </button>
+              <label className="space-y-2">
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Session template</span>
+                <select className={inputClass} value={selectedTemplate} onChange={(e) => applyTemplate(e.target.value)}>
+                  <option value="">Start blank or choose a template</option>
+                  {templates.map((template) => (
+                    <option key={template.name} value={template.name}>{template.name}</option>
                   ))}
+                </select>
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Session title" error={errors.title}>
+                  <input className={inputClass} value={form.title} onChange={(e) => patchForm({ title: e.target.value })} placeholder="DSA revision" />
+                </Field>
+                <Field label="Subject" error={errors.subject}>
+                  <input className={inputClass} value={form.subject} onChange={(e) => patchForm({ subject: e.target.value })} placeholder="Algorithms" list="learning-subjects" />
+                  <datalist id="learning-subjects">
+                    {subjectOptions.map((subject) => <option key={subject} value={subject} />)}
+                  </datalist>
+                </Field>
+              </div>
+
+              <Field label="Goal" error={errors.goal}>
+                <input className={inputClass} value={form.goal} onChange={(e) => patchForm({ goal: e.target.value })} placeholder="Solve 3 practice problems and review mistakes" />
+              </Field>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Planned minutes" error={errors.plannedMinutes}>
+                  <input className={inputClass} type="number" min="1" value={form.plannedMinutes} onChange={(e) => patchForm({ plannedMinutes: e.target.value })} />
+                </Field>
+                <Field label="Study date" error={errors.date}>
+                  <input className={inputClass} type="date" value={form.date} onChange={(e) => patchForm({ date: e.target.value })} />
+                </Field>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <SelectField label="Learning type" value={form.learningType} onChange={(value) => patchForm({ learningType: value as LearningType })} options={learningTypes} />
+                <SelectField label="Difficulty" value={form.difficulty} onChange={(value) => patchForm({ difficulty: value as LearningDifficulty })} options={difficulties} />
+                <SelectField label="Priority" value={form.priority} onChange={(value) => patchForm({ priority: value as LearningPriority })} options={priorities} />
+              </div>
+
+              <Field label="Tags">
+                <input className={inputClass} value={form.tags} onChange={(e) => patchForm({ tags: e.target.value })} placeholder="exam, chapter-4, practice" />
+              </Field>
+
+              <Field label="Notes">
+                <textarea className={inputClass} rows={4} value={form.notes} onChange={(e) => patchForm({ notes: e.target.value })} placeholder="Chapters, links, mistakes to review, or parent instructions..." />
+              </Field>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60">
+                <p className="mb-3 text-sm font-black">Editable timer presets</p>
+                <div className="flex flex-wrap gap-2">
+                  {timerPresets.map((preset) => {
+                    const isDefault = defaultTimerPresets.some((item) => item.minutes === preset.minutes);
+                    return (
+                      <span key={preset.minutes} className="inline-flex overflow-hidden rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                        <button type="button" onClick={() => patchForm({ plannedMinutes: String(preset.minutes) })} className="px-3 py-2 text-sm font-bold">
+                          {preset.minutes} min
+                        </button>
+                        {!isDefault ? (
+                          <button type="button" onClick={() => void handleRemovePreset(preset)} className="border-l border-slate-200 px-2 text-slate-400 hover:text-rose-500 dark:border-slate-700">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+                      </span>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <input className={inputClass} type="number" min="1" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} placeholder="Custom minutes" />
+                  <button type="button" onClick={() => void handleSavePreset()} className={secondaryButton}>
+                    <Save className="h-4 w-4" />
+                    Save preset
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-600 dark:text-slate-300">
-                  Notes
-                </label>
-                <textarea
-                  value={form.notes}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, notes: event.target.value }))
-                  }
-                  placeholder="Chapters, goals, or practice focus for this session..."
-                  rows={4}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold outline-none transition focus:border-cyan-500 focus:bg-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:focus:bg-white/[0.06]"
+              {learnerMode === "child" ? (
+                <ChildControls
+                  controls={parentControls}
+                  setControls={setParentControls}
+                  onSave={saveChildControls}
+                  saving={childControlsMutation.isPending}
                 />
-              </div>
+              ) : null}
 
-              <button
-                type="submit"
-                disabled={sessionSaving}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {sessionSaving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : editingSessionId ? (
-                  <PencilLine className="h-4 w-4" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
+              <button type="submit" disabled={sessionSaving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-500 px-5 py-3.5 text-sm font-black text-white shadow-lg shadow-cyan-950/25 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70">
+                {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingSessionId ? <PencilLine className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 {editingSessionId ? "Update session" : "Create session"}
               </button>
             </form>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-            <div className="mb-6 flex items-start justify-between gap-4">
+          <div className={panelClass}>
+            <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
-                  Live Timer
-                </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  Study clock and alarm
-                </h2>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-500 dark:text-amber-300">Live Timer</p>
+                <h2 className="mt-2 text-2xl font-black">Study clock and alarm</h2>
               </div>
-
-              <button
-                onClick={() => void refreshAll(true)}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-400 dark:hover:bg-white/[0.10] dark:hover:text-white"
-                aria-label="Refresh learning data"
-              >
-                <RefreshCcw className={`h-4.5 w-4.5 ${summaryLoading ? "animate-spin" : ""}`} />
+              <button onClick={() => void refreshAll(true)} className={secondaryButton} aria-label="Refresh learning data">
+                <RefreshCcw className={`h-4 w-4 ${summaryLoading ? "animate-spin" : ""}`} />
               </button>
             </div>
 
-            <div className="flex min-h-[390px] flex-col justify-between rounded-[1.8rem] border border-slate-200 bg-slate-50 p-5 dark:border-white/[0.08] dark:bg-white/[0.04]">
-              <div>
-                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-cyan-700 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-200">
-                  <AlarmClock className="h-3.5 w-3.5" />
-                  {alarmRinging ? "Alarm ringing" : activeTimer ? "Timer running" : "Ready to focus"}
-                </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950/60">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-cyan-700 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-200">
+                <AlarmClock className="h-3.5 w-3.5" />
+                {alarmRinging ? "Alarm ringing" : activeTimer ? "Timer running" : "Ready"}
+              </div>
 
-                <div className="flex items-center justify-center">
-                  <div className="flex h-64 w-64 items-center justify-center rounded-full border-[18px] border-cyan-500/70 bg-white text-center text-5xl font-black tracking-[-0.04em] text-slate-950 shadow-[inset_0_20px_60px_rgba(15,23,42,0.08)] dark:bg-[#171329] dark:text-white dark:shadow-[inset_0_20px_60px_rgba(0,0,0,0.35)]">
-                    {activeTimer ? formatCountdown(remainingSeconds) : "00:00"}
-                  </div>
-                </div>
-
-                <div className="mt-6 text-center">
-                  <p className="text-sm font-bold uppercase tracking-[0.22em] text-slate-500">
-                    {activeTimer ? activeTimer.subject : summary.activeSession?.subject ?? "No active subject"}
-                  </p>
-                  <h3 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    {activeTimer ? activeTimer.title : summary.activeSession?.title ?? "Choose a session from below"}
-                  </h3>
-                  <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                    {alarmRinging
-                      ? "Time is up. Stop the alarm when you're done."
-                      : activeTimer
-                        ? `Planned ${activeTimer.plannedMinutes} minutes`
-                        : "Create a session, then press Start from the list to begin."}
-                  </p>
+              <div className="flex items-center justify-center">
+                <div className="flex h-56 w-56 items-center justify-center rounded-full border-[16px] border-cyan-500/70 bg-white text-center text-5xl font-black text-slate-950 shadow-[inset_0_20px_60px_rgba(15,23,42,0.08)] dark:bg-slate-900 dark:text-white">
+                  {activeTimer ? formatCountdown(remainingSeconds) : "00:00"}
                 </div>
               </div>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => void pauseSessionTimer()}
-                  disabled={!activeTimer}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950"
-                >
+              <div className="mt-6 text-center">
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">
+                  {activeTimer?.subject ?? starterSession?.subject ?? "No active subject"}
+                </p>
+                <h3 className="mt-2 text-2xl font-black">{activeTimer?.title ?? starterSession?.title ?? "Choose a session"}</h3>
+                <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+                  {activeTimer?.goal ?? starterSession?.goal ?? "Select or create a session to begin."}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  {alarmRinging ? "Time is up. Stop the alarm when you are done." : enableAlarm ? `${alarmSound} alarm enabled` : "Alarm disabled"}
+                </p>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <button type="button" onClick={() => starterSession && void startSessionTimer(starterSession)} disabled={Boolean(activeTimer) || !starterSession} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-400 dark:text-slate-950">
+                  <Play className="h-4 w-4" />
+                  Start
+                </button>
+                <button type="button" onClick={() => void pauseSessionTimer()} disabled={!activeTimer} className={secondaryButton}>
                   <Pause className="h-4 w-4" />
-                  Pause timer
+                  Pause
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => void completeSessionManually()}
-                  disabled={!activeTimer}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200"
-                >
+                <button type="button" onClick={() => starterSession && void startSessionTimer(starterSession)} disabled={Boolean(activeTimer) || starterSession?.status !== "paused"} className={secondaryButton}>
+                  <Play className="h-4 w-4" />
+                  Resume
+                </button>
+                <button type="button" onClick={() => void completeSessionManually()} disabled={!activeTimer} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
                   <CheckCircle2 className="h-4 w-4" />
-                  Complete now
+                  Complete
                 </button>
-
-                <button
-                  type="button"
-                  onClick={stopAlarm}
-                  disabled={!alarmRinging}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
-                >
+                <button type="button" onClick={stopAlarm} disabled={!alarmRinging} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
                   <RotateCcw className="h-4 w-4" />
                   Stop alarm
                 </button>
+                <button type="button" onClick={resetSessionTimer} disabled={!activeTimer} className={secondaryButton}>
+                  <RefreshCcw className="h-4 w-4" />
+                  Reset
+                </button>
+              </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 dark:border-white/[0.08] dark:bg-[#171329] dark:text-slate-300">
-                  Alarm keeps sounding until you stop it.
-                </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={enableAlarm}
+                    onChange={(e) => {
+                      setEnableAlarm(e.target.checked);
+                      if (!e.target.checked) setAlarmRinging(false);
+                    }}
+                  />
+                  Enable alarm
+                </label>
+                <label className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={autoStartBreak} onChange={(e) => setAutoStartBreak(e.target.checked)} />
+                  Auto start break
+                </label>
+                <select className={inputClass} value={alarmSound} onChange={(e) => setAlarmSound(e.target.value)}>
+                  <option>Classic beep</option>
+                  <option>Soft bell</option>
+                  <option>Digital chime</option>
+                </select>
+                <input className={inputClass} type="number" min="1" value={breakDuration} onChange={(e) => setBreakDuration(e.target.value)} placeholder="Break duration" />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-            <div className="mb-6 space-y-5">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="max-w-2xl flex-1">
-                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-orange-500 dark:text-orange-300">
-                    Session Queue
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                    Launch, pause, complete, and clean up study blocks
-                  </h2>
-                  <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
-                    Manage current and past learning sessions without leaving the page.
-                  </p>
-                </div>
-
-                <div className="grid w-full gap-3 sm:grid-cols-3 xl:w-auto xl:min-w-[320px]">
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3.5 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Visible
-                    </p>
-                    <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                      {sessions.length}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3.5 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Total
-                    </p>
-                    <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                      {pagination.total}
-                    </p>
-                  </div>
-                  <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3.5 dark:border-white/[0.08] dark:bg-white/[0.04]">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Completed
-                    </p>
-                    <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                      {summary.completedSessions}
-                    </p>
-                  </div>
-                </div>
+        <section className={panelClass}>
+            <div className="mb-6 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-orange-500 dark:text-orange-300">Learning Queue</p>
+                <h2 className="mt-2 text-2xl font-black">Your study blocks</h2>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Open a card for details, notes, and full session metadata.</p>
               </div>
-
-              <form
-                onSubmit={handleApplyFilters}
-                className="rounded-[1.6rem] border border-slate-200 bg-slate-50/80 p-4 dark:border-white/[0.08] dark:bg-white/[0.035]"
-              >
-                <div className="grid gap-3 xl:grid-cols-[180px_minmax(0,1fr)_auto]">
-                  <label className="space-y-2">
-                    <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Status
-                    </span>
-                    <select
-                      value={filters.status}
-                      onChange={(event) =>
-                        updateFilterField("status", event.target.value)
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 dark:border-white/[0.08] dark:bg-[#171329] dark:text-white"
-                    >
-                      <option value="">All statuses</option>
-                      <option value="planned">Planned</option>
-                      <option value="active">Active</option>
-                      <option value="paused">Paused</option>
-                      <option value="completed">Completed</option>
-                    </select>
-                  </label>
-
-                  <label className="space-y-2">
-                    <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Subject
-                    </span>
-                    <input
-                      value={filters.subject}
-                      list="learning-filter-subjects"
-                      onChange={(event) =>
-                        updateFilterField("subject", event.target.value)
-                      }
-                      placeholder="Filter by subject"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-orange-500 dark:border-white/[0.08] dark:bg-[#171329] dark:text-white"
-                    />
-                    <datalist id="learning-filter-subjects">
-                      {subjectOptions.map((subject) => (
-                        <option key={subject} value={subject} />
-                      ))}
-                    </datalist>
-                  </label>
-
-                  <div className="flex items-end xl:pt-[1.9rem]">
-                    <button
-                      type="submit"
-                      disabled={sessionsLoading}
-                      className="inline-flex h-[50px] w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70 dark:bg-white dark:text-slate-950 lg:w-auto lg:min-w-[120px]"
-                    >
-                      {sessionsLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                      Apply
-                    </button>
-                  </div>
-                </div>
+              <form onSubmit={handleApplyFilters} className="grid gap-2 sm:grid-cols-[160px_minmax(160px,1fr)_auto] xl:min-w-[440px]">
+                <select className={inputClass} value={filters.status} onChange={(e) => updateFilterField("status", e.target.value)}>
+                  <option value="">All statuses</option>
+                  <option value="planned">Planned</option>
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <input className={inputClass} value={filters.subject} list="learning-filter-subjects" onChange={(e) => updateFilterField("subject", e.target.value)} placeholder="Filter subject" />
+                <datalist id="learning-filter-subjects">
+                  {subjectOptions.map((subject) => <option key={subject} value={subject} />)}
+                </datalist>
+                <button type="submit" disabled={sessionsLoading} className={secondaryButton}>
+                  {sessionsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Apply
+                </button>
               </form>
             </div>
 
-            <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-white/[0.08]">
-              <div className="hidden grid-cols-[1.2fr_1fr_0.9fr_0.9fr_1fr] gap-4 bg-slate-50 px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500 lg:grid dark:bg-white/[0.04]">
-                <span>Session</span>
-                <span>Subject</span>
-                <span>Plan</span>
-                <span>Status</span>
-                <span>Actions</span>
-              </div>
-
+            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-3 dark:border-cyan-300/10 dark:bg-[#07101e]/70">
               {sessionsLoading ? (
-                <div className="space-y-3 px-5 py-5">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div
-                      key={index}
-                      className="h-20 animate-pulse rounded-2xl bg-slate-50 dark:bg-white/[0.04]"
-                    />
-                  ))}
+                <div className="space-y-3 p-5">
+                  {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-xl bg-slate-50 dark:bg-slate-800" />)}
                 </div>
               ) : sessions.length > 0 ? (
-                <div className="divide-y divide-slate-200 dark:divide-white/[0.08]">
+                <div className="grid gap-3 xl:grid-cols-2">
                   {sessions.map((session) => (
-                    <div
+                    <SessionQueueCard
                       key={session._id}
-                      className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[1.2fr_1fr_0.9fr_0.9fr_1fr] lg:items-center"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
-                          Session
-                        </p>
-                        <p className="font-black text-slate-950 dark:text-white">
-                          {session.title}
-                        </p>
-                        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                          {formatDate(session.date)}
-                        </p>
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
-                          Subject
-                        </p>
-                        <p className="font-bold text-slate-700 dark:text-slate-200">
-                          {session.subject}
-                        </p>
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
-                          Plan
-                        </p>
-                        <p className="font-semibold text-slate-600 dark:text-slate-300">
-                          {session.actualMinutes > 0
-                            ? `${formatMinutes(session.actualMinutes)}/${formatMinutes(
-                                session.plannedMinutes,
-                              )}m`
-                            : `${formatMinutes(session.plannedMinutes)}m`}
-                        </p>
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400 lg:hidden">
-                          Status
-                        </p>
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1.5 text-sm font-bold capitalize ${statusTone(session.status)}`}
-                        >
-                          {session.status}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-                        {session.status !== "completed" ? (
-                          <button
-                            type="button"
-                            onClick={() => void startSessionTimer(session)}
-                            disabled={
-                              (activeTimer !== null &&
-                                activeTimer.sessionId !== session._id) ||
-                              session.status === "active"
-                            }
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                          >
-                            <Play className="h-4 w-4" />
-                            {session.status === "paused" ? "Resume" : "Start"}
-                          </button>
-                        ) : null}
-
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(session)}
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                        >
-                          <PencilLine className="h-4 w-4" />
-                          Edit
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(session)}
-                          disabled={deletingSessionId === session._id}
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
-                        >
-                          {deletingSessionId === session._id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                          Delete
-                        </button>
-                      </div>
-                    </div>
+                      session={session}
+                      activeTimer={activeTimer}
+                      deleting={deletingSessionId === session._id}
+                      onOpen={() => { setDetailsSession(session); setSelectedSession(session); }}
+                      onStart={() => { setSelectedSession(session); void startSessionTimer(session); }}
+                      onPause={() => void lifecycleMutation.mutateAsync({ action: "pause", session })}
+                      onResume={() => { setSelectedSession(session); void startSessionTimer(session); }}
+                      onEdit={() => handleEdit(session)}
+                      onComplete={() => void handleCompleteSession(session)}
+                      onReschedule={() => openRescheduleModal(session)}
+                      onCancel={() => void lifecycleMutation.mutateAsync({ action: "cancel", session })}
+                      onDelete={() => void handleDelete(session)}
+                    />
                   ))}
                 </div>
               ) : (
                 <div className="px-6 py-12 text-center">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-400">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                     <BookOpen className="h-7 w-7" />
                   </div>
-                  <h3 className="mt-4 text-lg font-black text-slate-950 dark:text-white">
-                    No learning sessions yet
-                  </h3>
-                  <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-                    Create your first study block and start the timer when you are ready.
-                  </p>
+                  <h3 className="mt-4 text-lg font-black">No learning sessions yet</h3>
+                  <p className="mx-auto mt-2 max-w-md text-sm font-medium text-slate-500 dark:text-slate-400">Create your first study block. Start with 10 minutes if you are new.</p>
+                  <button type="button" onClick={() => void createSampleSession()} className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-black text-slate-950">
+                    <Plus className="h-4 w-4" />
+                    Create sample session
+                  </button>
                 </div>
               )}
             </div>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                Page {pagination.page} of {pagination.totalPages} | {pagination.total} total sessions
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => void goToPage(Math.max(1, pagination.page - 1))}
-                  disabled={pagination.page <= 1 || sessionsLoading}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void goToPage(Math.min(pagination.totalPages, pagination.page + 1))
-                  }
-                  disabled={
-                    pagination.page >= pagination.totalPages || sessionsLoading
-                  }
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-slate-200"
-                >
-                  Next
-                </button>
+              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Page {visiblePagination.page} of {visiblePagination.totalPages} | {visiblePagination.total} total sessions</p>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <button type="button" onClick={() => void goToPage(Math.max(1, visiblePagination.page - 1))} disabled={visiblePagination.page <= 1 || sessionsLoading} className={secondaryButton}>Previous</button>
+                <button type="button" onClick={() => void goToPage(Math.min(visiblePagination.totalPages, visiblePagination.page + 1))} disabled={visiblePagination.page >= visiblePagination.totalPages || sessionsLoading} className={secondaryButton}>Next</button>
               </div>
             </div>
-          </div>
+        </section>
 
-          <div className="space-y-5">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-500 dark:text-violet-300">
-                Subject Mix
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                Where your learning time goes
-              </h2>
-
-              <div className="mt-6 h-72 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]">
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)]">
+            <div className={panelClass}>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-500 dark:text-cyan-300">Subject Mix</p>
+              <h2 className="mt-2 text-2xl font-black">Where your learning time goes</h2>
+              <div className="mt-6 h-72 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.22)" />
-                      <XAxis
-                        dataKey="name"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }}
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }}
-                      />
-                      <Tooltip
-                        cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
-                        contentStyle={{
-                          borderRadius: 16,
-                          border: "1px solid rgba(148,163,184,0.16)",
-                          background: "#0f172a",
-                          color: "#fff",
-                        }}
-                      />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }} />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }} />
+                      <Tooltip cursor={{ fill: "rgba(148, 163, 184, 0.08)" }} contentStyle={{ borderRadius: 16, border: "1px solid rgba(148,163,184,0.16)", background: "#0f172a", color: "#fff" }} />
                       <Bar dataKey="totalMinutes" radius={[12, 12, 4, 4]}>
-                        {chartData.map((item, index) => (
-                          <Cell
-                            key={item.name}
-                            fill={subjectChartColors[index % subjectChartColors.length]}
-                          />
-                        ))}
+                        {chartData.map((item, index) => <Cell key={item.name} fill={subjectChartColors[index % subjectChartColors.length]} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center text-center">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm dark:bg-white/[0.06] dark:text-slate-400">
-                      <Sparkles className="h-6 w-6" />
-                    </div>
-                    <p className="mt-4 text-sm font-bold text-slate-600 dark:text-slate-300">
-                      Subject insights appear as you log learning sessions.
-                    </p>
+                    <BookOpen className="h-8 w-8 text-slate-400" />
+                    <h3 className="mt-3 text-lg font-black">No subject data yet</h3>
+                    <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">Complete sessions to see where your learning time goes.</p>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 dark:border-white/[0.08] dark:bg-[#0f0c1f] dark:shadow-black/20">
-              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-500 dark:text-emerald-300">
-                Recent Learning
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                Latest completed and active work
-              </h2>
-
+            <div className={panelClass}>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-500 dark:text-emerald-300">Recent Learning</p>
+              <h2 className="mt-2 text-2xl font-black">Latest completed sessions</h2>
               <div className="mt-5 space-y-3">
-                {summary.recentSessions.length > 0 ? (
-                  summary.recentSessions.slice(0, 5).map((session) => (
-                    <div
-                      key={session._id}
-                      className="rounded-[1.3rem] border border-slate-200 bg-slate-50 px-4 py-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="truncate text-base font-black text-slate-950 dark:text-white">
-                            {session.title}
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                            {session.subject} | {formatMinutes(session.actualMinutes || session.plannedMinutes)}m
-                          </p>
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-bold capitalize ${statusTone(session.status)}`}
-                        >
-                          {session.status}
-                        </span>
+                {summary.recentSessions.length > 0 ? summary.recentSessions.slice(0, 5).map((session) => (
+                  <button key={session._id} type="button" onClick={() => setDetailsSession(session)} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-slate-700 dark:bg-slate-950/60">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-black">{session.title}</p>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{session.subject} | {formatMinutes(session.actualMinutes || session.plannedMinutes)}m</p>
                       </div>
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${statusTone(session.status)}`}>{session.status}</span>
                     </div>
-                  ))
-                ) : (
-                  <div className="rounded-[1.3rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm font-semibold text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
-                    No recent learning sessions yet.
-                  </div>
+                  </button>
+                )) : (
+                  <p className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">Completed sessions will appear here after your first study block.</p>
                 )}
               </div>
             </div>
-          </div>
         </section>
+      </div>
+
+      {detailsSession ? (
+        <SessionDetailsModal session={detailsSession} onClose={() => setDetailsSession(null)} onEdit={handleEdit} />
+      ) : null}
+      {completeTarget ? (
+        <CompleteSessionModal
+          session={completeTarget}
+          minutes={completeMinutes}
+          setMinutes={setCompleteMinutes}
+          saving={lifecycleMutation.isPending}
+          onClose={() => setCompleteTarget(null)}
+          onSubmit={submitCompleteSession}
+        />
+      ) : null}
+      {rescheduleTarget ? (
+        <RescheduleSessionModal
+          session={rescheduleTarget}
+          studyDate={rescheduleDate}
+          setStudyDate={setRescheduleDate}
+          saving={lifecycleMutation.isPending}
+          onClose={() => setRescheduleTarget(null)}
+          onSubmit={submitRescheduleSession}
+        />
+      ) : null}
+      {deleteTarget ? (
+        <DeleteSessionModal
+          session={deleteTarget}
+          deleting={deleteMutation.isPending}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={submitDeleteSession}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="block text-sm font-bold text-slate-600 dark:text-slate-300">{label}</span>
+      {children}
+      {error ? <span className="block text-sm font-semibold text-rose-500">{error}</span> : null}
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="block text-sm font-bold text-slate-600 dark:text-slate-300">{label}</span>
+      <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function ChildControls({
+  controls,
+  setControls,
+  onSave,
+  saving,
+}: {
+  controls: ParentControlsState;
+  setControls: React.Dispatch<React.SetStateAction<ParentControlsState>>;
+  onSave: () => void | Promise<void>;
+  saving: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+      <p className="text-sm font-black text-amber-700 dark:text-amber-200">Parent controls</p>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <input className={inputClass} placeholder="Parent PIN placeholder" value={controls.parentPin} onChange={(e) => setControls((current) => ({ ...current, parentPin: e.target.value }))} />
+        <input className={inputClass} type="number" min="1" placeholder="Daily limit minutes" value={controls.dailyLimitMinutes} onChange={(e) => setControls((current) => ({ ...current, dailyLimitMinutes: e.target.value }))} />
+        <label className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+          <input type="checkbox" checked={controls.rewardPointsEnabled} onChange={(e) => setControls((current) => ({ ...current, rewardPointsEnabled: e.target.checked }))} />
+          Reward points enabled
+        </label>
+        <input className={inputClass} placeholder="Allowed subjects" value={controls.allowedSubjects} onChange={(e) => setControls((current) => ({ ...current, allowedSubjects: e.target.value }))} />
+      </div>
+      <textarea className={`${inputClass} mt-3`} rows={2} value={controls.messagePreview} onChange={(e) => setControls((current) => ({ ...current, messagePreview: e.target.value }))} placeholder="Simple message preview" />
+      <button type="button" onClick={() => void onSave()} disabled={saving} className={`${secondaryButton} mt-3`}>
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        Save parent controls
+      </button>
+    </div>
+  );
+}
+
+function SessionQueueCard({
+  session,
+  activeTimer,
+  deleting,
+  onOpen,
+  onStart,
+  onPause,
+  onResume,
+  onEdit,
+  onComplete,
+  onReschedule,
+  onCancel,
+  onDelete,
+}: {
+  session: LearningSession;
+  activeTimer: LearningSession | null;
+  deleting: boolean;
+  onOpen: () => void;
+  onStart: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onEdit: () => void;
+  onComplete: () => void;
+  onReschedule: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const isDone = session.status === "completed";
+  const isCancelled = session.status === "cancelled";
+  const isLocked = isDone || isCancelled;
+  const progress = Math.min(100, Math.round(((session.actualMinutes || 0) / Math.max(1, session.plannedMinutes)) * 100));
+
+  return (
+    <article className="group overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/40 transition hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-xl dark:border-cyan-300/10 dark:bg-[#0b1424] dark:shadow-black/20 dark:hover:border-cyan-300/25">
+      <button type="button" onClick={onOpen} className="block w-full p-4 text-left">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <h3 className="mt-3 text-xl font-black leading-tight text-slate-950 dark:text-white">{session.title}</h3>
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{session.goal || "No goal added yet."}</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2 xl:justify-end">
+            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black capitalize ${statusTone(session.status)}`}>{session.status}</span>
+            <span className={`inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize dark:bg-slate-800 ${priorityTone(session.priority)}`}>{session.priority}</span>
+            <span className="inline-flex rounded-full border border-slate-200 px-3 py-1 text-xs font-bold capitalize text-slate-500 dark:border-cyan-300/10 dark:text-slate-400">
+              {session.learningType?.replace("_", " ")}
+            </span>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <MiniMeta label="Subject" value={session.subject} />
+            <MiniMeta label="Study date" value={formatDate(session.date)} />
+            <MiniMeta label="Plan" value={`${formatMinutes(session.actualMinutes || 0)} / ${formatMinutes(session.plannedMinutes)}m`} />
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400" style={{ width: `${progress}%` }} />
+        </div>
+      </button>
+
+      <div className="border-t border-slate-200 bg-slate-50/80 p-3 dark:border-cyan-300/10 dark:bg-[#07101e]/80" onClick={(event) => event.stopPropagation()}>
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {session.status === "active" ? (
+            <CommandButton label="Pause" onClick={onPause} icon={<Pause className="h-4 w-4" />} />
+          ) : null}
+          {session.status === "paused" ? (
+            <CommandButton label="Resume" onClick={onResume} disabled={Boolean(activeTimer)} icon={<Play className="h-4 w-4" />} />
+          ) : null}
+          {!isLocked && session.status !== "active" && session.status !== "paused" ? (
+            <CommandButton label="Start" onClick={onStart} disabled={Boolean(activeTimer)} icon={<Play className="h-4 w-4" />} primary />
+          ) : null}
+          <IconCommandButton label="Edit session" onClick={onEdit} icon={<PencilLine className="h-4 w-4" />} />
+          <CommandButton label="Complete" onClick={onComplete} disabled={isDone} icon={<CheckCircle2 className="h-4 w-4" />} />
+          <CommandButton label="Move" onClick={onReschedule} disabled={isLocked} icon={<CalendarClock className="h-4 w-4" />} />
+          <CommandButton label="Cancel" onClick={onCancel} disabled={isLocked} icon={<X className="h-4 w-4" />} />
+          <IconCommandButton
+            label="Delete session"
+            onClick={onDelete}
+            disabled={deleting}
+            danger
+            icon={deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CommandButton({
+  label,
+  icon,
+  onClick,
+  disabled,
+  primary,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+        primary
+          ? "bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-cyan-200/10 dark:bg-[#07101e] dark:text-slate-200 dark:hover:border-cyan-300/25 dark:hover:bg-[#0d1b2e]"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function IconCommandButton({
+  label,
+  icon,
+  onClick,
+  disabled,
+  danger,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <span className="group/tooltip relative inline-flex shrink-0">
+      <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        disabled={disabled}
+        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-60 ${
+          danger
+            ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-cyan-200/10 dark:bg-[#07101e] dark:text-slate-200 dark:hover:border-cyan-300/25 dark:hover:bg-[#0d1b2e]"
+        }`}
+      >
+        {icon}
+      </button>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-bold text-white opacity-0 shadow-lg transition group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 dark:bg-white dark:text-slate-950">
+        {label}
+      </span>
+    </span>
+  );
+}
+
+function MiniMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-cyan-300/10 dark:bg-[#07101e]">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</p>
+      <p className="mt-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">{value}</p>
+    </div>
+  );
+}
+
+function CompleteSessionModal({
+  session,
+  minutes,
+  setMinutes,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  session: LearningSession;
+  minutes: string;
+  setMinutes: (value: string) => void;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: () => void | Promise<void>;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-500">Complete Session</p>
+            <h2 className="mt-2 text-2xl font-black">{session.title}</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Confirm the actual minutes studied before saving completion.</p>
+          </div>
+          <button type="button" onClick={onClose} className={secondaryButton}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <label className="mt-5 block space-y-2">
+          <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Actual minutes</span>
+          <input className={inputClass} type="number" min="0" max="600" value={minutes} onChange={(event) => setMinutes(event.target.value)} />
+        </label>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className={secondaryButton}>Cancel</button>
+          <button type="button" onClick={() => void onSubmit()} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-60">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            Complete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RescheduleSessionModal({
+  session,
+  studyDate,
+  setStudyDate,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  session: LearningSession;
+  studyDate: string;
+  setStudyDate: (value: string) => void;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: () => void | Promise<void>;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-500">Reschedule</p>
+            <h2 className="mt-2 text-2xl font-black">{session.title}</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Choose the new study date for this planned session.</p>
+          </div>
+          <button type="button" onClick={onClose} className={secondaryButton}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <label className="mt-5 block space-y-2">
+          <span className="text-sm font-bold text-slate-600 dark:text-slate-300">New study date</span>
+          <input className={inputClass} type="date" value={studyDate} onChange={(event) => setStudyDate(event.target.value)} />
+        </label>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className={secondaryButton}>Cancel</button>
+          <button type="button" onClick={() => void onSubmit()} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-60">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+            Reschedule
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteSessionModal({
+  session,
+  deleting,
+  onClose,
+  onConfirm,
+}: {
+  session: LearningSession;
+  deleting: boolean;
+  onClose: () => void;
+  onConfirm: () => void | Promise<void>;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
+      <div className="w-full max-w-md rounded-2xl border border-rose-200 bg-white p-5 shadow-2xl dark:border-rose-500/25 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-rose-500">Delete Session</p>
+            <h2 className="mt-2 text-2xl font-black">{session.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+              This will permanently remove the learning session from your queue. This action cannot be undone.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className={secondaryButton} aria-label="Close delete confirmation">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-cyan-300/10 dark:bg-[#07101e]">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Session</p>
+          <p className="mt-1 font-black text-slate-900 dark:text-white">{session.subject} · {formatMinutes(session.plannedMinutes)} min</p>
+        </div>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={deleting} className={secondaryButton}>Keep session</button>
+          <button
+            type="button"
+            onClick={() => void onConfirm()}
+            disabled={deleting}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-black text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Delete permanently
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SessionDetailsModal({
+  session,
+  onClose,
+  onEdit,
+}: {
+  session: LearningSession;
+  onClose: () => void;
+  onEdit: (session: LearningSession) => void;
+}) {
+  const rows = [
+    ["Title", session.title],
+    ["Subject", session.subject],
+    ["Goal", session.goal ?? "No goal added"],
+    ["Learning type", session.learningType ?? "Reading"],
+    ["Difficulty", session.difficulty ?? "Medium"],
+    ["Priority", session.priority ?? "Medium"],
+    ["Status", session.status],
+    ["Created date", formatDate(session.createdAt)],
+    ["Study date", formatDate(session.date)],
+    ["Completed date", formatDate(session.completedAt)],
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-4 backdrop-blur-sm sm:items-center">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-500">Session Details</p>
+            <h2 className="mt-2 text-2xl font-black">{session.title}</h2>
+          </div>
+          <button type="button" onClick={onClose} className={secondaryButton}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {rows.map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/60">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{label}</p>
+              <p className="mt-1 text-sm font-bold text-slate-800 dark:text-slate-100">{value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/60">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Tags</p>
+          <p className="mt-1 text-sm font-bold">{session.tags?.length ? session.tags.join(", ") : "No tags"}</p>
+        </div>
+        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/60">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Notes</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-slate-700 dark:text-slate-200">{session.notes || "No notes added."}</p>
+        </div>
+        <LearningNotesPanel sessionId={session._id} />
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={() => onEdit(session)} className={secondaryButton}>
+            <PencilLine className="h-4 w-4" />
+            Edit session
+          </button>
+          <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-black text-slate-950">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LearningNotesPanel({ sessionId }: { sessionId: string }) {
+  const queryClient = useQueryClient();
+  const [newNote, setNewNote] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const notesQuery = useQuery({
+    queryKey: learningQueryKeys.notes(sessionId),
+    queryFn: () => getSessionNotes(sessionId),
+  });
+  const invalidateNotes = () =>
+    queryClient.invalidateQueries({ queryKey: learningQueryKeys.notes(sessionId) });
+  const createNoteMutation = useMutation({
+    mutationFn: (content: string) => createSessionNote(sessionId, content),
+    onSuccess: async () => {
+      setNewNote("");
+      await invalidateNotes();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to create note"),
+  });
+  const updateNoteMutation = useMutation({
+    mutationFn: ({ noteId, content }: { noteId: string; content: string }) =>
+      updateSessionNote(noteId, content),
+    onSuccess: async () => {
+      setEditingNoteId(null);
+      setEditingContent("");
+      await invalidateNotes();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update note"),
+  });
+  const deleteNoteMutation = useMutation({
+    mutationFn: deleteSessionNote,
+    onSuccess: invalidateNotes,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to delete note"),
+  });
+  const notes: LearningNote[] = notesQuery.data ?? [];
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/60">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Session Notes</p>
+        {notesQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : null}
+      </div>
+      <div className="mt-3 space-y-2">
+        {notes.length > 0 ? notes.map((note) => {
+          const id = note._id ?? note.id ?? "";
+          const editing = editingNoteId === id;
+          return (
+            <div key={id} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+              {editing ? (
+                <textarea className={inputClass} rows={3} value={editingContent} onChange={(event) => setEditingContent(event.target.value)} />
+              ) : (
+                <p className="whitespace-pre-wrap text-sm font-medium text-slate-700 dark:text-slate-200">{note.content}</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {editing ? (
+                  <button type="button" onClick={() => void updateNoteMutation.mutateAsync({ noteId: id, content: editingContent })} className={secondaryButton}>
+                    <Save className="h-4 w-4" />
+                    Save
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => { setEditingNoteId(id); setEditingContent(note.content); }} className={secondaryButton}>
+                    <PencilLine className="h-4 w-4" />
+                    Edit
+                  </button>
+                )}
+                <button type="button" onClick={() => void deleteNoteMutation.mutateAsync(id)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          );
+        }) : (
+          <p className="rounded-xl border border-dashed border-slate-300 p-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">No detailed notes yet. Add one for links, mistakes, or teacher feedback.</p>
+        )}
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <textarea className={inputClass} rows={2} value={newNote} onChange={(event) => setNewNote(event.target.value)} placeholder="Add a new session note..." />
+        <button
+          type="button"
+          onClick={() => newNote.trim() && void createNoteMutation.mutateAsync(newNote.trim())}
+          disabled={!newNote.trim() || createNoteMutation.isPending}
+          className={secondaryButton}
+        >
+          {createNoteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          Add note
+        </button>
       </div>
     </div>
   );
