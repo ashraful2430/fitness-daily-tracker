@@ -11,10 +11,12 @@ import type {
 } from "@/types/admin";
 import type {
   CreateLearningSessionRequest,
+  LearningTemplate,
   LearningSession,
   LearningSessionsQuery,
   LearningSessionsResponse,
   LearningSummary,
+  TimerPreset,
   UpdateLearningSessionRequest,
 } from "@/types/learning";
 import type {
@@ -594,6 +596,32 @@ export const learningAPI = {
   deleteSession: (id: string) =>
     apiRequest<void>(`/api/learning/session/${id}`, {
       method: "DELETE",
+    }),
+
+  startSession: (id: string) =>
+    apiRequest<LearningSession>(`/api/learning/session/${id}/start`, {
+      method: "POST",
+    }),
+
+  pauseSession: (id: string) =>
+    apiRequest<LearningSession>(`/api/learning/session/${id}/pause`, {
+      method: "POST",
+    }),
+
+  completeSession: (id: string) =>
+    apiRequest<LearningSession>(`/api/learning/session/${id}/complete`, {
+      method: "POST",
+    }),
+
+  getTemplates: () => apiRequest<LearningTemplate[]>("/api/learning/templates"),
+
+  getTimerPresets: () =>
+    apiRequest<TimerPreset[]>("/api/learning/timer-presets"),
+
+  saveTimerPreset: (payload: TimerPreset) =>
+    apiRequest<TimerPreset>("/api/learning/timer-presets", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };
 
