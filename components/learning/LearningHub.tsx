@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -103,6 +103,14 @@ type ParentControlsState = {
   allowedSubjects: string;
   messagePreview: string;
 };
+
+type StoredLearningTimer = {
+  session: LearningSession;
+  targetEndAt: number;
+};
+
+const ACTIVE_LEARNING_TIMER_KEY = "planify:learning:active-timer";
+const PAUSED_LEARNING_TIMERS_KEY = "planify:learning:paused-timers";
 
 const learnerModes: Array<{
   value: LearnerMode;
@@ -234,6 +242,56 @@ function parseTags(value: string) {
     .filter(Boolean);
 }
 
+function readStoredLearningTimer() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = window.localStorage.getItem(ACTIVE_LEARNING_TIMER_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as StoredLearningTimer;
+    if (!parsed?.session?._id || !Number.isFinite(parsed.targetEndAt)) {
+      window.localStorage.removeItem(ACTIVE_LEARNING_TIMER_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(ACTIVE_LEARNING_TIMER_KEY);
+    return null;
+  }
+}
+
+function readStoredPausedTimers() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const stored = window.localStorage.getItem(PAUSED_LEARNING_TIMERS_KEY);
+    if (!stored) return {};
+    const parsed = JSON.parse(stored) as Record<string, number>;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => Number.isFinite(value) && value > 0),
+    );
+  } catch {
+    window.localStorage.removeItem(PAUSED_LEARNING_TIMERS_KEY);
+    return {};
+  }
+}
+
+function getStoredTimerRemainingSeconds(timer: StoredLearningTimer | null) {
+  if (!timer) return 0;
+  return Math.max(0, Math.ceil((timer.targetEndAt - Date.now()) / 1000));
+}
+
+function getSessionRemainingSeconds(session: LearningSession | null | undefined) {
+  if (!session) return 0;
+  return Math.max(0, (session.plannedMinutes - (session.actualMinutes || 0)) * 60);
+}
+
+function getStudiedMinutes(session: LearningSession, remainingSeconds: number) {
+  const plannedSeconds = Math.max(0, session.plannedMinutes * 60);
+  const studiedSeconds = Math.max(0, plannedSeconds - Math.max(0, remainingSeconds));
+  return Math.min(session.plannedMinutes, Math.round(studiedSeconds / 60));
+}
+
 function statusTone(status: LearningSessionStatus) {
   switch (status) {
     case "active":
@@ -299,8 +357,15 @@ export default function LearningHub() {
     toDate: "",
     studyDate: "",
   });
-  const [activeTimer, setActiveTimer] = useState<LearningSession | null>(null);
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [activeTimerState, setActiveTimerState] = useState<StoredLearningTimer | null>(
+    readStoredLearningTimer,
+  );
+  const [remainingSeconds, setRemainingSeconds] = useState(() =>
+    getStoredTimerRemainingSeconds(readStoredLearningTimer()),
+  );
+  const [pausedRemainingSeconds, setPausedRemainingSeconds] = useState<Record<string, number>>(
+    readStoredPausedTimers,
+  );
   const [alarmRinging, setAlarmRinging] = useState(false);
 
   const [learnerMode, setLearnerMode] = useState<LearnerMode>("student");
@@ -316,6 +381,7 @@ export default function LearningHub() {
   const [dailyGoalDraft, setDailyGoalDraft] = useState<string | null>(null);
   const [weeklyGoalDraft, setWeeklyGoalDraft] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<LearningSession | null>(null);
+  const [timerSessionId, setTimerSessionId] = useState("");
   const [detailsSession, setDetailsSession] = useState<LearningSession | null>(null);
   const [completeTarget, setCompleteTarget] = useState<LearningSession | null>(null);
   const [completeMinutes, setCompleteMinutes] = useState("");
@@ -325,6 +391,8 @@ export default function LearningHub() {
   const [parentControlsDraft, setParentControlsDraft] = useState<ParentControlsState | null>(null);
   const [localSessions, setLocalSessions] = useState<LearningSession[]>([]);
   const formRef = useRef<HTMLDivElement | null>(null);
+
+  const activeTimer = activeTimerState?.session ?? null;
 
   const sessionsQuery = useQuery({
     queryKey: learningQueryKeys.sessions(filters),
@@ -426,16 +494,18 @@ export default function LearningHub() {
     });
   };
 
-  const invalidateLearning = async () => {
+  const invalidateLearning = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["learningSessions"] }),
       queryClient.invalidateQueries({ queryKey: learningQueryKeys.stats }),
     ]);
-  };
-  const invalidateLearningStats = () =>
-    queryClient.invalidateQueries({ queryKey: learningQueryKeys.stats });
+  }, [queryClient]);
+  const invalidateLearningStats = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: learningQueryKeys.stats }),
+    [queryClient],
+  );
 
-  const upsertSessionInCache = (session: LearningSession) => {
+  const upsertSessionInCache = useCallback((session: LearningSession) => {
     setLocalSessions((current) => {
       const exists = current.some((item) => item._id === session._id);
       return exists
@@ -464,7 +534,7 @@ export default function LearningHub() {
         };
       },
     );
-  };
+  }, [queryClient]);
 
   const mergeCreatedSession = (
     session: LearningSession,
@@ -501,6 +571,16 @@ export default function LearningHub() {
       updateLearningSession(id, payload),
     onSuccess: async (session) => {
       upsertSessionInCache(session);
+      if (activeTimerState?.session._id === session._id) {
+        setActiveTimerState((current) =>
+          current
+            ? {
+                ...current,
+                session: { ...current.session, ...session },
+              }
+            : current,
+        );
+      }
       toast.success("Learning session updated");
       await invalidateLearningStats();
     },
@@ -510,6 +590,11 @@ export default function LearningHub() {
     mutationFn: deleteLearningSession,
     onSuccess: async (_, id) => {
       setLocalSessions((current) => current.filter((session) => session._id !== id));
+      if (activeTimerState?.session._id === id) {
+        setActiveTimerState(null);
+        setRemainingSeconds(0);
+        setAlarmRinging(false);
+      }
       toast.success("Learning session deleted");
       await invalidateLearning();
     },
@@ -528,18 +613,18 @@ export default function LearningHub() {
     onSuccess: async (session) => {
       upsertSessionInCache(session);
       if (session.status === "active") {
-        setActiveTimer(session);
-        setRemainingSeconds(Math.max(0, session.plannedMinutes - session.actualMinutes) * 60);
+        const nextRemainingSeconds = Math.max(0, session.plannedMinutes - session.actualMinutes) * 60;
+        setActiveTimerState({
+          session,
+          targetEndAt: Date.now() + nextRemainingSeconds * 1000,
+        });
+        setRemainingSeconds(nextRemainingSeconds);
       }
-      if (session.status !== "active") setActiveTimer(null);
+      if (session.status !== "active") setActiveTimerState(null);
       await invalidateLearningStats();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Session action failed"),
   });
-  const lifecycleMutationRef = useRef(lifecycleMutation);
-  useEffect(() => {
-    lifecycleMutationRef.current = lifecycleMutation;
-  }, [lifecycleMutation]);
   const presetMutation = useMutation({
     mutationFn: createTimerPreset,
     onSuccess: async () => queryClient.invalidateQueries({ queryKey: learningQueryKeys.presets }),
@@ -623,31 +708,128 @@ export default function LearningHub() {
   };
 
   const startSessionTimer = async (session: LearningSession) => {
-    setSelectedSession(session);
-    await lifecycleMutation.mutateAsync({ action: session.status === "paused" ? "resume" : "start", session });
+    if (session.status === "completed" || session.status === "cancelled") {
+      toast.error("Finished or cancelled sessions cannot be started.");
+      return;
+    }
+
+    const remaining = pausedRemainingSeconds[session._id] ?? getSessionRemainingSeconds(session);
+    if (remaining <= 0) {
+      toast.error("This session has no remaining time.");
+      return;
+    }
+
+    try {
+      const startedSession =
+        session.status === "paused"
+          ? await resumeLearningSession(session._id)
+          : await startLearningSession(session._id);
+      const nextSession = { ...session, ...startedSession, status: "active" as const };
+      upsertSessionInCache(nextSession);
+      setSelectedSession(nextSession);
+      setTimerSessionId(nextSession._id);
+      setActiveTimerState({
+        session: nextSession,
+        targetEndAt: Date.now() + remaining * 1000,
+      });
+      setPausedRemainingSeconds((current) => {
+        const next = { ...current };
+        delete next[session._id];
+        return next;
+      });
+      setRemainingSeconds(remaining);
+      setAlarmRinging(false);
+      await invalidateLearningStats();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to start timer");
+    }
   };
 
   const pauseSessionTimer = async () => {
     if (!activeTimer) return;
-    await lifecycleMutation.mutateAsync({ action: "pause", session: activeTimer });
+    const pausedSeconds = Math.max(0, remainingSeconds);
+    const actualMinutes = getStudiedMinutes(activeTimer, remainingSeconds);
+
+    try {
+      const pausedSession = await pauseLearningSession(activeTimer._id);
+      let nextSession = {
+        ...activeTimer,
+        ...pausedSession,
+        actualMinutes,
+        status: "paused" as const,
+      };
+
+      try {
+        const savedProgressSession = await updateLearningSession(activeTimer._id, {
+          actualMinutes,
+        });
+        nextSession = {
+          ...nextSession,
+          ...savedProgressSession,
+          actualMinutes,
+          status: "paused" as const,
+        };
+      } catch {
+        // The lifecycle pause already succeeded; keep the UI paused even if
+        // the backend refuses a separate progress-only patch.
+      }
+
+      upsertSessionInCache(nextSession);
+      setSelectedSession(nextSession);
+      setTimerSessionId(nextSession._id);
+      setPausedRemainingSeconds((current) => ({
+        ...current,
+        [nextSession._id]: pausedSeconds,
+      }));
+      setActiveTimerState(null);
+      setRemainingSeconds(pausedSeconds);
+      await invalidateLearningStats();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to pause timer");
+    }
   };
 
   const completeSessionManually = async () => {
     if (!activeTimer) return;
-    await lifecycleMutation.mutateAsync({
-      action: "complete",
-      session: activeTimer,
-      actualMinutes: activeTimer.plannedMinutes,
+    const actualMinutes = Math.max(
+      getStudiedMinutes(activeTimer, remainingSeconds),
+      activeTimer.actualMinutes || 0,
+    );
+    const completedSession = await completeLearningSession(activeTimer._id, actualMinutes);
+    upsertSessionInCache({
+      ...activeTimer,
+      ...completedSession,
+      status: "completed",
+      actualMinutes,
     });
+    setSelectedSession({
+      ...activeTimer,
+      ...completedSession,
+      status: "completed",
+      actualMinutes,
+    });
+    setActiveTimerState(null);
+    setPausedRemainingSeconds((current) => {
+      const next = { ...current };
+      delete next[activeTimer._id];
+      return next;
+    });
+    setRemainingSeconds(0);
     setAlarmRinging(false);
+    await invalidateLearningStats();
   };
 
   const resetSessionTimer = () => {
     if (!activeTimer) return;
-    setRemainingSeconds(activeTimer.plannedMinutes * 60);
+    const resetSeconds = activeTimer.plannedMinutes * 60;
+    setActiveTimerState({
+      session: { ...activeTimer, actualMinutes: 0 },
+      targetEndAt: Date.now() + resetSeconds * 1000,
+    });
+    setRemainingSeconds(resetSeconds);
   };
 
-  const stopAlarm = () => setAlarmRinging(false);
+  const stopAlarm = useCallback(() => setAlarmRinging(false), []);
 
   const saveGoals = async () => {
     const dailyGoalMinutes = Number(dailyGoal);
@@ -700,26 +882,78 @@ export default function LearningHub() {
   };
 
   useEffect(() => {
-    if (!activeTimer) return;
-    const timer = window.setInterval(() => {
-      setRemainingSeconds((current) => {
-        if (current <= 1) {
-          window.clearInterval(timer);
-          setAlarmRinging(enableAlarm);
-          void lifecycleMutationRef.current.mutateAsync({
-            action: "complete",
-            session: activeTimer,
-            actualMinutes: activeTimer.plannedMinutes,
+    if (typeof window === "undefined") return;
+
+    if (activeTimerState) {
+      window.localStorage.setItem(ACTIVE_LEARNING_TIMER_KEY, JSON.stringify(activeTimerState));
+    } else {
+      window.localStorage.removeItem(ACTIVE_LEARNING_TIMER_KEY);
+    }
+  }, [activeTimerState]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (Object.keys(pausedRemainingSeconds).length > 0) {
+      window.localStorage.setItem(
+        PAUSED_LEARNING_TIMERS_KEY,
+        JSON.stringify(pausedRemainingSeconds),
+      );
+    } else {
+      window.localStorage.removeItem(PAUSED_LEARNING_TIMERS_KEY);
+    }
+  }, [pausedRemainingSeconds]);
+
+  useEffect(() => {
+    if (!activeTimerState) return;
+
+    const tick = () => {
+      const nextRemaining = getStoredTimerRemainingSeconds(activeTimerState);
+      setRemainingSeconds(nextRemaining);
+
+      if (nextRemaining > 0) return;
+
+      setActiveTimerState(null);
+      setAlarmRinging(true);
+      void completeLearningSession(
+        activeTimerState.session._id,
+        activeTimerState.session.plannedMinutes,
+      )
+        .then((completedSession) => {
+          upsertSessionInCache({
+            ...activeTimerState.session,
+            ...completedSession,
+            status: "completed",
+            actualMinutes: activeTimerState.session.plannedMinutes,
           });
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
+          return invalidateLearningStats();
+        })
+        .catch((error) => {
+          toast.error(error instanceof Error ? error.message : "Failed to complete session");
+        });
+    };
+
+    tick();
+    const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTimer, enableAlarm]);
+  }, [activeTimerState, enableAlarm, invalidateLearningStats, upsertSessionInCache]);
 
   const selectedMode = learnerModes.find((mode) => mode.value === learnerMode) ?? learnerModes[0];
+  const startableSessions = useMemo(
+    () =>
+      sessions.filter(
+        (session) =>
+          session.status !== "completed" &&
+          session.status !== "cancelled" &&
+          session.plannedMinutes > (session.actualMinutes || 0),
+      ),
+    [sessions],
+  );
+  const selectedTimerSession =
+    startableSessions.find((session) => session._id === timerSessionId) ??
+    startableSessions.find((session) => session._id === selectedSession?._id) ??
+    startableSessions[0] ??
+    null;
   const chartData = useMemo(() => {
     const bySubject = new Map<string, number>();
     sessions.forEach((session) => {
@@ -742,7 +976,10 @@ export default function LearningHub() {
     summary.todayMinutes >= Number(dailyGoal)
       ? "Daily goal complete. A light review session is enough now."
       : `You studied ${formatMinutes(summary.todayMinutes)} of ${formatMinutes(Number(dailyGoal) || 0)} minutes today. Try a ${learnerMode === "child" ? "10" : "25"} minute session next.`;
-  const starterSession = selectedSession ?? sessions.find((session) => session.status !== "completed") ?? null;
+  const starterSession = selectedTimerSession;
+  const displayTimerSeconds = activeTimer
+    ? remainingSeconds
+    : pausedRemainingSeconds[starterSession?._id ?? ""] ?? getSessionRemainingSeconds(starterSession);
 
   const resetForm = () => {
     setEditingSessionId(null);
@@ -1069,82 +1306,94 @@ export default function LearningHub() {
             </div>
 
             <form onSubmit={handleSubmit} className="grid gap-4">
-              <label className="space-y-2">
-                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Session template</span>
-                <select className={inputClass} value={selectedTemplate} onChange={(e) => applyTemplate(e.target.value)}>
-                  <option value="">Start blank or choose a template</option>
-                  {templates.map((template) => (
-                    <option key={template.name} value={template.name}>{template.name}</option>
-                  ))}
-                </select>
-              </label>
+              <FormSection title="Start Point" description="Choose a saved structure or start blank. You can still edit every field below.">
+                <label className="space-y-2">
+                  <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Session template</span>
+                  <select className={inputClass} value={selectedTemplate} onChange={(e) => applyTemplate(e.target.value)}>
+                    <option value="">Start blank or choose a template</option>
+                    {templates.map((template) => (
+                      <option key={template.name} value={template.name}>{template.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </FormSection>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Session title" error={errors.title}>
-                  <input className={inputClass} value={form.title} onChange={(e) => patchForm({ title: e.target.value })} placeholder="DSA revision" />
+              <FormSection title="Basics" description="Name the session and define what finished means.">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Session title" error={errors.title}>
+                    <input className={inputClass} value={form.title} onChange={(e) => patchForm({ title: e.target.value })} placeholder="DSA revision" />
+                  </Field>
+                  <Field label="Subject" error={errors.subject}>
+                    <input className={inputClass} value={form.subject} onChange={(e) => patchForm({ subject: e.target.value })} placeholder="Algorithms" list="learning-subjects" />
+                    <datalist id="learning-subjects">
+                      {subjectOptions.map((subject) => <option key={subject} value={subject} />)}
+                    </datalist>
+                  </Field>
+                </div>
+
+                <Field label="Goal" error={errors.goal}>
+                  <input className={inputClass} value={form.goal} onChange={(e) => patchForm({ goal: e.target.value })} placeholder="Solve 3 practice problems and review mistakes" />
                 </Field>
-                <Field label="Subject" error={errors.subject}>
-                  <input className={inputClass} value={form.subject} onChange={(e) => patchForm({ subject: e.target.value })} placeholder="Algorithms" list="learning-subjects" />
-                  <datalist id="learning-subjects">
-                    {subjectOptions.map((subject) => <option key={subject} value={subject} />)}
-                  </datalist>
-                </Field>
-              </div>
+              </FormSection>
 
-              <Field label="Goal" error={errors.goal}>
-                <input className={inputClass} value={form.goal} onChange={(e) => patchForm({ goal: e.target.value })} placeholder="Solve 3 practice problems and review mistakes" />
-              </Field>
+              <FormSection title="Time" description="Set the planned duration and study date. Presets update the minutes field instantly.">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Planned minutes" error={errors.plannedMinutes}>
+                    <input className={inputClass} type="number" min="1" value={form.plannedMinutes} onChange={(e) => patchForm({ plannedMinutes: e.target.value })} />
+                  </Field>
+                  <Field label="Study date" error={errors.date}>
+                    <input className={inputClass} type="date" value={form.date} onChange={(e) => patchForm({ date: e.target.value })} />
+                  </Field>
+                </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Planned minutes" error={errors.plannedMinutes}>
-                  <input className={inputClass} type="number" min="1" value={form.plannedMinutes} onChange={(e) => patchForm({ plannedMinutes: e.target.value })} />
-                </Field>
-                <Field label="Study date" error={errors.date}>
-                  <input className={inputClass} type="date" value={form.date} onChange={(e) => patchForm({ date: e.target.value })} />
-                </Field>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <SelectField label="Learning type" value={form.learningType} onChange={(value) => patchForm({ learningType: value as LearningType })} options={learningTypes} />
-                <SelectField label="Difficulty" value={form.difficulty} onChange={(value) => patchForm({ difficulty: value as LearningDifficulty })} options={difficulties} />
-                <SelectField label="Priority" value={form.priority} onChange={(value) => patchForm({ priority: value as LearningPriority })} options={priorities} />
-              </div>
-
-              <Field label="Tags">
-                <input className={inputClass} value={form.tags} onChange={(e) => patchForm({ tags: e.target.value })} placeholder="exam, chapter-4, practice" />
-              </Field>
-
-              <Field label="Notes">
-                <textarea className={inputClass} rows={4} value={form.notes} onChange={(e) => patchForm({ notes: e.target.value })} placeholder="Chapters, links, mistakes to review, or parent instructions..." />
-              </Field>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60">
-                <p className="mb-3 text-sm font-black">Editable timer presets</p>
-                <div className="flex flex-wrap gap-2">
-                  {timerPresets.map((preset) => {
-                    const isDefault = defaultTimerPresets.some((item) => item.minutes === preset.minutes);
-                    return (
-                      <span key={preset.minutes} className="inline-flex overflow-hidden rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-                        <button type="button" onClick={() => patchForm({ plannedMinutes: String(preset.minutes) })} className="px-3 py-2 text-sm font-bold">
-                          {preset.minutes} min
-                        </button>
-                        {!isDefault ? (
-                          <button type="button" onClick={() => void handleRemovePreset(preset)} className="border-l border-slate-200 px-2 text-slate-400 hover:text-rose-500 dark:border-slate-700">
-                            <X className="h-3.5 w-3.5" />
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-black">Editable timer presets</p>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Click to apply</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {timerPresets.map((preset) => {
+                      const isDefault = defaultTimerPresets.some((item) => item.minutes === preset.minutes);
+                      const active = form.plannedMinutes === String(preset.minutes);
+                      return (
+                        <span key={`${preset._id ?? preset.id ?? preset.minutes}-${preset.minutes}`} className={`group inline-flex overflow-hidden rounded-full border transition hover:-translate-y-0.5 hover:shadow-lg ${active ? "border-cyan-300 bg-cyan-50 text-cyan-700 shadow-cyan-500/10 dark:border-cyan-400/40 dark:bg-cyan-400/10 dark:text-cyan-200" : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"}`}>
+                          <button type="button" onClick={() => patchForm({ plannedMinutes: String(preset.minutes) })} className="cursor-pointer px-3 py-2 text-sm font-bold transition group-hover:bg-cyan-50 dark:group-hover:bg-cyan-400/10">
+                            {preset.minutes} min
                           </button>
-                        ) : null}
-                      </span>
-                    );
-                  })}
+                          {!isDefault ? (
+                            <button type="button" aria-label={`Delete ${preset.minutes} minute preset`} onClick={() => void handleRemovePreset(preset)} className="cursor-pointer border-l border-slate-200 px-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 dark:border-slate-700 dark:hover:bg-rose-500/10">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          ) : null}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <input className={inputClass} type="number" min="1" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} placeholder="Custom minutes" />
+                    <button type="button" onClick={() => void handleSavePreset()} className={secondaryButton}>
+                      <Save className="h-4 w-4" />
+                      Save preset
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <input className={inputClass} type="number" min="1" value={customMinutes} onChange={(e) => setCustomMinutes(e.target.value)} placeholder="Custom minutes" />
-                  <button type="button" onClick={() => void handleSavePreset()} className={secondaryButton}>
-                    <Save className="h-4 w-4" />
-                    Save preset
-                  </button>
+              </FormSection>
+
+              <FormSection title="Session Details" description="Keep the metadata, but grouped so scanning is easier.">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <SelectField label="Learning type" value={form.learningType} onChange={(value) => patchForm({ learningType: value as LearningType })} options={learningTypes} />
+                  <SelectField label="Difficulty" value={form.difficulty} onChange={(value) => patchForm({ difficulty: value as LearningDifficulty })} options={difficulties} />
+                  <SelectField label="Priority" value={form.priority} onChange={(value) => patchForm({ priority: value as LearningPriority })} options={priorities} />
                 </div>
-              </div>
+
+                <Field label="Tags">
+                  <input className={inputClass} value={form.tags} onChange={(e) => patchForm({ tags: e.target.value })} placeholder="exam, chapter-4, practice" />
+                </Field>
+
+                <Field label="Notes">
+                  <textarea className={inputClass} rows={4} value={form.notes} onChange={(e) => patchForm({ notes: e.target.value })} placeholder="Chapters, links, mistakes to review, or parent instructions..." />
+                </Field>
+              </FormSection>
 
               {learnerMode === "child" ? (
                 <ChildControls
@@ -1176,12 +1425,37 @@ export default function LearningHub() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950/60">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-cyan-700 dark:border-cyan-500/20 dark:bg-cyan-500/10 dark:text-cyan-200">
                 <AlarmClock className="h-3.5 w-3.5" />
-                {alarmRinging ? "Alarm ringing" : activeTimer ? "Timer running" : "Ready"}
+                {alarmRinging ? "Alarm ringing" : activeTimer ? "Timer running" : starterSession?.status === "paused" ? "Paused" : "Ready"}
               </div>
+
+              <label className="mb-5 block space-y-2">
+                <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                  Session to start
+                </span>
+                <select
+                  className={inputClass}
+                  value={selectedTimerSession?._id ?? ""}
+                  onChange={(event) => {
+                    const session = startableSessions.find((item) => item._id === event.target.value) ?? null;
+                    setTimerSessionId(event.target.value);
+                    setSelectedSession(session);
+                  }}
+                  disabled={Boolean(activeTimer) || startableSessions.length === 0}
+                >
+                  {startableSessions.length === 0 ? (
+                    <option value="">No incomplete sessions available</option>
+                  ) : null}
+                  {startableSessions.map((session) => (
+                    <option key={session._id} value={session._id}>
+                      {session.title} - {session.subject} - {formatCountdown(pausedRemainingSeconds[session._id] ?? getSessionRemainingSeconds(session))} left
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <div className="flex items-center justify-center">
                 <div className="flex h-56 w-56 items-center justify-center rounded-full border-[16px] border-cyan-500/70 bg-white text-center text-5xl font-black text-slate-950 shadow-[inset_0_20px_60px_rgba(15,23,42,0.08)] dark:bg-slate-900 dark:text-white">
-                  {activeTimer ? formatCountdown(remainingSeconds) : "00:00"}
+                  {formatCountdown(displayTimerSeconds)}
                 </div>
               </div>
 
@@ -1199,7 +1473,7 @@ export default function LearningHub() {
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <button type="button" onClick={() => starterSession && void startSessionTimer(starterSession)} disabled={Boolean(activeTimer) || !starterSession} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-400 dark:text-slate-950">
+                <button type="button" onClick={() => selectedTimerSession && void startSessionTimer(selectedTimerSession)} disabled={Boolean(activeTimer) || !selectedTimerSession} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-cyan-400 dark:text-slate-950">
                   <Play className="h-4 w-4" />
                   Start
                 </button>
@@ -1207,7 +1481,7 @@ export default function LearningHub() {
                   <Pause className="h-4 w-4" />
                   Pause
                 </button>
-                <button type="button" onClick={() => starterSession && void startSessionTimer(starterSession)} disabled={Boolean(activeTimer) || starterSession?.status !== "paused"} className={secondaryButton}>
+                <button type="button" onClick={() => selectedTimerSession && void startSessionTimer(selectedTimerSession)} disabled={Boolean(activeTimer) || selectedTimerSession?.status !== "paused"} className={secondaryButton}>
                   <Play className="h-4 w-4" />
                   Resume
                 </button>
@@ -1293,7 +1567,7 @@ export default function LearningHub() {
                       deleting={deletingSessionId === session._id}
                       onOpen={() => { setDetailsSession(session); setSelectedSession(session); }}
                       onStart={() => { setSelectedSession(session); void startSessionTimer(session); }}
-                      onPause={() => void lifecycleMutation.mutateAsync({ action: "pause", session })}
+                      onPause={() => void pauseSessionTimer()}
                       onResume={() => { setSelectedSession(session); void startSessionTimer(session); }}
                       onEdit={() => handleEdit(session)}
                       onComplete={() => void handleCompleteSession(session)}
@@ -1429,6 +1703,26 @@ function Field({
   );
 }
 
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-cyan-300/10 dark:bg-[#07101e]/80">
+      <div className="mb-4">
+        <p className="text-sm font-black text-slate-900 dark:text-white">{title}</p>
+        <p className="mt-1 text-xs font-medium leading-5 text-slate-500 dark:text-slate-400">{description}</p>
+      </div>
+      <div className="grid gap-4">{children}</div>
+    </section>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -1516,7 +1810,7 @@ function SessionQueueCard({
 
   return (
     <article className="group overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/40 transition hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-xl dark:border-cyan-300/10 dark:bg-[#0b1424] dark:shadow-black/20 dark:hover:border-cyan-300/25">
-      <button type="button" onClick={onOpen} className="block w-full p-4 text-left">
+      <button type="button" onClick={onOpen} className="block w-full cursor-pointer p-4 text-left transition hover:bg-cyan-50/60 dark:hover:bg-cyan-400/5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <h3 className="mt-3 text-xl font-black leading-tight text-slate-950 dark:text-white">{session.title}</h3>
@@ -1551,12 +1845,12 @@ function SessionQueueCard({
           {!isLocked && session.status !== "active" && session.status !== "paused" ? (
             <CommandButton label="Start" onClick={onStart} disabled={Boolean(activeTimer)} icon={<Play className="h-4 w-4" />} primary />
           ) : null}
-          <IconCommandButton label="Edit session" onClick={onEdit} icon={<PencilLine className="h-4 w-4" />} />
+          <CommandButton label="Edit" onClick={onEdit} icon={<PencilLine className="h-4 w-4" />} />
           <CommandButton label="Complete" onClick={onComplete} disabled={isDone} icon={<CheckCircle2 className="h-4 w-4" />} />
           <CommandButton label="Move" onClick={onReschedule} disabled={isLocked} icon={<CalendarClock className="h-4 w-4" />} />
           <CommandButton label="Cancel" onClick={onCancel} disabled={isLocked} icon={<X className="h-4 w-4" />} />
-          <IconCommandButton
-            label="Delete session"
+          <CommandButton
+            label="Delete"
             onClick={onDelete}
             disabled={deleting}
             danger
@@ -1574,12 +1868,14 @@ function CommandButton({
   onClick,
   disabled,
   primary,
+  danger,
 }: {
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   primary?: boolean;
+  danger?: boolean;
 }) {
   return (
     <button
@@ -1589,47 +1885,14 @@ function CommandButton({
       className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
         primary
           ? "bg-cyan-400 text-slate-950 hover:bg-cyan-300"
+          : danger
+            ? "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-cyan-200/10 dark:bg-[#07101e] dark:text-slate-200 dark:hover:border-cyan-300/25 dark:hover:bg-[#0d1b2e]"
       }`}
     >
       {icon}
       <span>{label}</span>
     </button>
-  );
-}
-
-function IconCommandButton({
-  label,
-  icon,
-  onClick,
-  disabled,
-  danger,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <span className="group/tooltip relative inline-flex shrink-0">
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        disabled={disabled}
-        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-60 ${
-          danger
-            ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
-            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-cyan-200/10 dark:bg-[#07101e] dark:text-slate-200 dark:hover:border-cyan-300/25 dark:hover:bg-[#0d1b2e]"
-        }`}
-      >
-        {icon}
-      </button>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-bold text-white opacity-0 shadow-lg transition group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100 dark:bg-white dark:text-slate-950">
-        {label}
-      </span>
-    </span>
   );
 }
 
