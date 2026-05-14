@@ -9,6 +9,7 @@ import {
   getWeeklyStats,
 } from "@/lib/dashboardApi";
 import { moneyAPI } from "@/lib/api";
+import { getLearningStats } from "@/lib/learningApi";
 import { useAuth } from "@/hooks/useAuth";
 import type {
   DashboardData,
@@ -17,6 +18,7 @@ import type {
   WeeklyStat,
   WeeklyStatsMeta,
 } from "@/types/dashboard";
+import type { LearningStats } from "@/types/learning";
 
 function monthKeyFromParts(month: number, year: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
@@ -59,6 +61,7 @@ export function useDashboard() {
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actualAvailableBalance, setActualAvailableBalance] = useState<number | null>(null);
+  const [learningStats, setLearningStats] = useState<LearningStats | null>(null);
 
   const mounted = useRef(true);
 
@@ -120,10 +123,11 @@ export function useDashboard() {
         setError(null);
       }
 
-      const [dashboardData, history, balance] = await Promise.all([
+      const [dashboardData, history, balance, learning] = await Promise.all([
         getDashboard(),
         getMonthlyHistory(6),
         moneyAPI.getBalanceSources(),
+        getLearningStats(),
       ]);
 
       if (!mounted.current) return;
@@ -142,6 +146,7 @@ export function useDashboard() {
       setDashboard(syncedDashboard);
       setMonthlyHistory(history);
       setActualAvailableBalance(balance?.totalBalance ?? 0);
+      setLearningStats(learning);
 
       const defaultMonthKey = history.length
         ? monthKeyFromParts(history[0].month, history[0].year)
@@ -226,6 +231,7 @@ export function useDashboard() {
     loading,
     overviewLoading,
     actualAvailableBalance,
+    learningStats,
     error,
     refresh,
     loadWeeklyDetails,

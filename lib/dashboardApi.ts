@@ -42,6 +42,9 @@ function normalizeWeeklyStat(value: unknown): WeeklyStat {
     day: toString(item.day),
     workouts: toNumber(item.workouts),
     focusMinutes: toNumber(item.focusMinutes),
+    learningMinutes: toNumber(item.learningMinutes),
+    learningSessions: toNumber(item.learningSessions),
+    completedLearningSessions: toNumber(item.completedLearningSessions),
     moneyActivities: toNumber(item.moneyActivities),
   };
 }
@@ -194,6 +197,9 @@ function normalizeMonthlyOverview(value: unknown): DashboardMonthlyOverview {
     productivity: {
       averageDailyScore: toNumber(productivity.averageDailyScore),
       totalFocusMinutes: toNumber(productivity.totalFocusMinutes),
+      totalLearningMinutes: toNumber(productivity.totalLearningMinutes),
+      totalLearningSessions: toNumber(productivity.totalLearningSessions),
+      completedLearningSessions: toNumber(productivity.completedLearningSessions),
       totalWorkouts: toNumber(productivity.totalWorkouts),
     },
     comparison: {
@@ -218,6 +224,8 @@ function normalizeMonthlyOverview(value: unknown): DashboardMonthlyOverview {
               income: toNumber(entry.income),
               expense: toNumber(entry.expense),
               focusMinutes: toNumber(entry.focusMinutes),
+              learningMinutes: toNumber(entry.learningMinutes),
+              learningSessions: toNumber(entry.learningSessions),
               workouts: toNumber(entry.workouts),
               score: toNumber(entry.score),
             };
@@ -242,6 +250,8 @@ function normalizeMonthlyHistory(value: unknown): DashboardMonthlyHistoryItem[] 
       netBalanceChange: toNumber(row.netBalanceChange),
       averageDailyScore: toNumber(row.averageDailyScore),
       totalFocusMinutes: toNumber(row.totalFocusMinutes),
+      totalLearningMinutes: toNumber(row.totalLearningMinutes),
+      totalLearningSessions: toNumber(row.totalLearningSessions),
       totalWorkouts: toNumber(row.totalWorkouts),
     };
   });

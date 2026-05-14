@@ -40,6 +40,11 @@ function formatPercent(value: number) {
   return `${sign}${value.toFixed(1)}%`;
 }
 
+function normalizeDateKey(value: string) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
 function trendStyle(trend: TrendDirection) {
   if (trend === "up") {
     return "border-emerald-300/60 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:text-emerald-200";
@@ -100,6 +105,7 @@ export default function Dashboard() {
     refresh,
     loadWeeklyDetails,
     actualAvailableBalance,
+    learningStats,
   } = useDashboard();
 
   if (loading) return <DashboardSkeleton />;
@@ -137,6 +143,21 @@ export default function Dashboard() {
     monthlyOverview.money.income > 0
       ? (monthlyOverview.money.expense / monthlyOverview.money.income) * 100
       : 0;
+  const todayLearningMinutes = learningStats?.todayMinutes ?? 0;
+  const weekLearningMinutes = learningStats?.weekMinutes ?? 0;
+  const learningCompletionRate = learningStats?.completionRate ?? 0;
+  const learningActiveSessions = learningStats?.activeSessions ?? 0;
+  const combinedLearningFocusToday =
+    dashboard.moduleOverview.learning.todayFocusMinutes + todayLearningMinutes;
+  const learningByDate = new Map(
+    (learningStats?.dailyBreakdown ?? []).map((item) => [
+      normalizeDateKey(item.date),
+      {
+        learningMinutes: item.totalMinutes,
+        learningSessions: item.completedSessions ?? item.plannedSessions ?? 0,
+      },
+    ]),
+  );
 
   const modules = [
     {
@@ -158,10 +179,13 @@ export default function Dashboard() {
       quick: "Log Session",
       quickRoute: "/learning",
       metrics: [
-        { label: "Weekly Focus", value: `${dashboard.moduleOverview.learning.weeklyFocusMinutes} min` },
+        { label: "Today Learning", value: `${todayLearningMinutes} min` },
+        { label: "Week Learning", value: `${weekLearningMinutes} min` },
         { label: "Today Focus", value: `${dashboard.moduleOverview.learning.todayFocusMinutes} min` },
+        { label: "Completion", value: `${learningCompletionRate}%` },
       ],
       trend: dashboard.moduleOverview.learning.trend,
+      note: `${combinedLearningFocusToday} min combined today${learningActiveSessions ? ` | ${learningActiveSessions} active` : ""}`,
     },
     {
       key: "money",
@@ -202,7 +226,32 @@ export default function Dashboard() {
     },
   ];
 
-  const weeklyData = weeklyInsight ?? dashboard.weeklyStats;
+  const weeklyData = (weeklyInsight ?? dashboard.weeklyStats).map((item) => {
+    const learning = learningByDate.get(normalizeDateKey(item.date));
+    return {
+      ...item,
+      learningMinutes: item.learningMinutes ?? learning?.learningMinutes ?? 0,
+      learningSessions: item.learningSessions ?? learning?.learningSessions ?? 0,
+    };
+  });
+  const monthlySeriesWithLearning = monthlyOverview.dailySeries.map((item) => {
+    const learning = learningByDate.get(normalizeDateKey(item.date));
+    return {
+      ...item,
+      learningMinutes: item.learningMinutes ?? learning?.learningMinutes ?? 0,
+      learningSessions: item.learningSessions ?? learning?.learningSessions ?? 0,
+    };
+  });
+  const monthlyLearningTotalFromSeries = monthlySeriesWithLearning.reduce(
+    (sum, item) => sum + (item.learningMinutes ?? 0),
+    0,
+  );
+  const monthlyLearningTotal =
+    monthlyOverview.productivity.totalLearningMinutes ??
+    (isSelectedCurrentMonth ? learningStats?.monthMinutes ?? monthlyLearningTotalFromSeries : monthlyLearningTotalFromSeries);
+  const monthlyLearningSessions =
+    monthlyOverview.productivity.totalLearningSessions ??
+    monthlySeriesWithLearning.reduce((sum, item) => sum + (item.learningSessions ?? 0), 0);
 
   return (
     <main className="relative space-y-5 overflow-hidden bg-slate-50 px-4 py-5 dark:bg-[#08111f] sm:px-6 lg:px-8">
@@ -225,9 +274,9 @@ export default function Dashboard() {
           icon={Wallet}
         />
         <KPI
-          title="Focus Time Today"
-          value={`${dashboard.kpis.focusToday.minutes} min`}
-          subtitle={`${dashboard.kpis.focusToday.sessionsCount} session(s)`}
+          title="Learning / Focus Today"
+          value={`${combinedLearningFocusToday} min`}
+          subtitle={`${todayLearningMinutes} learning + ${dashboard.kpis.focusToday.minutes} focus`}
           icon={Timer}
         />
         <KPI
@@ -253,7 +302,7 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             <Breakdown label="Login" data={dashboard.dailyProgress.breakdown.login} detail={dashboard.dailyProgress.breakdown.login.completed ? "Done" : "Not completed"} />
-            <Breakdown label="Focus" data={dashboard.dailyProgress.breakdown.focus} detail={`${dashboard.dailyProgress.breakdown.focus.minutes}/${dashboard.dailyProgress.breakdown.focus.targetMinutes} min`} />
+            <Breakdown label="Learning / Focus" data={dashboard.dailyProgress.breakdown.focus} detail={`${combinedLearningFocusToday}/${dashboard.dailyProgress.breakdown.focus.targetMinutes} min combined`} />
             <Breakdown label="Workout" data={dashboard.dailyProgress.breakdown.workout} detail={`${dashboard.dailyProgress.breakdown.workout.count}/${dashboard.dailyProgress.breakdown.workout.targetCount} workout`} />
             <Breakdown label="Sections" data={dashboard.dailyProgress.breakdown.sections} detail={`${dashboard.dailyProgress.breakdown.sections.completedSections}/${dashboard.dailyProgress.breakdown.sections.totalSections} sections`} />
           </div>
@@ -309,6 +358,11 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            {"note" in module && module.note ? (
+              <p className="mt-3 rounded-xl border border-cyan-200/70 bg-cyan-50 px-3 py-2 text-xs font-bold text-cyan-800 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200">
+                {module.note}
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               <Link href={module.route} className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:bg-cyan-400 dark:text-slate-950 dark:hover:bg-cyan-300">
                 Go to {module.title.split("/")[0].trim()}
@@ -354,6 +408,7 @@ export default function Dashboard() {
               <Legend />
               <Bar yAxisId="left" dataKey="workouts" name="Workouts" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
               <Line yAxisId="right" type="monotone" dataKey="focusMinutes" name="Focus Minutes" stroke="#f97316" strokeWidth={2.8} />
+              <Line yAxisId="right" type="monotone" dataKey="learningMinutes" name="Learning Minutes" stroke="#a855f7" strokeWidth={2.8} />
               <Line yAxisId="left" type="monotone" dataKey="moneyActivities" name="Money Activity" stroke="#22c55e" strokeWidth={2} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -424,6 +479,8 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <MetricTile label="Avg Daily Score" value={`${monthlyOverview.productivity.averageDailyScore}%`} />
               <MetricTile label="Total Focus" value={`${monthlyOverview.productivity.totalFocusMinutes} min`} />
+              <MetricTile label="Total Learning" value={`${monthlyLearningTotal} min`} />
+              <MetricTile label="Learning Sessions" value={`${monthlyLearningSessions}`} />
               <MetricTile label="Total Workouts" value={`${monthlyOverview.productivity.totalWorkouts}`} />
             </div>
             <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -439,7 +496,7 @@ export default function Dashboard() {
 
         <div className="mt-4 h-80 rounded-2xl border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/55">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={monthlyOverview.dailySeries}>
+            <ComposedChart data={monthlySeriesWithLearning}>
               <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
               <XAxis dataKey="date" tickFormatter={(value: string) => value.slice(8)} />
               <YAxis yAxisId="money" />
@@ -449,6 +506,7 @@ export default function Dashboard() {
               <Bar yAxisId="money" dataKey="income" name="Income" fill="#16a34a" />
               <Bar yAxisId="money" dataKey="expense" name="Expense" fill="#ef4444" />
               <Line yAxisId="activity" dataKey="focusMinutes" name="Focus Minutes" stroke="#0ea5e9" strokeWidth={2.2} />
+              <Line yAxisId="activity" dataKey="learningMinutes" name="Learning Minutes" stroke="#a855f7" strokeWidth={2.2} />
               <Line yAxisId="activity" dataKey="score" name="Score" stroke="#f59e0b" strokeWidth={2} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -466,7 +524,8 @@ export default function Dashboard() {
             >
               <p className="text-sm font-black text-slate-900 dark:text-white">{month.label}</p>
               <p className="mt-2 text-xs text-slate-500">Income {formatCurrency(month.income)} | Expense {formatCurrency(month.expense)}</p>
-              <p className="text-xs text-slate-500">Focus {month.totalFocusMinutes} min | Workouts {month.totalWorkouts}</p>
+              <p className="text-xs text-slate-500">Focus {month.totalFocusMinutes} min | Learning {month.totalLearningMinutes ?? (isSelectedCurrentMonth && month.month === monthlyOverview.selectedMonth.month && month.year === monthlyOverview.selectedMonth.year ? monthlyLearningTotal : 0)} min</p>
+              <p className="text-xs text-slate-500">Workouts {month.totalWorkouts} | Learning sessions {month.totalLearningSessions ?? 0}</p>
               <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Score {month.averageDailyScore}%</p>
             </button>
           ))}
