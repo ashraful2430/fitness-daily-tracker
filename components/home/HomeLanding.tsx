@@ -73,33 +73,6 @@ const metrics = [
   { label: "Focus streak", value: "12 days", tone: "text-amber-200" },
 ];
 
-const productTileStyles = [
-  {
-    shell:
-      "border-cyan-300/25 bg-[linear-gradient(180deg,rgba(14,165,233,0.24),rgba(8,47,73,0.88))] shadow-[0_24px_60px_rgba(8,145,178,0.2)]",
-    icon: "bg-white text-cyan-900 shadow-[0_14px_30px_rgba(255,255,255,0.18)]",
-    accent: "from-cyan-200/30 via-cyan-200/10 to-transparent",
-  },
-  {
-    shell:
-      "border-amber-300/20 bg-[linear-gradient(180deg,rgba(245,158,11,0.2),rgba(69,48,15,0.9))] shadow-[0_24px_60px_rgba(245,158,11,0.18)]",
-    icon: "bg-white text-amber-900 shadow-[0_14px_30px_rgba(255,255,255,0.16)]",
-    accent: "from-amber-200/30 via-amber-200/10 to-transparent",
-  },
-  {
-    shell:
-      "border-emerald-300/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.18),rgba(7,58,52,0.9))] shadow-[0_24px_60px_rgba(16,185,129,0.18)]",
-    icon: "bg-white text-emerald-900 shadow-[0_14px_30px_rgba(255,255,255,0.16)]",
-    accent: "from-emerald-200/30 via-emerald-200/10 to-transparent",
-  },
-  {
-    shell:
-      "border-rose-300/20 bg-[linear-gradient(180deg,rgba(244,63,94,0.18),rgba(76,29,37,0.9))] shadow-[0_24px_60px_rgba(244,63,94,0.16)]",
-    icon: "bg-white text-rose-900 shadow-[0_14px_30px_rgba(255,255,255,0.16)]",
-    accent: "from-rose-200/30 via-rose-200/10 to-transparent",
-  },
-];
-
 const timeline = [
   {
     title: "Capture the plan",
