@@ -193,7 +193,12 @@ async function apiRequest<T = unknown>(
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config).catch(() => {
+    throw new ApiError(
+      "Service is temporarily unavailable. You can keep browsing, but actions need the backend connection.",
+      0,
+    );
+  });
   const body = (await response
     .json()
     .catch(() => null)) as ApiEnvelope<T> | null;
@@ -261,7 +266,12 @@ async function apiRequestWithMeta<T = unknown>(
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, config).catch(() => {
+    throw new ApiError(
+      "Service is temporarily unavailable. You can keep browsing, but actions need the backend connection.",
+      0,
+    );
+  });
   const body = (await response
     .json()
     .catch(() => null)) as PaginatedApiEnvelope<T> | null;

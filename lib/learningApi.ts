@@ -51,6 +51,11 @@ async function learningRequest<T>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  }).catch(() => {
+    throw new LearningApiError(
+      "Learning service is temporarily unavailable. The page is still available, but actions need the backend.",
+      0,
+    );
   });
   const body = (await response.json().catch(() => null)) as
     | LearningApiEnvelope<T>
@@ -67,15 +72,64 @@ async function learningRequest<T>(
   return (body?.data ?? (body as T)) as T;
 }
 
-function normalizeSession(session: LearningSession): LearningSession {
+function normalizeSession(session: Partial<LearningSession>): LearningSession {
+  const now = new Date().toISOString();
+  const stableId =
+    session._id ??
+    session.id ??
+    `${session.title ?? "session"}-${session.subject ?? "learning"}-${session.studyDate ?? session.date ?? Date.now()}`;
   return {
     ...session,
-    _id: session._id ?? session.id ?? "",
+    _id: stableId,
+    id: session.id ?? stableId,
+    title: session.title ?? "Learning session",
+    subject: session.subject ?? "Learning",
+    goal: session.goal ?? "",
+    plannedMinutes: session.plannedMinutes ?? 25,
     actualMinutes: session.actualMinutes ?? 0,
+    learnerMode: session.learnerMode ?? "student",
+    learningType: session.learningType ?? "reading",
+    difficulty: session.difficulty ?? "medium",
+    priority: session.priority ?? "medium",
+    status: session.status ?? "planned",
     tags: session.tags ?? [],
-    date: session.date ?? session.studyDate,
-    studyDate: session.studyDate ?? session.date,
+    date: session.date ?? session.studyDate ?? now.slice(0, 10),
+    studyDate: session.studyDate ?? session.date ?? now.slice(0, 10),
+    createdAt: session.createdAt ?? now,
+    updatedAt: session.updatedAt ?? now,
   };
+}
+
+function extractSession(payload: unknown): Partial<LearningSession> {
+  if (!payload || typeof payload !== "object") return {};
+  if ("session" in payload && payload.session && typeof payload.session === "object") {
+    return payload.session as Partial<LearningSession>;
+  }
+  if ("data" in payload && payload.data && typeof payload.data === "object") {
+    return payload.data as Partial<LearningSession>;
+  }
+  return payload as Partial<LearningSession>;
+}
+
+type LearningSessionsPayload =
+  | LearningSession[]
+  | {
+      data?: LearningSession[] | { sessions?: LearningSession[]; docs?: LearningSession[]; items?: LearningSession[] };
+      sessions?: LearningSession[];
+      docs?: LearningSession[];
+      items?: LearningSession[];
+      results?: LearningSession[];
+      pagination?: LearningPagination;
+      meta?: LearningPagination;
+    };
+
+function extractSessions(payload: LearningSessionsPayload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (payload.data && !Array.isArray(payload.data)) {
+    return payload.data.sessions ?? payload.data.docs ?? payload.data.items ?? [];
+  }
+  return payload.sessions ?? payload.docs ?? payload.items ?? payload.results ?? [];
 }
 
 function normalizePagination(
@@ -232,10 +286,15 @@ export async function getLearningSessions(
     page: filters.page,
     limit: filters.limit,
   });
-  const data = await learningRequest<
-    LearningSession[] | { data?: LearningSession[]; pagination?: LearningPagination; meta?: LearningPagination }
-  >(`/sessions${query}`);
-  const sessions = Array.isArray(data) ? data : data.data ?? [];
+  const data = await learningRequest<LearningSessionsPayload>(`/sessions${query}`).catch(
+    (): LearningSessionsPayload => ({
+    data: [],
+    pagination: normalizePagination(
+      { page: filters.page ?? 1, limit: filters.limit ?? 10, total: 0, totalPages: 1 },
+      0,
+    ),
+  }));
+  const sessions = extractSessions(data);
   const pagination = Array.isArray(data)
     ? normalizePagination(undefined, data.length)
     : normalizePagination(data.pagination ?? data.meta, sessions.length);
@@ -249,10 +308,10 @@ export const getLearningSession = (id: string) =>
   learningRequest<LearningSession>(`/sessions/${id}`).then(normalizeSession);
 
 export const createLearningSession = (payload: CreateLearningSessionRequest) =>
-  learningRequest<LearningSession>("/sessions", {
+  learningRequest<unknown>("/sessions", {
     method: "POST",
     body: JSON.stringify(payload),
-  }).then(normalizeSession);
+  }).then(extractSession).then(normalizeSession);
 
 export const updateLearningSession = (
   id: string,
