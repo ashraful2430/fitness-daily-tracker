@@ -2224,7 +2224,7 @@ function SessionQueueCard({
       </button>
 
       <div className="border-t border-slate-200 bg-slate-50/80 p-3 dark:border-cyan-300/10 dark:bg-[#07101e]/80" onClick={(event) => event.stopPropagation()}>
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2">
           {session.status === "active" ? (
             <CommandButton label="Pause" onClick={onPause} icon={<Pause className="h-4 w-4" />} />
           ) : null}
@@ -2236,7 +2236,7 @@ function SessionQueueCard({
           ) : null}
           <CommandButton label="Edit" onClick={onEdit} icon={<PencilLine className="h-4 w-4" />} />
           <CommandButton label="Complete" onClick={onComplete} disabled={isDone} icon={<CheckCircle2 className="h-4 w-4" />} />
-          <CommandButton label="Move" onClick={onReschedule} disabled={isLocked} icon={<CalendarClock className="h-4 w-4" />} />
+          <CommandButton label="Move" onClick={onReschedule} disabled={isLocked} icon={<CalendarClock className="h-4 w-4" />} showLabel />
           <CommandButton label="Cancel" onClick={onCancel} disabled={isLocked} icon={<X className="h-4 w-4" />} />
           <CommandButton
             label="Delete"
@@ -2258,6 +2258,7 @@ function CommandButton({
   disabled,
   primary,
   danger,
+  showLabel = false,
 }: {
   label: string;
   icon: React.ReactNode;
@@ -2265,13 +2266,18 @@ function CommandButton({
   disabled?: boolean;
   primary?: boolean;
   danger?: boolean;
+  showLabel?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      title={label}
+      aria-label={label}
+      className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 ${
+        showLabel ? "px-2.5 sm:px-3" : "w-9 sm:w-10"
+      } ${
         primary
           ? "bg-cyan-400 text-slate-950 hover:bg-cyan-300"
           : danger
@@ -2280,7 +2286,9 @@ function CommandButton({
       }`}
     >
       {icon}
-      <span>{label}</span>
+      <span className={showLabel ? "text-xs sm:text-sm" : "sr-only"}>
+        {label}
+      </span>
     </button>
   );
 }

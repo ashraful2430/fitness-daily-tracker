@@ -82,22 +82,6 @@ const eventTemplates: FeedbackEffectInput[] = [
   ["learning.session.create.success", "Learning session created", "learning"],
   ["learning.session.update.success", "Learning session updated", "learning"],
   ["learning.session.delete.success", "Learning session deleted", "learning"],
-  ["learning.session.start.success", "Learning session started", "learning"],
-  ["learning.session.pause.success", "Learning session paused", "learning"],
-  ["learning.session.resume.success", "Learning session resumed", "learning"],
-  ["learning.session.complete.success", "Learning session completed", "learning"],
-  ["learning.session.cancel.success", "Learning session cancelled", "learning"],
-  ["learning.session.reschedule.success", "Learning session rescheduled", "learning"],
-  ["learning.timer.finish.success", "Learning timer finished", "learning"],
-  ["learning.timer-preset.create.success", "Timer preset created", "learning"],
-  ["learning.timer-preset.update.success", "Timer preset updated", "learning"],
-  ["learning.timer-preset.delete.success", "Timer preset deleted", "learning"],
-  ["learning.template.create.success", "Learning template created", "learning"],
-  ["learning.goals.update.success", "Learning goals updated", "learning"],
-  ["learning.child-controls.update.success", "Child controls updated", "learning"],
-  ["learning.note.create.success", "Learning note created", "learning"],
-  ["learning.note.update.success", "Learning note updated", "learning"],
-  ["learning.note.delete.success", "Learning note deleted", "learning"],
   ["fitness.workout.create.success", "Workout created", "fitness"],
   ["fitness.workout.update.success", "Workout updated", "fitness"],
   ["fitness.workout.delete.success", "Workout deleted", "fitness"],
@@ -122,6 +106,18 @@ const eventTemplates: FeedbackEffectInput[] = [
   memeImageUrl: "",
   enabled: true,
 }));
+
+const visibleLearningEffectKeys = new Set([
+  "learning.session.create.success",
+  "learning.session.update.success",
+  "learning.session.delete.success",
+]);
+
+function shouldShowEffect(effect: Pick<FeedbackEffect, "category" | "key">) {
+  return (
+    effect.category !== "learning" || visibleLearningEffectKeys.has(effect.key)
+  );
+}
 
 function getEffectId(effect: FeedbackEffect) {
   return effect.id ?? effect._id ?? "";
@@ -241,7 +237,9 @@ export default function AdminFeedbackEffectsClient() {
     });
 
     configuredEffects.forEach((effect) => {
-      merged.set(effect.key, effect);
+      if (shouldShowEffect(effect)) {
+        merged.set(effect.key, effect);
+      }
     });
 
     return Array.from(merged.values()).sort((a, b) =>

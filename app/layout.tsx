@@ -5,6 +5,7 @@ import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { FeedbackEffectsProvider } from "@/components/providers/FeedbackEffectsProvider";
+import { AppTooltipProvider } from "@/components/providers/AppTooltipProvider";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -36,6 +37,7 @@ export default function RootLayout({
           <AuthProvider>
             <FeedbackEffectsProvider>
               {children}
+              <AppTooltipProvider />
             </FeedbackEffectsProvider>
             <Toaster
               position="top-center"
