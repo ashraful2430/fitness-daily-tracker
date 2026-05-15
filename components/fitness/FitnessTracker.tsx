@@ -11,6 +11,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { emitFeedbackEffect } from "@/lib/feedbackEvents";
 
 type Workout = {
   _id: string;
@@ -101,6 +102,7 @@ export default function FitnessTracker() {
       setCalories("");
 
       toast.success("Workout added successfully");
+      emitFeedbackEffect("fitness.workout.create.success");
     } catch {
       toast.error("Failed to add workout");
     } finally {
@@ -135,6 +137,7 @@ export default function FitnessTracker() {
           ? "Workout marked completed"
           : "Workout marked planned",
       );
+      emitFeedbackEffect("fitness.workout.update.success");
     } catch {
       toast.error("Failed to update workout");
     }
@@ -154,6 +157,7 @@ export default function FitnessTracker() {
 
       setWorkouts((prev) => prev.filter((item) => item._id !== id));
       toast.success("Workout deleted");
+      emitFeedbackEffect("fitness.workout.delete.success");
     } catch {
       toast.error("Failed to delete workout");
     }
