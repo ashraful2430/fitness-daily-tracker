@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { FeedbackEffectsProvider } from "@/components/providers/FeedbackEffectsProvider";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -33,7 +34,9 @@ export default function RootLayout({
       <body className={`${manrope.variable} font-sans antialiased`}>
         <QueryProvider>
           <AuthProvider>
-            {children}
+            <FeedbackEffectsProvider>
+              {children}
+            </FeedbackEffectsProvider>
             <Toaster
               position="top-center"
               toastOptions={{

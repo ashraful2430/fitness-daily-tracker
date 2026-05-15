@@ -69,6 +69,7 @@ import {
   updateLearningSession,
 } from "@/lib/learningApi";
 import { useAuth } from "@/hooks/useAuth";
+import { emitFeedbackEffect } from "@/lib/feedbackEvents";
 import type {
   LearnerMode,
   LearningDifficulty,
@@ -1238,6 +1239,7 @@ export default function LearningHub() {
 
       setActiveTimerState(null);
       setAlarmRinging(true);
+      emitFeedbackEffect("learning.timer.finish.success");
       if (enableAlarm) {
         void playAlarmOption(selectedAlarmSound, true);
       }
