@@ -1625,7 +1625,7 @@ export default function LearningHub() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
+        <section className="grid items-start gap-5 xl:grid-cols-[1.02fr_0.98fr]">
           <div ref={formRef} className={panelClass}>
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>

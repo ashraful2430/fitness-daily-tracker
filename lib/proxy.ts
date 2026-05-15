@@ -23,6 +23,7 @@ export async function proxyToExternal(
 
   if (token) {
     headers["Cookie"] = `token=${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
@@ -32,9 +33,35 @@ export async function proxyToExternal(
     method: req.method,
     headers,
     body,
+  }).catch((error) => {
+    console.error("[proxyToExternal]", error);
+    return null;
   });
 
-  const data = await response.json().catch(() => null);
+  if (!response) {
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          "Backend connection failed. Check EXTERNAL_API_URL and make sure the fitness API is running.",
+      },
+      { status: 502 },
+    );
+  }
+
+  const responseText = await response.text().catch(() => "");
+  let data: unknown = null;
+
+  if (responseText) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = {
+        success: response.ok,
+        message: response.ok ? "Operation successful" : responseText,
+      };
+    }
+  }
 
   return NextResponse.json(data, { status: response.status });
 }

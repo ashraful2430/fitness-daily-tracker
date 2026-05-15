@@ -85,6 +85,12 @@ const eventTemplates: FeedbackEffectInput[] = [
   ["fitness.workout.create.success", "Workout created", "fitness"],
   ["fitness.workout.update.success", "Workout updated", "fitness"],
   ["fitness.workout.delete.success", "Workout deleted", "fitness"],
+  ["fitness.template.create.success", "Fitness template created", "fitness"],
+  ["fitness.template.update.success", "Fitness template updated", "fitness"],
+  ["fitness.template.delete.success", "Fitness template deleted", "fitness"],
+  ["fitness.recovery.create.success", "Recovery check created", "fitness"],
+  ["fitness.recovery.update.success", "Recovery check updated", "fitness"],
+  ["fitness.recovery.delete.success", "Recovery check deleted", "fitness"],
   ["habits.section.create.success", "Habit section created", "habits"],
   ["habits.section.update.success", "Habit section updated", "habits"],
   ["habits.section.delete.success", "Habit section deleted", "habits"],
@@ -113,10 +119,28 @@ const visibleLearningEffectKeys = new Set([
   "learning.session.delete.success",
 ]);
 
+const visibleFitnessEffectKeys = new Set([
+  "fitness.workout.create.success",
+  "fitness.workout.update.success",
+  "fitness.workout.delete.success",
+  "fitness.template.create.success",
+  "fitness.template.update.success",
+  "fitness.template.delete.success",
+  "fitness.recovery.create.success",
+  "fitness.recovery.update.success",
+  "fitness.recovery.delete.success",
+]);
+
 function shouldShowEffect(effect: Pick<FeedbackEffect, "category" | "key">) {
-  return (
-    effect.category !== "learning" || visibleLearningEffectKeys.has(effect.key)
-  );
+  if (effect.category === "learning") {
+    return visibleLearningEffectKeys.has(effect.key);
+  }
+
+  if (effect.category === "fitness") {
+    return visibleFitnessEffectKeys.has(effect.key);
+  }
+
+  return true;
 }
 
 function getEffectId(effect: FeedbackEffect) {

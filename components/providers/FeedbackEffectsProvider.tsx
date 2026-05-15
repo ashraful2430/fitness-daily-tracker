@@ -287,6 +287,55 @@ function getReactionCopy(
       message: "Removed cleanly. The tracker forgives, but it remembers.",
     },
 
+    "fitness.workout.start.success": {
+      title: "Workout started",
+      message: "Timer on, excuses off. Go make the reps nervous.",
+    },
+    "fitness.workout.complete.success": {
+      title: "Workout complete",
+      message: "Finished strong. That session just earned its flex.",
+    },
+    "fitness.workout.skip.success": {
+      title: "Workout skipped",
+      message: "Skipped and logged. Accountability still caught the moment.",
+    },
+    "fitness.workout.cancel.success": {
+      title: "Workout cancelled",
+      message: "Cancelled cleanly. Reset the plan and come back sharper.",
+    },
+    "fitness.goal.update.success": {
+      title: "Fitness goals updated",
+      message: "Targets locked. The week has been officially warned.",
+    },
+    "fitness.template.create.success": {
+      title: "Template created",
+      message: "Workout blueprint saved. Future you just got faster.",
+    },
+    "fitness.template.update.success": {
+      title: "Template updated",
+      message: "Training recipe tuned. The routine is looking dangerous.",
+    },
+    "fitness.template.delete.success": {
+      title: "Template deleted",
+      message: "Template gone. Clean library, clean lift.",
+    },
+    "fitness.recovery.create.success": {
+      title: "Recovery checked",
+      message: "Recovery logged. Smart training is still training.",
+    },
+    "fitness.recovery.update.success": {
+      title: "Recovery updated",
+      message: "Body status refreshed. The comeback data looks useful.",
+    },
+    "fitness.recovery.delete.success": {
+      title: "Recovery deleted",
+      message: "Recovery check removed. The log stays tidy.",
+    },
+    "fitness.personal-records.recalculate.success": {
+      title: "Records recalculated",
+      message: "Personal records refreshed. Let the numbers brag properly.",
+    },
+
     "habits.section.create.success": {
       title: "Habit section added 🧱✨",
       message: "New routine lane opened. Discipline got organized.",
