@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\fitness-daily-tracker\" -Recurse -Directory)",
-      "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(npx tsc *)"
-    ]
-  }
-}
