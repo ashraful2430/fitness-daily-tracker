@@ -48,7 +48,9 @@ const allowedSoundTypes = [
   "audio/mp4",
 ];
 const allowedImageTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-const maxUploadSize = 2 * 1024 * 1024;
+const maxSoundUploadSize = 360 * 1024;
+const maxImageUploadSize = 1.5 * 1024 * 1024;
+const maxEffectPayloadSize = 850 * 1024;
 
 const eventTemplates: FeedbackEffectInput[] = [
   ["auth.register.success", "Register success", "auth"],
@@ -155,7 +157,21 @@ function validateForm(form: FeedbackEffectInput) {
   }
   if (!form.label.trim()) errors.label = "Label is required.";
   if (!form.category) errors.category = "Category is required.";
+  const payloadBytes = getEffectPayloadBytes(form);
+  if (payloadBytes > maxEffectPayloadSize) {
+    errors.payload =
+      "This sound/image combo is too large to save. Use a shorter MP3 or a smaller image.";
+  }
   return errors;
+}
+
+function getEffectPayloadBytes(form: FeedbackEffectInput) {
+  return new Blob([
+    JSON.stringify({
+      soundUrl: form.soundUrl ?? "",
+      memeImageUrl: form.memeImageUrl ?? "",
+    }),
+  ]).size;
 }
 
 function getUrlHint(value: string, type: "sound" | "image") {
@@ -196,11 +212,72 @@ function validateUpload(file: File) {
     return "Use MP3, WAV, OGG, MP4 audio or PNG, JPG, WebP, GIF images.";
   }
 
-  if (file.size > maxUploadSize) {
-    return "File must be 2 MB or smaller.";
+  if (isSound && file.size > maxSoundUploadSize) {
+    return "Use a short compressed sound under 360 KB. Data URLs get bigger when saved.";
+  }
+
+  if (isImage && file.size > maxImageUploadSize) {
+    return "Use an image under 1.5 MB. It will be compressed before saving.";
   }
 
   return "";
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Unable to read that asset."));
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Unable to read that asset."));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to process that image."));
+    image.src = dataUrl;
+  });
+}
+
+async function compressImageFile(file: File) {
+  if (file.type === "image/gif") {
+    return readFileAsDataUrl(file);
+  }
+
+  const dataUrl = await readFileAsDataUrl(file);
+  const image = await loadImage(dataUrl);
+  const maxSide = 720;
+  const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) return dataUrl;
+  context.drawImage(image, 0, 0, width, height);
+
+  const qualities = [0.78, 0.68, 0.58, 0.48];
+  let best = canvas.toDataURL("image/jpeg", qualities[0]);
+
+  for (const quality of qualities) {
+    const next = canvas.toDataURL("image/jpeg", quality);
+    best = next;
+    if (new Blob([next]).size <= 260 * 1024) break;
+  }
+
+  return best;
 }
 
 export default function AdminFeedbackEffectsClient() {
@@ -300,7 +377,17 @@ export default function AdminFeedbackEffectsClient() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: adminAPI.uploadFeedbackAsset,
+    mutationFn: async (file: File) => {
+      const isSound = file.type.startsWith("audio/");
+      const url = isSound
+        ? await readFileAsDataUrl(file)
+        : await compressImageFile(file);
+
+      return {
+        url,
+        type: isSound ? "sound" : "image",
+      };
+    },
     onSuccess: (result) => {
       setForm((current) => ({
         ...current,
@@ -326,6 +413,9 @@ export default function AdminFeedbackEffectsClient() {
     event.preventDefault();
     const nextErrors = validateForm(form);
     setErrors(nextErrors);
+    if (nextErrors.payload) {
+      toast.error(nextErrors.payload);
+    }
     if (Object.keys(nextErrors).length > 0) return;
     saveMutation.mutate({
       ...form,
@@ -694,16 +784,23 @@ export default function AdminFeedbackEffectsClient() {
                 <span className="font-black">
                   {editingId ? "Update effect" : "Save effect"}
                 </span>{" "}
-                after uploading so every user gets it.
+                after uploading so every user gets it. For bigger sounds or images,
+                upload them to a media host and paste the direct URL above.
               </p>
 
+              {errors.payload ? (
+                <p className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-xs font-bold leading-5 text-rose-600 dark:text-rose-200">
+                  {errors.payload}
+                </p>
+              ) : null}
+
               {form.memeImageUrl ? (
-                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04]">
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 dark:border-white/[0.08]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={form.memeImageUrl}
                     alt=""
-                    className="h-40 w-full object-cover"
+                    className="h-40 w-full object-contain"
                   />
                 </div>
               ) : null}

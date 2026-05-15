@@ -578,12 +578,12 @@ export function FeedbackEffectsProvider({
             </button>
 
             <div className="p-4 pt-5 sm:p-5 sm:pt-6">
-              <div className="mx-auto aspect-[4/3] w-full max-w-[24rem] overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.32)]">
+              <div className="mx-auto aspect-[4/3] w-full max-w-[24rem] overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-950 shadow-[0_18px_50px_rgba(0,0,0,0.32)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={preview.effect.memeImageUrl}
                   alt=""
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                 />
               </div>
 

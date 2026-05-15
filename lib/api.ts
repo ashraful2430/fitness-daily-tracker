@@ -886,26 +886,28 @@ export const adminAPI = {
     }),
 
   uploadFeedbackAsset: async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch("/api/admin/feedback-effects/upload", {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    }).catch(() => {
-      throw new ApiError("Upload service is temporarily unavailable.", 0);
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("Unable to read that asset."));
+      };
+      reader.onerror = () => {
+        reject(reader.error ?? new Error("Unable to read that asset."));
+      };
+      reader.readAsDataURL(file);
     });
-    const body = (await response.json().catch(() => null)) as
-      | (ApiEnvelope<FeedbackUploadResponse> & FeedbackUploadResponse)
-      | null;
-
-    if (!response.ok) {
-      throw new ApiError(body?.message || "Failed to upload asset", response.status, body);
-    }
 
     emitFeedbackEffect("admin.feedback-effect.upload.success");
-    return (body?.data ?? body) as FeedbackUploadResponse;
+    return {
+      url: dataUrl,
+      type: file.type.startsWith("audio/") ? "sound" : "image",
+      mimeType: file.type,
+      size: file.size,
+    } satisfies FeedbackUploadResponse;
   },
 };
 
