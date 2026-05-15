@@ -68,6 +68,7 @@ import {
   updateLearningGoals,
   updateLearningSession,
 } from "@/lib/learningApi";
+import { useAuth } from "@/hooks/useAuth";
 import type {
   LearnerMode,
   LearningDifficulty,
@@ -109,8 +110,37 @@ type StoredLearningTimer = {
   targetEndAt: number;
 };
 
+type CustomAlarmSound = {
+  id: string;
+  label: string;
+  dataUrl: string;
+  shared?: boolean;
+};
+
+type AlarmSoundOption =
+  | {
+      id: string;
+      label: string;
+      frequency: number;
+      kind: "tone";
+    }
+  | {
+      id: string;
+      label: string;
+      dataUrl: string;
+      kind: "file";
+    };
+
 const ACTIVE_LEARNING_TIMER_KEY = "planify:learning:active-timer";
 const PAUSED_LEARNING_TIMERS_KEY = "planify:learning:paused-timers";
+const CUSTOM_ALARM_SOUNDS_KEY = "planify:learning:custom-alarm-sounds";
+const SELECTED_ALARM_SOUND_KEY = "planify:learning:selected-alarm-sound";
+
+const defaultAlarmSounds: AlarmSoundOption[] = [
+  { id: "classic-beep", label: "Classic beep", frequency: 880, kind: "tone" },
+  { id: "soft-bell", label: "Soft bell", frequency: 660, kind: "tone" },
+  { id: "digital-chime", label: "Digital chime", frequency: 1040, kind: "tone" },
+];
 
 const learnerModes: Array<{
   value: LearnerMode;
@@ -276,6 +306,95 @@ function readStoredPausedTimers() {
   }
 }
 
+function readStoredCustomAlarmSounds() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = window.localStorage.getItem(CUSTOM_ALARM_SOUNDS_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as CustomAlarmSound[];
+    return Array.isArray(parsed)
+      ? parsed.filter((sound) => sound.id && sound.label && sound.dataUrl)
+      : [];
+  } catch {
+    window.localStorage.removeItem(CUSTOM_ALARM_SOUNDS_KEY);
+    return [];
+  }
+}
+
+function readStoredSelectedAlarmSound() {
+  if (typeof window === "undefined") return "classic-beep";
+  return window.localStorage.getItem(SELECTED_ALARM_SOUND_KEY) || "classic-beep";
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function requestSharedAlarmSounds() {
+  const response = await fetch("/api/learning/alarm-sounds", {
+    credentials: "include",
+  });
+  const body = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    data?: Array<CustomAlarmSound & { mimeType?: string; size?: number }>;
+    message?: string;
+  } | null;
+
+  if (!response.ok || !body?.success) {
+    throw new Error(body?.message ?? "Failed to load shared alarm sounds");
+  }
+
+  return (body.data ?? []).map((sound) => ({ ...sound, shared: true }));
+}
+
+async function createSharedAlarmSound(payload: {
+  label: string;
+  dataUrl: string;
+  mimeType: string;
+  size: number;
+}) {
+  const response = await fetch("/api/learning/alarm-sounds", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  const body = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    data?: CustomAlarmSound;
+    message?: string;
+  } | null;
+
+  if (!response.ok || !body?.success || !body.data) {
+    throw new Error(body?.message ?? "Failed to save shared alarm sound");
+  }
+
+  return { ...body.data, shared: true };
+}
+
+async function deleteSharedAlarmSound(id: string) {
+  const response = await fetch(`/api/learning/alarm-sounds?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  const body = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    message?: string;
+  } | null;
+
+  if (!response.ok || !body?.success) {
+    throw new Error(body?.message ?? "Failed to delete shared alarm sound");
+  }
+}
+
 function getStoredTimerRemainingSeconds(timer: StoredLearningTimer | null) {
   if (!timer) return 0;
   return Math.max(0, Math.ceil((timer.targetEndAt - Date.now()) / 1000));
@@ -347,6 +466,8 @@ function StatCard({
 
 export default function LearningHub() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [filters, setFilters] = useState<LearningSessionsQuery>({
     page: 1,
     limit: 10,
@@ -375,7 +496,14 @@ export default function LearningHub() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [customMinutes, setCustomMinutes] = useState("");
   const [enableAlarm, setEnableAlarm] = useState(true);
-  const [alarmSound, setAlarmSound] = useState("Classic beep");
+  const [alarmSound, setAlarmSound] = useState(readStoredSelectedAlarmSound);
+  const [draftAlarmSound, setDraftAlarmSound] = useState(readStoredSelectedAlarmSound);
+  const [customAlarmSounds, setCustomAlarmSounds] = useState<CustomAlarmSound[]>(
+    readStoredCustomAlarmSounds,
+  );
+  const [sharedAlarmSounds, setSharedAlarmSounds] = useState<CustomAlarmSound[]>([]);
+  const [alarmSoundSaving, setAlarmSoundSaving] = useState(false);
+  const [previewingAlarmId, setPreviewingAlarmId] = useState<string | null>(null);
   const [autoStartBreak, setAutoStartBreak] = useState(false);
   const [breakDuration, setBreakDuration] = useState("5");
   const [dailyGoalDraft, setDailyGoalDraft] = useState<string | null>(null);
@@ -391,8 +519,32 @@ export default function LearningHub() {
   const [parentControlsDraft, setParentControlsDraft] = useState<ParentControlsState | null>(null);
   const [localSessions, setLocalSessions] = useState<LearningSession[]>([]);
   const formRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const toneAlarmIntervalRef = useRef<number | null>(null);
 
   const activeTimer = activeTimerState?.session ?? null;
+  const alarmOptions = useMemo<AlarmSoundOption[]>(
+    () => [
+      ...defaultAlarmSounds,
+      ...sharedAlarmSounds.map((sound) => ({
+        id: sound.id,
+        label: sound.label,
+        dataUrl: sound.dataUrl,
+        kind: "file" as const,
+      })),
+      ...customAlarmSounds.map((sound) => ({
+        id: sound.id,
+        label: sound.label,
+        dataUrl: sound.dataUrl,
+        kind: "file" as const,
+      })),
+    ],
+    [customAlarmSounds, sharedAlarmSounds],
+  );
+  const selectedAlarmSound =
+    alarmOptions.find((option) => option.id === alarmSound) ?? alarmOptions[0];
+  const draftAlarmOption =
+    alarmOptions.find((option) => option.id === draftAlarmSound) ?? alarmOptions[0];
 
   const sessionsQuery = useQuery({
     queryKey: learningQueryKeys.sessions(filters),
@@ -829,8 +981,6 @@ export default function LearningHub() {
     setRemainingSeconds(resetSeconds);
   };
 
-  const stopAlarm = useCallback(() => setAlarmRinging(false), []);
-
   const saveGoals = async () => {
     const dailyGoalMinutes = Number(dailyGoal);
     const weeklyGoalMinutes = Number(weeklyGoal);
@@ -881,6 +1031,153 @@ export default function LearningHub() {
     setFilters((current) => ({ ...current, page }));
   };
 
+  const playToneOnce = useCallback((frequency: number) => {
+    if (typeof window === "undefined") return;
+    const AudioContextCtor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) return;
+
+    const context = new AudioContextCtor();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.55);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.6);
+    window.setTimeout(() => void context.close().catch(() => null), 800);
+  }, []);
+
+  const stopAlarmAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    if (toneAlarmIntervalRef.current !== null) {
+      window.clearInterval(toneAlarmIntervalRef.current);
+      toneAlarmIntervalRef.current = null;
+    }
+    setPreviewingAlarmId(null);
+  }, []);
+
+  const stopAlarm = useCallback(() => {
+    stopAlarmAudio();
+    setAlarmRinging(false);
+  }, [stopAlarmAudio]);
+
+  const playAlarmOption = useCallback(
+    async (option: AlarmSoundOption, loop: boolean) => {
+      stopAlarmAudio();
+
+      if (option.kind === "file") {
+        const audio = new Audio(option.dataUrl);
+        audio.loop = loop;
+        audioRef.current = audio;
+        setPreviewingAlarmId(option.id);
+        try {
+          await audio.play();
+        } catch {
+          toast.error("Browser blocked audio playback. Click Preview once before relying on this alarm.");
+        }
+        if (!loop) {
+          audio.onended = () => setPreviewingAlarmId(null);
+        }
+        return;
+      }
+
+      setPreviewingAlarmId(option.id);
+      playToneOnce(option.frequency);
+      if (loop) {
+        toneAlarmIntervalRef.current = window.setInterval(() => {
+          playToneOnce(option.frequency);
+        }, 1400);
+      } else {
+        window.setTimeout(() => setPreviewingAlarmId(null), 900);
+      }
+    },
+    [playToneOnce, stopAlarmAudio],
+  );
+
+  const handleAlarmUpload = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) {
+      toast.error("Please upload an audio file.");
+      return;
+    }
+    if (file.size > 1_500_000) {
+      toast.error("Use an audio file under 1.5 MB so it can be saved in your browser.");
+      return;
+    }
+
+    try {
+      setAlarmSoundSaving(true);
+      const dataUrl = await fileToDataUrl(file);
+      const label = file.name.replace(/\.[^/.]+$/, "") || "Custom alarm";
+      const sound = isAdmin
+        ? await createSharedAlarmSound({
+            label,
+            dataUrl,
+            mimeType: file.type,
+            size: file.size,
+          })
+        : {
+            id: `custom-${Date.now()}`,
+            label,
+            dataUrl,
+            shared: false,
+          };
+      if (isAdmin) {
+        setSharedAlarmSounds((current) => [sound, ...current]);
+      } else {
+        setCustomAlarmSounds((current) => [...current, sound]);
+      }
+      setDraftAlarmSound(sound.id);
+      toast.success(
+        isAdmin
+          ? "Shared alarm uploaded for all users. Preview it, then apply if you like it."
+          : "Personal alarm uploaded. Ask an admin to add sounds for everyone.",
+      );
+    } catch {
+      toast.error("Failed to save that audio file.");
+    } finally {
+      setAlarmSoundSaving(false);
+    }
+  };
+
+  const removeAlarmSound = async (option: AlarmSoundOption) => {
+    if (option.kind !== "file") return;
+    const sharedSound = sharedAlarmSounds.find((sound) => sound.id === option.id);
+
+    try {
+      setAlarmSoundSaving(true);
+      if (sharedSound) {
+        if (!isAdmin) {
+          toast.error("Only admins can remove shared alarm sounds.");
+          return;
+        }
+        await deleteSharedAlarmSound(option.id);
+        setSharedAlarmSounds((current) => current.filter((sound) => sound.id !== option.id));
+      } else {
+        setCustomAlarmSounds((current) => current.filter((sound) => sound.id !== option.id));
+      }
+
+      if (alarmSound === option.id) setAlarmSound("classic-beep");
+      if (draftAlarmSound === option.id) setDraftAlarmSound("classic-beep");
+      stopAlarmAudio();
+      toast.success("Alarm sound removed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove alarm sound");
+    } finally {
+      setAlarmSoundSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -905,6 +1202,32 @@ export default function LearningHub() {
   }, [pausedRemainingSeconds]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(CUSTOM_ALARM_SOUNDS_KEY, JSON.stringify(customAlarmSounds));
+  }, [customAlarmSounds]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(SELECTED_ALARM_SOUND_KEY, alarmSound);
+  }, [alarmSound]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void requestSharedAlarmSounds()
+      .then((sounds) => {
+        if (!cancelled) setSharedAlarmSounds(sounds);
+      })
+      .catch(() => {
+        if (!cancelled) setSharedAlarmSounds([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!activeTimerState) return;
 
     const tick = () => {
@@ -915,6 +1238,9 @@ export default function LearningHub() {
 
       setActiveTimerState(null);
       setAlarmRinging(true);
+      if (enableAlarm) {
+        void playAlarmOption(selectedAlarmSound, true);
+      }
       void completeLearningSession(
         activeTimerState.session._id,
         activeTimerState.session.plannedMinutes,
@@ -936,7 +1262,14 @@ export default function LearningHub() {
     tick();
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
-  }, [activeTimerState, enableAlarm, invalidateLearningStats, upsertSessionInCache]);
+  }, [
+    activeTimerState,
+    enableAlarm,
+    invalidateLearningStats,
+    playAlarmOption,
+    selectedAlarmSound,
+    upsertSessionInCache,
+  ]);
 
   const selectedMode = learnerModes.find((mode) => mode.value === learnerMode) ?? learnerModes[0];
   const startableSessions = useMemo(
@@ -1468,7 +1801,7 @@ export default function LearningHub() {
                   {activeTimer?.goal ?? starterSession?.goal ?? "Select or create a session to begin."}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">
-                  {alarmRinging ? "Time is up. Stop the alarm when you are done." : enableAlarm ? `${alarmSound} alarm enabled` : "Alarm disabled"}
+                  {alarmRinging ? "Time is up. Stop the alarm when you are done." : enableAlarm ? `${selectedAlarmSound.label} alarm enabled` : "Alarm disabled"}
                 </p>
               </div>
 
@@ -1515,11 +1848,65 @@ export default function LearningHub() {
                   <input type="checkbox" checked={autoStartBreak} onChange={(e) => setAutoStartBreak(e.target.checked)} />
                   Auto start break
                 </label>
-                <select className={inputClass} value={alarmSound} onChange={(e) => setAlarmSound(e.target.value)}>
-                  <option>Classic beep</option>
-                  <option>Soft bell</option>
-                  <option>Digital chime</option>
-                </select>
+                <div className="space-y-2 sm:col-span-2">
+                  <span className="block text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                    Alarm sound
+                  </span>
+                  <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto]">
+                    <select className={inputClass} value={draftAlarmSound} onChange={(e) => setDraftAlarmSound(e.target.value)}>
+                      {alarmOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void playAlarmOption(draftAlarmOption, false)}
+                      className={secondaryButton}
+                    >
+                      <Play className="h-4 w-4" />
+                      {previewingAlarmId === draftAlarmOption.id ? "Playing" : "Preview"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAlarmSound(draftAlarmOption.id);
+                        toast.success(`${draftAlarmOption.label} applied`);
+                      }}
+                      className={secondaryButton}
+                    >
+                      <Save className="h-4 w-4" />
+                      Apply
+                    </button>
+                  </div>
+                  <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
+                    <input
+                      className={inputClass}
+                      type="file"
+                      accept="audio/*"
+                      disabled={alarmSoundSaving}
+                      onChange={(event) => {
+                        void handleAlarmUpload(event.target.files?.[0]);
+                        event.target.value = "";
+                      }}
+                    />
+                    {draftAlarmOption.kind === "file" ? (
+                      <button
+                        type="button"
+                        disabled={alarmSoundSaving}
+                        onClick={() => void removeAlarmSound(draftAlarmOption)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+                      >
+                        {alarmSoundSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Active alarm: {selectedAlarmSound.label}. {isAdmin ? "Admin uploads are shared with every user." : "Your uploads stay personal; admin uploads appear here for everyone."} Use MP3, WAV, OGG, or M4A under 1.5 MB.
+                  </p>
+                </div>
                 <input className={inputClass} type="number" min="1" value={breakDuration} onChange={(e) => setBreakDuration(e.target.value)} placeholder="Break duration" />
               </div>
             </div>
