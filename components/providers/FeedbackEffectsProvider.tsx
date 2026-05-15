@@ -418,6 +418,23 @@ export function FeedbackEffectsProvider({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previewTimerRef = useRef<number | null>(null);
 
+  const clearPreviewTimer = useCallback(() => {
+    if (previewTimerRef.current) {
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+  }, []);
+
+  const dismissPreview = useCallback(() => {
+    clearPreviewTimer();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    setPreview(null);
+  }, [clearPreviewTimer]);
+
   const playResolvedEffect = useCallback(
     async (
       effect: FeedbackEffect,
@@ -426,24 +443,53 @@ export function FeedbackEffectsProvider({
     ) => {
       if (!effect.enabled) return false;
 
-      if (effect.soundUrl) {
-        try {
-          audioRef.current?.pause();
-          const audio = new Audio(effect.soundUrl);
-          audioRef.current = audio;
-          await audio.play().catch(() => undefined);
-        } catch {
-          // Feedback is decorative. Never block the user flow for audio errors.
-        }
-      }
+      clearPreviewTimer();
+      audioRef.current?.pause();
+      audioRef.current = null;
 
       if (effect.memeImageUrl) {
         setPreview({ effect, requestedKey, message: options?.message });
+      }
 
-        if (previewTimerRef.current) {
-          window.clearTimeout(previewTimerRef.current);
+      if (effect.soundUrl) {
+        try {
+          const audio = new Audio(effect.soundUrl);
+          audioRef.current = audio;
+          audio.onended = () => {
+            if (audioRef.current === audio) {
+              audioRef.current = null;
+              setPreview(null);
+            }
+          };
+          audio.onerror = () => {
+            if (audioRef.current === audio) {
+              audioRef.current = null;
+            }
+            if (effect.memeImageUrl) {
+              previewTimerRef.current = window.setTimeout(() => {
+                setPreview(null);
+              }, 4200);
+            }
+          };
+          await audio.play().catch(() => {
+            if (audioRef.current === audio) {
+              audioRef.current = null;
+            }
+            if (effect.memeImageUrl) {
+              previewTimerRef.current = window.setTimeout(() => {
+                setPreview(null);
+              }, 4200);
+            }
+          });
+        } catch {
+          // Feedback is decorative. Never block the user flow for audio errors.
+          if (effect.memeImageUrl) {
+            previewTimerRef.current = window.setTimeout(() => {
+              setPreview(null);
+            }, 4200);
+          }
         }
-
+      } else if (effect.memeImageUrl) {
         previewTimerRef.current = window.setTimeout(() => {
           setPreview(null);
         }, 4200);
@@ -451,7 +497,7 @@ export function FeedbackEffectsProvider({
 
       return true;
     },
-    [],
+    [clearPreviewTimer],
   );
 
   const refreshEffects = useCallback(async () => {
@@ -542,12 +588,10 @@ export function FeedbackEffectsProvider({
 
   useEffect(
     () => () => {
-      if (previewTimerRef.current) {
-        window.clearTimeout(previewTimerRef.current);
-      }
+      clearPreviewTimer();
       audioRef.current?.pause();
     },
-    [],
+    [clearPreviewTimer],
   );
 
   const value = useMemo<FeedbackEffectsContextValue>(
@@ -570,7 +614,7 @@ export function FeedbackEffectsProvider({
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-fuchsia-400 via-cyan-300 to-emerald-300" />
             <button
               type="button"
-              onClick={() => setPreview(null)}
+              onClick={dismissPreview}
               className="absolute right-3 top-3 z-10 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
               aria-label="Dismiss feedback preview"
             >
