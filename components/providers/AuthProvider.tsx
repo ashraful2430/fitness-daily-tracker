@@ -96,10 +96,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await authAPI.logout();
     } finally {
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
       clearUser();
-      window.location.href = "/auth";
+      router.replace("/auth");
     }
-  }, [clearUser]);
+  }, [clearUser, router]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
