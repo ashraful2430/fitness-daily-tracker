@@ -36,7 +36,7 @@ export default function AuthForm() {
 
   const handleSubmit = async () => {
     if (!email || !password || (mode === "register" && !name)) {
-      toast.error("Please fill in all required fields");
+      toast.error("Fill the blanks first, baby. No shortcuts 😏");
       return;
     }
 
@@ -57,10 +57,10 @@ export default function AuthForm() {
         if (error.status === 403) {
           setAuthError(error.message);
         } else {
-          toast.error(error.message);
+          toast.error(`${error.message} Try again sharper 😈`);
         }
       } else {
-        toast.error("Unable to connect. Please try again.");
+        toast.error("Connection said no. Run it back in a second 😈");
       }
     } finally {
       setLoading(false);

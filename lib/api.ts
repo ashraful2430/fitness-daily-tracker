@@ -134,12 +134,28 @@ function showBackendSuccess(message: string | undefined, options: ApiOptions) {
 
   if (!shouldShow) return;
 
-  toast.success(message, { duration: 1800 });
+  toast.success(getSuccessToastMessage(message, options.feedbackEventKey), {
+    duration: 1800,
+  });
 }
 
 function emitSuccessFeedback(options: ApiOptions) {
   if (!options.feedbackEventKey || !isClient()) return;
   emitFeedbackEffect(options.feedbackEventKey);
+}
+
+function getSuccessToastMessage(message: string, feedbackEventKey?: string) {
+  const mapped: Record<string, string> = {
+    "auth.login.success": "Welcome back, baby 😘",
+    "auth.register.success": "Account created. Looking dangerously productive 🔥",
+    "auth.logout.success": "Logged out smooth. Come back dangerous 😎",
+  };
+
+  if (feedbackEventKey && mapped[feedbackEventKey]) {
+    return mapped[feedbackEventKey];
+  }
+
+  return `${message} Nice move, baby 🔥`;
 }
 
 function emitUnauthorized() {

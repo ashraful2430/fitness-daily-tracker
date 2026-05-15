@@ -162,6 +162,36 @@ function validateForm(form: FeedbackEffectInput) {
   return errors;
 }
 
+function getUrlHint(value: string, type: "sound" | "image") {
+  const url = value.trim().toLowerCase();
+  if (!url) return "";
+
+  if (url.includes("myinstants.com") && !url.includes("/media/sounds/")) {
+    return "That MyInstants page/embed URL will not play here. Open the sound page, use Download MP3, then paste the direct /media/sounds/... file URL.";
+  }
+
+  if (url.includes("/embed/") || url.includes("<iframe")) {
+    return "Embed codes are for iframes. This field needs a direct media URL or an uploaded asset.";
+  }
+
+  const directExtensions =
+    type === "sound"
+      ? [".mp3", ".wav", ".ogg", ".m4a", ".mp4"]
+      : [".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"];
+  const hasExtension = directExtensions.some((extension) =>
+    url.split("?")[0].endsWith(extension),
+  );
+  const isDataOrBlob = url.startsWith("data:") || url.startsWith("blob:");
+
+  if (!hasExtension && !isDataOrBlob) {
+    return type === "sound"
+      ? "Best result: paste a direct audio file URL ending in MP3, WAV, OGG, M4A, or MP4."
+      : "Best result: paste a direct image file URL ending in PNG, JPG, WebP, GIF, or AVIF.";
+  }
+
+  return "";
+}
+
 function validateUpload(file: File) {
   const isSound = allowedSoundTypes.includes(file.type);
   const isImage = allowedImageTypes.includes(file.type);
@@ -329,6 +359,12 @@ export default function AdminFeedbackEffectsClient() {
       return;
     }
 
+    const warning = getUrlHint(form.soundUrl, "sound");
+    if (warning && form.soundUrl.toLowerCase().includes("myinstants.com")) {
+      toast.error(warning);
+      return;
+    }
+
     try {
       void new Audio(form.soundUrl).play().catch(() => undefined);
     } catch {
@@ -338,6 +374,8 @@ export default function AdminFeedbackEffectsClient() {
 
   const configuredCount = configuredEffects.length;
   const enabledCount = configuredEffects.filter((effect) => effect.enabled).length;
+  const soundUrlHint = getUrlHint(form.soundUrl ?? "", "sound");
+  const imageUrlHint = getUrlHint(form.memeImageUrl ?? "", "image");
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-5 pb-10 text-slate-950 dark:bg-[#050914] dark:text-white sm:px-6 lg:px-8">
@@ -592,6 +630,11 @@ export default function AdminFeedbackEffectsClient() {
                     <Play size={17} />
                   </button>
                 </div>
+                {soundUrlHint ? (
+                  <p className="mt-2 text-xs font-semibold leading-5 text-amber-600 dark:text-amber-300">
+                    {soundUrlHint}
+                  </p>
+                ) : null}
               </Field>
 
               <Field label="Meme image URL">
@@ -606,6 +649,11 @@ export default function AdminFeedbackEffectsClient() {
                   placeholder="https://..."
                   className={inputClass}
                 />
+                {imageUrlHint ? (
+                  <p className="mt-2 text-xs font-semibold leading-5 text-amber-600 dark:text-amber-300">
+                    {imageUrlHint}
+                  </p>
+                ) : null}
               </Field>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
