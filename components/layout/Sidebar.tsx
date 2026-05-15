@@ -16,6 +16,7 @@ import {
   Timer,
   X,
   HandCoins,
+  BellRing,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -36,6 +37,7 @@ const menuItems = [
   { label: "Reports", icon: LineChart, href: "/reports" },
   { label: "Settings", icon: Settings, href: "/settings" },
   { label: "Admin", icon: Shield, href: "/admin" },
+  { label: "Feedback", icon: BellRing, href: "/admin/feedback" },
 ];
 
 interface SidebarContentProps {
@@ -81,10 +83,13 @@ function SidebarContent({
         aria-label="Navigation menu"
       >
         {menuItems
-          .filter((item) => item.href !== "/admin" || user?.role === "admin")
+          .filter((item) => !item.href.startsWith("/admin") || user?.role === "admin")
           .map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive =
+              item.href === "/admin"
+                ? pathname === "/admin" || pathname === "/admin/users"
+                : pathname === item.href;
 
             return (
               <Link

@@ -56,6 +56,12 @@ import type {
   CreateExternalIncomeRequest,
   CreateOtherSavingsRequest,
 } from "@/types/money";
+import type {
+  FeedbackEffect,
+  FeedbackEffectInput,
+  FeedbackUploadResponse,
+} from "@/types/feedback";
+import { emitFeedbackEffect } from "@/lib/feedbackEvents";
 import toast from "react-hot-toast";
 
 // Empty string → relative URLs → all requests go to the same Next.js app.
@@ -70,6 +76,7 @@ interface ApiOptions extends RequestInit {
   requireAuth?: boolean;
   cacheTtlMs?: number;
   showSuccessToast?: boolean;
+  feedbackEventKey?: string;
 }
 
 type ApiEnvelope<T> = {
@@ -127,7 +134,28 @@ function showBackendSuccess(message: string | undefined, options: ApiOptions) {
 
   if (!shouldShow) return;
 
-  toast.success(message, { duration: 1800 });
+  toast.success(getSuccessToastMessage(message, options.feedbackEventKey), {
+    duration: 1800,
+  });
+}
+
+function emitSuccessFeedback(options: ApiOptions) {
+  if (!options.feedbackEventKey || !isClient()) return;
+  emitFeedbackEffect(options.feedbackEventKey);
+}
+
+function getSuccessToastMessage(message: string, feedbackEventKey?: string) {
+  const mapped: Record<string, string> = {
+    "auth.login.success": "Welcome back, baby 😘",
+    "auth.register.success": "Account created. Looking dangerously productive 🔥",
+    "auth.logout.success": "Logged out smooth. Come back dangerous 😎",
+  };
+
+  if (feedbackEventKey && mapped[feedbackEventKey]) {
+    return mapped[feedbackEventKey];
+  }
+
+  return `${message} Nice move, baby 🔥`;
 }
 
 function emitUnauthorized() {
@@ -232,6 +260,7 @@ async function apiRequest<T = unknown>(
     showSuccessToast,
     method: config.method,
   });
+  emitSuccessFeedback(options);
 
   return payload;
 }
@@ -311,6 +340,7 @@ export const authAPI = {
       method: "POST",
       body: JSON.stringify(payload),
       requireAuth: false,
+      feedbackEventKey: "auth.register.success",
     }),
 
   login: (payload: LoginRequest) =>
@@ -318,12 +348,16 @@ export const authAPI = {
       method: "POST",
       body: JSON.stringify(payload),
       requireAuth: false,
+      feedbackEventKey: "auth.login.success",
     }),
 
   getCurrentUser: () => apiRequest<AuthUser>("/api/auth/me"),
 
   logout: async () => {
-    await apiRequest("/api/auth/logout", { method: "POST" });
+    await apiRequest("/api/auth/logout", {
+      method: "POST",
+      feedbackEventKey: "auth.logout.success",
+    });
   },
 };
 
@@ -336,18 +370,21 @@ export const dashboardAPI = {
     apiRequest<{ glassesConsumed: number }>("/api/dashboard/water", {
       method: "POST",
       body: JSON.stringify({ glassesConsumed }),
+      feedbackEventKey: "dashboard.water.update.success",
     }),
 
   logFocusSession: (startTime: Date, endTime: Date, category: string) =>
     apiRequest<void>("/api/dashboard/focus", {
       method: "POST",
       body: JSON.stringify({ startTime, endTime, category }),
+      feedbackEventKey: "dashboard.focus.create.success",
     }),
 
   updateWeeklyGoal: (completedWorkouts: number, goalWorkouts: number) =>
     apiRequest<void>("/api/dashboard/weekly-goal", {
       method: "POST",
       body: JSON.stringify({ completedWorkouts, goalWorkouts }),
+      feedbackEventKey: "dashboard.weekly-goal.update.success",
     }),
 };
 
@@ -364,17 +401,20 @@ export const workoutAPI = {
     apiRequest<WorkoutInput>("/api/workouts", {
       method: "POST",
       body: JSON.stringify(workout),
+      feedbackEventKey: "fitness.workout.create.success",
     }),
 
   updateWorkout: (id: string, workout: Partial<WorkoutInput>) =>
     apiRequest<WorkoutInput>(`/api/workouts/${id}`, {
       method: "PATCH",
       body: JSON.stringify(workout),
+      feedbackEventKey: "fitness.workout.update.success",
     }),
 
   deleteWorkout: (id: string) =>
     apiRequest<void>(`/api/workouts/${id}`, {
       method: "DELETE",
+      feedbackEventKey: "fitness.workout.delete.success",
     }),
 };
 
@@ -385,11 +425,13 @@ export const moneyAPI = {
     apiRequest<MoneyCategory>("/api/money/category", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.category.create.success",
     }),
 
   deleteCategory: (name: string) =>
     apiRequest<void>(`/api/money/category/${encodeURIComponent(name)}`, {
       method: "DELETE",
+      feedbackEventKey: "money.category.delete.success",
     }),
 
   addBalanceSource: (payload: {
@@ -399,6 +441,7 @@ export const moneyAPI = {
     apiRequest<BalanceSource>("/api/money/balance/add", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.balance.create.success",
     }),
 
   updateBalanceSource: (
@@ -408,11 +451,13 @@ export const moneyAPI = {
     apiRequest<BalanceSource>(`/api/money/balance/update/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.balance.update.success",
     }),
 
   deleteBalanceSource: (id: string) =>
     apiRequest<void>(`/api/money/balance/${id}`, {
       method: "DELETE",
+      feedbackEventKey: "money.balance.delete.success",
     }),
 
   getBalanceSources: () => apiRequest<BalanceResponse>("/api/money/balance"),
@@ -421,17 +466,20 @@ export const moneyAPI = {
     apiRequest<MoneyExpense>("/api/money/expenses", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.expense.create.success",
     }),
 
   updateExpense: (id: string, payload: UpdateExpenseRequest) =>
     apiRequest<MoneyExpense>(`/api/money/expenses/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.expense.update.success",
     }),
 
   deleteExpense: (id: string) =>
     apiRequest<void>(`/api/money/expenses/${id}`, {
       method: "DELETE",
+      feedbackEventKey: "money.expense.delete.success",
     }),
 
   getExpenses: async (query: ExpensesQuery) => {
@@ -482,11 +530,13 @@ export const moneyAPI = {
     apiRequest<SalaryRecord>("/api/money/salary", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.salary.create.success",
     }),
 
   deleteSalary: () =>
     apiRequest<void>("/api/money/salary", {
       method: "DELETE",
+      feedbackEventKey: "money.salary.delete.success",
     }),
 
   getCurrentSalary: () =>
@@ -520,12 +570,14 @@ export const moneyAPI = {
     apiRequest<ExternalIncome>("/api/money/income", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.income.create.success",
     }),
 
   addSavings: (payload: CreateOtherSavingsRequest) =>
     apiRequest<OtherSavings>("/api/money/savings", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.savings.create.success",
     }),
 };
 
@@ -535,6 +587,7 @@ export const lendingAPI = {
     apiRequest<CreateLoanResponse>("/api/money/loans", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.loan.create.success",
     }),
 
   getAllLoans: () => apiRequest<Loan[]>("/api/money/loans"),
@@ -546,6 +599,7 @@ export const lendingAPI = {
     apiRequest<RepaymentResponse>(`/api/money/loans/${id}/repay`, {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "money.loan.repay.success",
     }),
 
   getLoanTransactions: (id: string) =>
@@ -595,32 +649,38 @@ export const learningAPI = {
     apiRequest<LearningSession>("/api/learning/session", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "learning.session.create.success",
     }),
 
   updateSession: (id: string, payload: UpdateLearningSessionRequest) =>
     apiRequest<LearningSession>(`/api/learning/session/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+      feedbackEventKey: "learning.session.update.success",
     }),
 
   deleteSession: (id: string) =>
     apiRequest<void>(`/api/learning/session/${id}`, {
       method: "DELETE",
+      feedbackEventKey: "learning.session.delete.success",
     }),
 
   startSession: (id: string) =>
     apiRequest<LearningSession>(`/api/learning/session/${id}/start`, {
       method: "POST",
+      feedbackEventKey: "learning.session.start.success",
     }),
 
   pauseSession: (id: string) =>
     apiRequest<LearningSession>(`/api/learning/session/${id}/pause`, {
       method: "POST",
+      feedbackEventKey: "learning.session.pause.success",
     }),
 
   completeSession: (id: string) =>
     apiRequest<LearningSession>(`/api/learning/session/${id}/complete`, {
       method: "POST",
+      feedbackEventKey: "learning.session.complete.success",
     }),
 
   getTemplates: () => apiRequest<LearningTemplate[]>("/api/learning/templates"),
@@ -632,6 +692,7 @@ export const learningAPI = {
     apiRequest<TimerPreset>("/api/learning/timer-presets", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "learning.timer-preset.create.success",
     }),
 };
 
@@ -661,23 +722,27 @@ export const scoreSectionAPI = {
     apiRequest<ScoreSection>("/api/score-sections", {
       method: "POST",
       body: JSON.stringify(section),
+      feedbackEventKey: "habits.section.create.success",
     }),
 
   updateSection: (id: string, section: Partial<ScoreSectionInput>) =>
     apiRequest<ScoreSection>(`/api/score-sections/${id}`, {
       method: "PATCH",
       body: JSON.stringify(section),
+      feedbackEventKey: "habits.section.update.success",
     }),
 
   deleteSection: (id: string) =>
     apiRequest<void>(`/api/score-sections/${id}`, {
       method: "DELETE",
+      feedbackEventKey: "habits.section.delete.success",
     }),
 
   updateProgress: (id: string, value: number) =>
     apiRequest<ScoreSection>(`/api/score-sections/${id}/progress`, {
       method: "PATCH",
       body: JSON.stringify({ value }),
+      feedbackEventKey: "habits.section.progress.update.success",
     }),
 };
 
@@ -693,16 +758,21 @@ export const loansAPI = {
     apiRequest<LoanRecord>("/api/loans", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "lending.loan.create.success",
     }),
 
   pay: (id: string, amount: number) =>
     apiRequest<LoanRecord>(`/api/loans/${id}/pay`, {
       method: "PATCH",
       body: JSON.stringify({ amount }),
+      feedbackEventKey: "lending.loan.repay.success",
     }),
 
   remove: (id: string) =>
-    apiRequest<{ message: string }>(`/api/loans/${id}`, { method: "DELETE" }),
+    apiRequest<{ message: string }>(`/api/loans/${id}`, {
+      method: "DELETE",
+      feedbackEventKey: "lending.loan.delete.success",
+    }),
 };
 
 export const lendingRecordAPI = {
@@ -719,17 +789,20 @@ export const lendingRecordAPI = {
     apiRequest<LendingRecord>("/api/lending", {
       method: "POST",
       body: JSON.stringify(payload),
+      feedbackEventKey: "lending.lending.create.success",
     }),
 
   markRepaid: (id: string, amount: number) =>
     apiRequest<LendingRecord>(`/api/lending/${id}/repaid`, {
       method: "PATCH",
       body: JSON.stringify({ amount }),
+      feedbackEventKey: "lending.lending.repay.success",
     }),
 
   remove: (id: string) =>
     apiRequest<{ message: string }>(`/api/lending/${id}`, {
       method: "DELETE",
+      feedbackEventKey: "lending.lending.delete.success",
     }),
 };
 
@@ -766,6 +839,7 @@ export const adminAPI = {
     apiRequest<AdminRoleUpdateResponse>(`/api/admin/users/${userId}/role`, {
       method: "PATCH",
       body: JSON.stringify({ role }),
+      feedbackEventKey: "admin.user.role.update.success",
     }),
 
   setUserBlockStatus: (
@@ -778,12 +852,61 @@ export const adminAPI = {
       body: JSON.stringify(
         isBlocked ? { isBlocked: true, reason: reason?.trim() ?? "" } : { isBlocked: false },
       ),
+      feedbackEventKey: "admin.user.block.update.success",
     }),
 
   getUserSummary: (userId: string) =>
     apiRequest<AdminUserSummaryResponse>(`/api/admin/users/${userId}/summary`, {
       cacheTtlMs: 0,
     }),
+
+  getFeedbackEffects: () =>
+    apiRequest<FeedbackEffect[]>("/api/admin/feedback-effects", {
+      cacheTtlMs: 0,
+    }),
+
+  upsertFeedbackEffect: (payload: FeedbackEffectInput) =>
+    apiRequest<FeedbackEffect>("/api/admin/feedback-effects", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      feedbackEventKey: "admin.feedback-effect.create.success",
+    }),
+
+  updateFeedbackEffect: (id: string, payload: Partial<FeedbackEffectInput>) =>
+    apiRequest<FeedbackEffect>(`/api/admin/feedback-effects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+      feedbackEventKey: "admin.feedback-effect.update.success",
+    }),
+
+  deleteFeedbackEffect: (id: string) =>
+    apiRequest<void>(`/api/admin/feedback-effects/${id}`, {
+      method: "DELETE",
+      feedbackEventKey: "admin.feedback-effect.delete.success",
+    }),
+
+  uploadFeedbackAsset: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/admin/feedback-effects/upload", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    }).catch(() => {
+      throw new ApiError("Upload service is temporarily unavailable.", 0);
+    });
+    const body = (await response.json().catch(() => null)) as
+      | (ApiEnvelope<FeedbackUploadResponse> & FeedbackUploadResponse)
+      | null;
+
+    if (!response.ok) {
+      throw new ApiError(body?.message || "Failed to upload asset", response.status, body);
+    }
+
+    emitFeedbackEffect("admin.feedback-effect.upload.success");
+    return (body?.data ?? body) as FeedbackUploadResponse;
+  },
 };
 
 export default apiRequest;

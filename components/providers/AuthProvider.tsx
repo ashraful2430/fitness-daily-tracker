@@ -14,6 +14,7 @@ import {
   AUTH_UNAUTHORIZED_EVENT,
   authAPI,
 } from "@/lib/api";
+import { queueFeedbackEffect } from "@/lib/feedbackEvents";
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types/auth";
 
 interface AuthContextValue {
@@ -70,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nextUser = await authAPI.login(payload);
       setUser(nextUser);
       setInitialized(true);
+      queueFeedbackEffect("auth.login.success");
       return nextUser;
     } finally {
       setLoading(false);
@@ -83,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nextUser = await authAPI.register(payload);
       setUser(nextUser);
       setInitialized(true);
+      queueFeedbackEffect("auth.register.success");
       return nextUser;
     } finally {
       setLoading(false);
@@ -93,10 +96,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await authAPI.logout();
     } finally {
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
       clearUser();
-      window.location.href = "/auth";
+      router.replace("/auth");
     }
-  }, [clearUser]);
+  }, [clearUser, router]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

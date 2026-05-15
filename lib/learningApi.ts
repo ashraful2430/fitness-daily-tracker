@@ -13,11 +13,12 @@ import type {
   TimerPreset,
   UpdateLearningSessionRequest,
 } from "@/types/learning";
+import { emitFeedbackEffect } from "@/lib/feedbackEvents";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 const LEARNING_BASE = "/api/learning";
 
-type RequestOptions = RequestInit & { silent?: boolean };
+type RequestOptions = RequestInit & { silent?: boolean; feedbackEventKey?: string };
 
 export class LearningApiError extends Error {
   status: number;
@@ -67,6 +68,10 @@ async function learningRequest<T>(
       response.status,
       body?.errors,
     );
+  }
+
+  if (options.feedbackEventKey && typeof window !== "undefined") {
+    emitFeedbackEffect(options.feedbackEventKey);
   }
 
   return (body?.data ?? (body as T)) as T;
@@ -311,6 +316,7 @@ export const createLearningSession = (payload: CreateLearningSessionRequest) =>
   learningRequest<unknown>("/sessions", {
     method: "POST",
     body: JSON.stringify(payload),
+    feedbackEventKey: "learning.session.create.success",
   }).then(extractSession).then(normalizeSession);
 
 export const updateLearningSession = (
@@ -320,33 +326,51 @@ export const updateLearningSession = (
   learningRequest<LearningSession>(`/sessions/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+    feedbackEventKey: "learning.session.update.success",
   }).then(normalizeSession);
 
 export const deleteLearningSession = (id: string) =>
-  learningRequest<void>(`/sessions/${id}`, { method: "DELETE" });
+  learningRequest<void>(`/sessions/${id}`, {
+    method: "DELETE",
+    feedbackEventKey: "learning.session.delete.success",
+  });
 
 export const startLearningSession = (id: string) =>
-  learningRequest<LearningSession>(`/sessions/${id}/start`, { method: "POST" }).then(normalizeSession);
+  learningRequest<LearningSession>(`/sessions/${id}/start`, {
+    method: "POST",
+    feedbackEventKey: "learning.session.start.success",
+  }).then(normalizeSession);
 
 export const pauseLearningSession = (id: string) =>
-  learningRequest<LearningSession>(`/sessions/${id}/pause`, { method: "POST" }).then(normalizeSession);
+  learningRequest<LearningSession>(`/sessions/${id}/pause`, {
+    method: "POST",
+    feedbackEventKey: "learning.session.pause.success",
+  }).then(normalizeSession);
 
 export const resumeLearningSession = (id: string) =>
-  learningRequest<LearningSession>(`/sessions/${id}/resume`, { method: "POST" }).then(normalizeSession);
+  learningRequest<LearningSession>(`/sessions/${id}/resume`, {
+    method: "POST",
+    feedbackEventKey: "learning.session.resume.success",
+  }).then(normalizeSession);
 
 export const completeLearningSession = (id: string, actualMinutes?: number) =>
   learningRequest<LearningSession>(`/sessions/${id}/complete`, {
     method: "POST",
     body: JSON.stringify(actualMinutes !== undefined ? { actualMinutes } : {}),
+    feedbackEventKey: "learning.session.complete.success",
   }).then(normalizeSession);
 
 export const cancelLearningSession = (id: string) =>
-  learningRequest<LearningSession>(`/sessions/${id}/cancel`, { method: "POST" }).then(normalizeSession);
+  learningRequest<LearningSession>(`/sessions/${id}/cancel`, {
+    method: "POST",
+    feedbackEventKey: "learning.session.cancel.success",
+  }).then(normalizeSession);
 
 export const rescheduleLearningSession = (id: string, studyDate: string) =>
   learningRequest<LearningSession>(`/sessions/${id}/reschedule`, {
     method: "POST",
     body: JSON.stringify({ studyDate }),
+    feedbackEventKey: "learning.session.reschedule.success",
   }).then(normalizeSession);
 
 export const getTimerPresets = async () => {
@@ -360,6 +384,7 @@ export const createTimerPreset = (payload: Pick<TimerPreset, "label" | "minutes"
   learningRequest<TimerPreset>("/timer-presets", {
     method: "POST",
     body: JSON.stringify(payload),
+    feedbackEventKey: "learning.timer-preset.create.success",
   });
 
 export const saveTimerPreset = createTimerPreset;
@@ -371,10 +396,14 @@ export const updateTimerPreset = (
   learningRequest<TimerPreset>(`/timer-presets/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+    feedbackEventKey: "learning.timer-preset.update.success",
   });
 
 export const deleteTimerPreset = (id: string) =>
-  learningRequest<void>(`/timer-presets/${id}`, { method: "DELETE" });
+  learningRequest<void>(`/timer-presets/${id}`, {
+    method: "DELETE",
+    feedbackEventKey: "learning.timer-preset.delete.success",
+  });
 
 export const getLearningTemplates = async () => {
   const templates = await learningRequest<LearningTemplate[]>("/templates").catch(
@@ -387,6 +416,7 @@ export const createLearningTemplate = (payload: LearningTemplate) =>
   learningRequest<LearningTemplate>("/templates", {
     method: "POST",
     body: JSON.stringify(payload),
+    feedbackEventKey: "learning.template.create.success",
   });
 
 export const getLearningGoals = () =>
@@ -399,6 +429,7 @@ export const updateLearningGoals = (payload: LearningGoal) =>
   learningRequest<LearningGoal>("/goals", {
     method: "PUT",
     body: JSON.stringify(payload),
+    feedbackEventKey: "learning.goals.update.success",
   });
 
 export const getLearningStats = () =>
@@ -434,6 +465,7 @@ export const updateChildControls = (payload: ChildLearningControl & { parentPin?
   learningRequest<ChildLearningControl>("/child-controls", {
     method: "PUT",
     body: JSON.stringify(payload),
+    feedbackEventKey: "learning.child-controls.update.success",
   });
 
 export const getSessionNotes = (sessionId: string) =>
@@ -443,13 +475,18 @@ export const createSessionNote = (sessionId: string, content: string) =>
   learningRequest<LearningNote>(`/sessions/${sessionId}/notes`, {
     method: "POST",
     body: JSON.stringify({ content }),
+    feedbackEventKey: "learning.note.create.success",
   });
 
 export const updateSessionNote = (noteId: string, content: string) =>
   learningRequest<LearningNote>(`/notes/${noteId}`, {
     method: "PATCH",
     body: JSON.stringify({ content }),
+    feedbackEventKey: "learning.note.update.success",
   });
 
 export const deleteSessionNote = (noteId: string) =>
-  learningRequest<void>(`/notes/${noteId}`, { method: "DELETE" });
+  learningRequest<void>(`/notes/${noteId}`, {
+    method: "DELETE",
+    feedbackEventKey: "learning.note.delete.success",
+  });

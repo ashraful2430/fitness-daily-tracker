@@ -13,17 +13,20 @@ export async function proxyToExternal(
   const token = cookieStore.get("token")?.value;
 
   const url = `${EXTERNAL_API}${path}${req.nextUrl.search}`;
+  const contentType = req.headers.get("content-type");
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = {};
+
+  if (contentType) {
+    headers["Content-Type"] = contentType;
+  }
 
   if (token) {
     headers["Cookie"] = `token=${token}`;
   }
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const body = hasBody ? await req.text() : undefined;
+  const body = hasBody ? await req.arrayBuffer() : undefined;
 
   const response = await fetch(url, {
     method: req.method,
