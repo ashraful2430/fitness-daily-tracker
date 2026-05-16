@@ -70,6 +70,7 @@ import {
 } from "@/lib/learningApi";
 import { useAuth } from "@/hooks/useAuth";
 import { emitFeedbackEffect } from "@/lib/feedbackEvents";
+import SmartDatePicker from "@/components/ui/SmartDatePicker";
 import type {
   LearnerMode,
   LearningDifficulty,
@@ -211,6 +212,11 @@ function getToday() {
   return toLocalDateInputValue(new Date());
 }
 
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function formatMinutes(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 }
@@ -257,13 +263,17 @@ function sessionToForm(session: LearningSession): SessionFormState {
     subject: session.subject,
     goal: session.goal ?? "",
     plannedMinutes: String(session.plannedMinutes),
-    date: session.date.slice(0, 10),
+    date: (session.studyDate ?? session.date ?? getToday()).slice(0, 10),
     learningType: session.learningType ?? "reading",
     difficulty: session.difficulty ?? "medium",
     priority: session.priority ?? "medium",
     tags: session.tags?.join(", ") ?? "",
     notes: session.notes ?? "",
   };
+}
+
+function sameDateValue(a: string, b: string) {
+  return a.slice(0, 10) === b.slice(0, 10);
 }
 
 function parseTags(value: string) {
@@ -471,13 +481,13 @@ export default function LearningHub() {
   const isAdmin = user?.role === "admin";
   const [filters, setFilters] = useState<LearningSessionsQuery>({
     page: 1,
-    limit: 10,
+    limit: 6,
     status: "",
     subject: "",
     learnerMode: "",
     fromDate: "",
     toDate: "",
-    studyDate: "",
+    studyDate: getToday(),
   });
   const [activeTimerState, setActiveTimerState] = useState<StoredLearningTimer | null>(
     readStoredLearningTimer,
@@ -509,6 +519,7 @@ export default function LearningHub() {
   const [breakDuration, setBreakDuration] = useState("5");
   const [dailyGoalDraft, setDailyGoalDraft] = useState<string | null>(null);
   const [weeklyGoalDraft, setWeeklyGoalDraft] = useState<string | null>(null);
+  const [subjectMixMonth, setSubjectMixMonth] = useState(getCurrentMonthKey);
   const [selectedSession, setSelectedSession] = useState<LearningSession | null>(null);
   const [timerSessionId, setTimerSessionId] = useState("");
   const [detailsSession, setDetailsSession] = useState<LearningSession | null>(null);
@@ -550,6 +561,23 @@ export default function LearningHub() {
   const sessionsQuery = useQuery({
     queryKey: learningQueryKeys.sessions(filters),
     queryFn: () => getLearningSessions(filters),
+    placeholderData: (previousData) => previousData,
+  });
+  const todayTimerFilters = useMemo<LearningSessionsQuery>(
+    () => ({
+      page: 1,
+      limit: 100,
+      status: "",
+      subject: "",
+      learnerMode: "",
+      studyDate: getToday(),
+    }),
+    [],
+  );
+  const todayTimerSessionsQuery = useQuery({
+    queryKey: learningQueryKeys.sessions(todayTimerFilters),
+    queryFn: () => getLearningSessions(todayTimerFilters),
+    placeholderData: (previousData) => previousData,
   });
   const statsQuery = useQuery({
     queryKey: learningQueryKeys.stats,
@@ -580,16 +608,64 @@ export default function LearningHub() {
     });
     return Array.from(byId.values());
   }, [sessionsQuery.data?.data, localSessions]);
-  const pagination = sessionsQuery.data?.pagination ?? {
+  const todayTimerSessions = useMemo(() => {
+    const backendSessions = todayTimerSessionsQuery.data?.data ?? [];
+    const today = getToday();
+    const byId = new Map<string, LearningSession>();
+    [...localSessions, ...backendSessions].forEach((session) => {
+      const sessionDate = (session.studyDate ?? session.date ?? "").slice(0, 10);
+      if (sessionDate === today) {
+        byId.set(session._id, { ...byId.get(session._id), ...session });
+      }
+    });
+    return Array.from(byId.values());
+  }, [todayTimerSessionsQuery.data?.data, localSessions]);
+  const backendPagination = sessionsQuery.data?.pagination ?? {
     page: filters.page ?? 1,
-    limit: filters.limit ?? 10,
+    limit: filters.limit ?? 6,
     total: sessions.length,
     totalPages: 1,
   };
+  const queueFilteredSessions = useMemo(
+    () =>
+      sessions.filter((session) => {
+        const sessionDate = (session.studyDate ?? session.date ?? "").slice(0, 10);
+        const matchesDate = !filters.studyDate || sessionDate === filters.studyDate;
+        const matchesStatus = !filters.status || session.status === filters.status;
+        const matchesSubject =
+          !filters.subject ||
+          session.subject.toLowerCase().includes(filters.subject.toLowerCase());
+        const matchesLearnerMode =
+          !filters.learnerMode || session.learnerMode === filters.learnerMode;
+
+        return matchesDate && matchesStatus && matchesSubject && matchesLearnerMode;
+      }),
+    [filters.learnerMode, filters.status, filters.studyDate, filters.subject, sessions],
+  );
+  const shouldUseBackendPage =
+    backendPagination.total > queueFilteredSessions.length &&
+    queueFilteredSessions.length <= backendPagination.limit;
+  const queuePagination = shouldUseBackendPage
+    ? backendPagination
+    : {
+        ...backendPagination,
+        page: filters.page ?? 1,
+        limit: filters.limit ?? 6,
+        total: queueFilteredSessions.length,
+        totalPages: Math.max(
+          1,
+          Math.ceil(queueFilteredSessions.length / (filters.limit ?? 6)),
+        ),
+      };
+  const pagedSessions = shouldUseBackendPage
+    ? queueFilteredSessions
+    : queueFilteredSessions.slice(
+        ((queuePagination.page ?? 1) - 1) * queuePagination.limit,
+        (queuePagination.page ?? 1) * queuePagination.limit,
+      );
   const visiblePagination = {
-    ...pagination,
-    total: Math.max(pagination.total, sessions.length),
-    totalPages: Math.max(1, Math.max(pagination.totalPages, Math.ceil(Math.max(pagination.total, sessions.length) / pagination.limit))),
+    ...queuePagination,
+    totalPages: Math.max(1, queuePagination.totalPages),
   };
   const stats: LearningStats = statsQuery.data ?? {
     todayMinutes: 0,
@@ -609,11 +685,13 @@ export default function LearningHub() {
     learningTypeBreakdown: [],
     priorityBreakdown: [],
   };
-  const loading = sessionsQuery.isLoading || statsQuery.isLoading;
-  const sessionsLoading = sessionsQuery.isFetching;
+  const loading = (sessionsQuery.isLoading && !sessionsQuery.data) || statsQuery.isLoading;
+  const sessionsLoading = sessionsQuery.isLoading && !sessionsQuery.data;
+  const sessionsFetching = sessionsQuery.isFetching;
   const summaryLoading = statsQuery.isFetching;
   const serviceOffline =
     sessionsQuery.isError ||
+    todayTimerSessionsQuery.isError ||
     statsQuery.isError ||
     presetsQuery.isError ||
     templatesQuery.isError ||
@@ -665,7 +743,7 @@ export default function LearningHub() {
         ? current.map((item) => (item._id === session._id ? session : item))
         : [session, ...current];
     });
-    queryClient.setQueriesData<{ data: LearningSession[]; pagination: typeof pagination }>(
+    queryClient.setQueriesData<{ data: LearningSession[]; pagination: typeof backendPagination }>(
       { queryKey: ["learningSessions"] },
       (current) => {
         if (!current) return current;
@@ -722,14 +800,36 @@ export default function LearningHub() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateLearningSession>[1] }) =>
       updateLearningSession(id, payload),
-    onSuccess: async (session) => {
-      upsertSessionInCache(session);
-      if (activeTimerState?.session._id === session._id) {
+    onSuccess: async (session, variables) => {
+      const payload = variables.payload;
+      const displaySession: LearningSession = {
+        ...session,
+        title: payload.title ?? session.title,
+        subject: payload.subject ?? session.subject,
+        goal: payload.goal ?? session.goal,
+        plannedMinutes: payload.plannedMinutes ?? session.plannedMinutes,
+        actualMinutes: payload.actualMinutes ?? session.actualMinutes,
+        studyDate: payload.studyDate ?? session.studyDate,
+        date: payload.date ?? payload.studyDate ?? session.date,
+        learnerMode: payload.learnerMode ?? session.learnerMode,
+        learningType: payload.learningType ?? session.learningType,
+        difficulty: payload.difficulty ?? session.difficulty,
+        priority: payload.priority ?? session.priority,
+        tags: payload.tags ?? session.tags,
+        notes: payload.notes ?? session.notes,
+        status: payload.status ?? session.status,
+        startedAt: payload.startedAt !== undefined ? payload.startedAt : session.startedAt,
+        completedAt:
+          payload.completedAt !== undefined ? payload.completedAt : session.completedAt,
+      };
+
+      upsertSessionInCache(displaySession);
+      if (activeTimerState?.session._id === displaySession._id) {
         setActiveTimerState((current) =>
           current
             ? {
                 ...current,
-                session: { ...current.session, ...session },
+                session: { ...current.session, ...displaySession },
               }
             : current,
         );
@@ -1020,7 +1120,7 @@ export default function LearningHub() {
     setParentControlsDraft(null);
   };
 
-  const updateFilterField = (field: "status" | "subject" | "learnerMode" | "studyDate" | "fromDate" | "toDate", value: string) => {
+  const updateFilterField = (field: "status" | "subject" | "learnerMode" | "studyDate" | "fromDate" | "toDate" | "limit", value: string | number) => {
     setFilters((current) => ({ ...current, [field]: value, page: 1 }));
   };
 
@@ -1276,22 +1376,44 @@ export default function LearningHub() {
   const selectedMode = learnerModes.find((mode) => mode.value === learnerMode) ?? learnerModes[0];
   const startableSessions = useMemo(
     () =>
-      sessions.filter(
+      todayTimerSessions.filter(
         (session) =>
           session.status !== "completed" &&
           session.status !== "cancelled" &&
+          session.status !== "active" &&
           session.plannedMinutes > (session.actualMinutes || 0),
       ),
-    [sessions],
+    [todayTimerSessions],
+  );
+  const editingSession = useMemo(
+    () => sessions.find((session) => session._id === editingSessionId) ?? null,
+    [editingSessionId, sessions],
   );
   const selectedTimerSession =
     startableSessions.find((session) => session._id === timerSessionId) ??
     startableSessions.find((session) => session._id === selectedSession?._id) ??
     startableSessions[0] ??
     null;
+  const subjectMixMonthLabel = useMemo(() => {
+    const [year, month] = subjectMixMonth.split("-").map(Number);
+    if (!year || !month) return subjectMixMonth;
+
+    return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
+  }, [subjectMixMonth]);
   const chartData = useMemo(() => {
     const bySubject = new Map<string, number>();
     sessions.forEach((session) => {
+      const sessionDate = (
+        session.completedAt ??
+        session.studyDate ??
+        session.date ??
+        ""
+      ).slice(0, 10);
+      if (!sessionDate.startsWith(subjectMixMonth)) return;
+
       const subject = session.subject?.trim() || "Learning";
       const minutes = session.actualMinutes || session.plannedMinutes || 0;
       bySubject.set(subject, (bySubject.get(subject) ?? 0) + minutes);
@@ -1300,12 +1422,8 @@ export default function LearningHub() {
       name,
       totalMinutes,
     }));
-    if (localData.length > 0) return localData;
-    return summary.topSubjects.map((subject) => ({
-      name: subject._id?.trim() || "Learning",
-      totalMinutes: subject.totalMinutes,
-    }));
-  }, [sessions, summary.topSubjects]);
+    return localData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+  }, [sessions, subjectMixMonth]);
   const goalProgress = Math.min(100, Math.round((summary.todayMinutes / Math.max(1, Number(dailyGoal))) * 100));
   const nextSessionMessage =
     summary.todayMinutes >= Number(dailyGoal)
@@ -1357,9 +1475,26 @@ export default function LearningHub() {
     notes: form.notes,
   });
 
+  const buildUpdatePayload = () => {
+    const payload = buildPayload();
+    if (!editingSession) return payload;
+
+    const originalDate = (editingSession.studyDate ?? editingSession.date ?? "").slice(0, 10);
+    const dateChanged = Boolean(form.date) && !sameDateValue(form.date, originalDate);
+    if (!dateChanged || editingSession.status === "active") return payload;
+
+    return {
+      ...payload,
+      status: "planned" as LearningSessionStatus,
+      actualMinutes: 0,
+      startedAt: null,
+      completedAt: null,
+    };
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const payload = buildPayload();
+    const payload = editingSessionId ? buildUpdatePayload() : buildPayload();
     const result = editingSessionId
       ? await updateSession(editingSessionId, payload)
       : await createSession(payload);
@@ -1376,6 +1511,23 @@ export default function LearningHub() {
     requestAnimationFrame(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  };
+
+  const handleReuse = (session: LearningSession) => {
+    setEditingSessionId(null);
+    setSelectedSession(session);
+    setDetailsSession(null);
+    setSelectedTemplate("");
+    setErrors({});
+    setLearnerMode(session.learnerMode ?? learnerMode);
+    setForm({
+      ...sessionToForm(session),
+      date: getToday(),
+    });
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    toast.success("Session copied into the form. Review it, then create.");
   };
 
   const handleCompleteSession = async (session: LearningSession) => {
@@ -1625,7 +1777,7 @@ export default function LearningHub() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
+        <section className="grid items-start gap-5 xl:grid-cols-[1.02fr_0.98fr]">
           <div ref={formRef} className={panelClass}>
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
@@ -1677,7 +1829,7 @@ export default function LearningHub() {
                     <input className={inputClass} type="number" min="1" value={form.plannedMinutes} onChange={(e) => patchForm({ plannedMinutes: e.target.value })} />
                   </Field>
                   <Field label="Study date" error={errors.date}>
-                    <input className={inputClass} type="date" value={form.date} onChange={(e) => patchForm({ date: e.target.value })} />
+                    <SmartDatePicker value={form.date} onChange={(value) => patchForm({ date: value })} />
                   </Field>
                 </div>
 
@@ -1778,7 +1930,7 @@ export default function LearningHub() {
                   disabled={Boolean(activeTimer) || startableSessions.length === 0}
                 >
                   {startableSessions.length === 0 ? (
-                    <option value="">No incomplete sessions available</option>
+                    <option value="">No planned sessions for today</option>
                   ) : null}
                   {startableSessions.map((session) => (
                     <option key={session._id} value={session._id}>
@@ -1789,8 +1941,10 @@ export default function LearningHub() {
               </label>
 
               <div className="flex items-center justify-center">
-                <div className="flex h-56 w-56 items-center justify-center rounded-full border-[16px] border-cyan-500/70 bg-white text-center text-5xl font-black text-slate-950 shadow-[inset_0_20px_60px_rgba(15,23,42,0.08)] dark:bg-slate-900 dark:text-white">
+                <div className="flex aspect-square w-full max-w-[13.5rem] items-center justify-center rounded-full border-[14px] border-cyan-500/70 bg-white px-3 text-center shadow-[inset_0_20px_60px_rgba(15,23,42,0.08)] dark:bg-slate-900 sm:max-w-[14.5rem]">
+                  <span className="block max-w-full text-[clamp(1.65rem,5.8vw,2.55rem)] font-black leading-none text-slate-950 dark:text-white">
                   {formatCountdown(displayTimerSeconds)}
+                  </span>
                 </div>
               </div>
 
@@ -1922,7 +2076,20 @@ export default function LearningHub() {
                 <h2 className="mt-2 text-2xl font-black">Your study blocks</h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Open a card for details, notes, and full session metadata.</p>
               </div>
-              <form onSubmit={handleApplyFilters} className="grid gap-2 sm:grid-cols-[160px_minmax(160px,1fr)_auto] xl:min-w-[440px]">
+              <form onSubmit={handleApplyFilters} className="grid gap-2 sm:grid-cols-2 xl:min-w-[640px] xl:grid-cols-[150px_150px_minmax(160px,1fr)_110px_auto]">
+                <select
+                  className={inputClass}
+                  value={filters.studyDate ? "today" : "all"}
+                  onChange={(e) =>
+                    updateFilterField(
+                      "studyDate",
+                      e.target.value === "today" ? getToday() : "",
+                    )
+                  }
+                >
+                  <option value="today">Today</option>
+                  <option value="all">All dates</option>
+                </select>
                 <select className={inputClass} value={filters.status} onChange={(e) => updateFilterField("status", e.target.value)}>
                   <option value="">All statuses</option>
                   <option value="planned">Planned</option>
@@ -1934,8 +2101,18 @@ export default function LearningHub() {
                 <datalist id="learning-filter-subjects">
                   {subjectOptions.map((subject) => <option key={subject} value={subject} />)}
                 </datalist>
-                <button type="submit" disabled={sessionsLoading} className={secondaryButton}>
-                  {sessionsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                <select
+                  className={inputClass}
+                  value={filters.limit ?? 6}
+                  onChange={(e) => updateFilterField("limit", Number(e.target.value))}
+                >
+                  <option value={4}>4 / page</option>
+                  <option value={6}>6 / page</option>
+                  <option value={8}>8 / page</option>
+                  <option value={10}>10 / page</option>
+                </select>
+                <button type="submit" disabled={sessionsFetching} className={secondaryButton}>
+                  {sessionsFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   Apply
                 </button>
               </form>
@@ -1946,9 +2123,9 @@ export default function LearningHub() {
                 <div className="space-y-3 p-5">
                   {Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-xl bg-slate-50 dark:bg-slate-800" />)}
                 </div>
-              ) : sessions.length > 0 ? (
+              ) : pagedSessions.length > 0 ? (
                 <div className="grid gap-3 xl:grid-cols-2">
-                  {sessions.map((session) => (
+                  {pagedSessions.map((session) => (
                     <SessionQueueCard
                       key={session._id}
                       session={session}
@@ -1959,6 +2136,7 @@ export default function LearningHub() {
                       onPause={() => void pauseSessionTimer()}
                       onResume={() => { setSelectedSession(session); void startSessionTimer(session); }}
                       onEdit={() => handleEdit(session)}
+                      onReuse={() => handleReuse(session)}
                       onComplete={() => void handleCompleteSession(session)}
                       onReschedule={() => openRescheduleModal(session)}
                       onCancel={() => void lifecycleMutation.mutateAsync({ action: "cancel", session })}
@@ -1971,8 +2149,8 @@ export default function LearningHub() {
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                     <BookOpen className="h-7 w-7" />
                   </div>
-                  <h3 className="mt-4 text-lg font-black">No learning sessions yet</h3>
-                  <p className="mx-auto mt-2 max-w-md text-sm font-medium text-slate-500 dark:text-slate-400">Create your first study block. Start with 10 minutes if you are new.</p>
+                  <h3 className="mt-4 text-lg font-black">No learning sessions found</h3>
+                  <p className="mx-auto mt-2 max-w-md text-sm font-medium text-slate-500 dark:text-slate-400">Today is selected by default. Switch to All dates to browse every study block.</p>
                   <button type="button" onClick={() => void createSampleSession()} className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-black text-slate-950">
                     <Plus className="h-4 w-4" />
                     Create sample session
@@ -1982,26 +2160,38 @@ export default function LearningHub() {
             </div>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Page {visiblePagination.page} of {visiblePagination.totalPages} | {visiblePagination.total} total sessions</p>
+              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Page {visiblePagination.page} of {visiblePagination.totalPages} | {visiblePagination.total} total sessions{sessionsFetching ? " | Updating..." : ""}</p>
               <div className="grid grid-cols-2 gap-2 sm:flex">
-                <button type="button" onClick={() => void goToPage(Math.max(1, visiblePagination.page - 1))} disabled={visiblePagination.page <= 1 || sessionsLoading} className={secondaryButton}>Previous</button>
-                <button type="button" onClick={() => void goToPage(Math.min(visiblePagination.totalPages, visiblePagination.page + 1))} disabled={visiblePagination.page >= visiblePagination.totalPages || sessionsLoading} className={secondaryButton}>Next</button>
+                <button type="button" onClick={() => void goToPage(Math.max(1, visiblePagination.page - 1))} disabled={visiblePagination.page <= 1 || sessionsFetching} className={secondaryButton}>Previous</button>
+                <button type="button" onClick={() => void goToPage(Math.min(visiblePagination.totalPages, visiblePagination.page + 1))} disabled={visiblePagination.page >= visiblePagination.totalPages || sessionsFetching} className={secondaryButton}>Next</button>
               </div>
             </div>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)]">
             <div className={panelClass}>
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-500 dark:text-cyan-300">Subject Mix</p>
-              <h2 className="mt-2 text-2xl font-black">Where your learning time goes</h2>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-cyan-500 dark:text-cyan-300">Subject Mix</p>
+                  <h2 className="mt-2 text-2xl font-black">Where your learning time goes</h2>
+                  <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">{subjectMixMonthLabel}</p>
+                </div>
+                <SmartDatePicker
+                  className="sm:w-56"
+                  buttonClassName="rounded-xl"
+                  mode="month"
+                  value={subjectMixMonth}
+                  onChange={setSubjectMixMonth}
+                />
+              </div>
               <div className="mt-6 h-72 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.22)" />
                       <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }} />
-                      <Tooltip cursor={{ fill: "rgba(148, 163, 184, 0.08)" }} contentStyle={{ borderRadius: 16, border: "1px solid rgba(148,163,184,0.16)", background: "#0f172a", color: "#fff" }} />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fill: "#94a3b8", fontSize: 12, fontWeight: 700 }} tickFormatter={(value) => `${value}m`} />
+                      <Tooltip cursor={{ fill: "rgba(148, 163, 184, 0.08)" }} formatter={(value) => [`${formatMinutes(Number(value))} min`, "Study time"]} contentStyle={{ borderRadius: 16, border: "1px solid rgba(148,163,184,0.16)", background: "#0f172a", color: "#fff" }} />
                       <Bar dataKey="totalMinutes" radius={[12, 12, 4, 4]}>
                         {chartData.map((item, index) => <Cell key={item.name} fill={subjectChartColors[index % subjectChartColors.length]} />)}
                       </Bar>
@@ -2011,7 +2201,7 @@ export default function LearningHub() {
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <BookOpen className="h-8 w-8 text-slate-400" />
                     <h3 className="mt-3 text-lg font-black">No subject data yet</h3>
-                    <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">Complete sessions to see where your learning time goes.</p>
+                    <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">No sessions found for {subjectMixMonthLabel}.</p>
                   </div>
                 )}
               </div>
@@ -2040,7 +2230,12 @@ export default function LearningHub() {
       </div>
 
       {detailsSession ? (
-        <SessionDetailsModal session={detailsSession} onClose={() => setDetailsSession(null)} onEdit={handleEdit} />
+        <SessionDetailsModal
+          session={detailsSession}
+          onClose={() => setDetailsSession(null)}
+          onEdit={handleEdit}
+          onReuse={handleReuse}
+        />
       ) : null}
       {completeTarget ? (
         <CompleteSessionModal
@@ -2174,6 +2369,7 @@ function SessionQueueCard({
   onPause,
   onResume,
   onEdit,
+  onReuse,
   onComplete,
   onReschedule,
   onCancel,
@@ -2187,6 +2383,7 @@ function SessionQueueCard({
   onPause: () => void;
   onResume: () => void;
   onEdit: () => void;
+  onReuse: () => void;
   onComplete: () => void;
   onReschedule: () => void;
   onCancel: () => void;
@@ -2235,6 +2432,7 @@ function SessionQueueCard({
             <CommandButton label="Start" onClick={onStart} disabled={Boolean(activeTimer)} icon={<Play className="h-4 w-4" />} primary />
           ) : null}
           <CommandButton label="Edit" onClick={onEdit} icon={<PencilLine className="h-4 w-4" />} />
+          <CommandButton label="Reuse" onClick={onReuse} icon={<RefreshCcw className="h-4 w-4" />} showLabel />
           <CommandButton label="Complete" onClick={onComplete} disabled={isDone} icon={<CheckCircle2 className="h-4 w-4" />} />
           <CommandButton label="Move" onClick={onReschedule} disabled={isLocked} icon={<CalendarClock className="h-4 w-4" />} showLabel />
           <CommandButton label="Cancel" onClick={onCancel} disabled={isLocked} icon={<X className="h-4 w-4" />} />
@@ -2376,7 +2574,7 @@ function RescheduleSessionModal({
         </div>
         <label className="mt-5 block space-y-2">
           <span className="text-sm font-bold text-slate-600 dark:text-slate-300">New study date</span>
-          <input className={inputClass} type="date" value={studyDate} onChange={(event) => setStudyDate(event.target.value)} />
+          <SmartDatePicker value={studyDate} onChange={setStudyDate} />
         </label>
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={onClose} className={secondaryButton}>Cancel</button>
@@ -2441,10 +2639,12 @@ function SessionDetailsModal({
   session,
   onClose,
   onEdit,
+  onReuse,
 }: {
   session: LearningSession;
   onClose: () => void;
   onEdit: (session: LearningSession) => void;
+  onReuse: (session: LearningSession) => void;
 }) {
   const rows = [
     ["Title", session.title],
@@ -2492,6 +2692,10 @@ function SessionDetailsModal({
           <button type="button" onClick={() => onEdit(session)} className={secondaryButton}>
             <PencilLine className="h-4 w-4" />
             Edit session
+          </button>
+          <button type="button" onClick={() => onReuse(session)} className={secondaryButton}>
+            <RefreshCcw className="h-4 w-4" />
+            Reuse session
           </button>
           <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-black text-slate-950">
             Close

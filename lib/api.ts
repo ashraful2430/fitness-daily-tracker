@@ -85,6 +85,7 @@ type ApiEnvelope<T> = {
   user?: T;
   message?: string;
   field?: string;
+  errors?: unknown[];
 };
 
 type PaginatedApiEnvelope<T> = ApiEnvelope<T> & {
@@ -190,6 +191,16 @@ function getPayload<T>(body: unknown): T {
   return body as T;
 }
 
+function getApiErrorMessage<T>(body: ApiEnvelope<T> | null) {
+  const firstError = Array.isArray(body?.errors) ? body.errors[0] : null;
+  if (typeof firstError === "string") return firstError;
+  if (firstError && typeof firstError === "object" && "message" in firstError) {
+    const message = (firstError as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return body?.message || "Something went wrong";
+}
+
 async function apiRequest<T = unknown>(
   endpoint: string,
   options: ApiOptions = {},
@@ -232,7 +243,7 @@ async function apiRequest<T = unknown>(
     .catch(() => null)) as ApiEnvelope<T> | null;
 
   if (!response.ok) {
-    const message = body?.message || "Something went wrong";
+    const message = getApiErrorMessage(body);
 
     if (response.status === 401 && requireAuth) {
       emitUnauthorized();

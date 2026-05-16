@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try {
     await connectDB();
 
-    const { name, email, password } = await req.json();
+    const { name, email, password, gender, occupation } = await req.json();
 
     if (!name || !email || !password) {
       return NextResponse.json(
@@ -35,6 +35,8 @@ export async function POST(req: Request) {
       name,
       email,
       password: hashedPassword,
+      gender: typeof gender === "string" ? gender.trim() : "",
+      occupation: typeof occupation === "string" ? occupation.trim() : "",
       loginStreak: 1,
       longestLoginStreak: 1,
       lastLoginDate: now,
@@ -50,6 +52,8 @@ export async function POST(req: Request) {
         name: user.name,
         email: user.email,
         role: user.role,
+        gender: user.gender ?? "",
+        occupation: user.occupation ?? "",
         loginStreak: user.loginStreak ?? 0,
         longestLoginStreak: user.longestLoginStreak ?? 0,
         lastLoginDate: user.lastLoginDate ?? null,

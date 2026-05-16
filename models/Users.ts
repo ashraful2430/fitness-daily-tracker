@@ -24,6 +24,16 @@ const UserSchema = new Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+    gender: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    occupation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     loginStreak: {
       type: Number,
       default: 0,

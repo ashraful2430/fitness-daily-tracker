@@ -74,6 +74,8 @@ export async function POST(req: Request) {
         name: user.name,
         email: user.email,
         role: user.role,
+        gender: user.gender ?? "",
+        occupation: user.occupation ?? "",
         loginStreak: user.loginStreak ?? 0,
         longestLoginStreak: user.longestLoginStreak ?? 0,
         lastLoginDate: user.lastLoginDate ?? null,

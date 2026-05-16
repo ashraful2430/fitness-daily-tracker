@@ -724,12 +724,12 @@ export function useMoneyDashboard() {
       try {
         setBalanceSaving(true);
         setError(null);
-        await moneyAPI.addBalanceSource({
+        const source = await moneyAPI.addBalanceSource({
           type,
           amount: Number(amount),
         });
         await refreshAfterMutation();
-        return { ok: true as const, errors: {} };
+        return { ok: true as const, errors: {}, source };
       } catch (error: unknown) {
         handleError(error, "Failed to add balance source", true);
         return { ok: false as const, errors: getFieldErrors(error) };
@@ -762,12 +762,12 @@ export function useMoneyDashboard() {
       try {
         setBalanceSaving(true);
         setError(null);
-        await moneyAPI.updateBalanceSource(id, {
+        const source = await moneyAPI.updateBalanceSource(id, {
           type,
           amount: Number(amount),
         });
         await refreshAfterMutation();
-        return { ok: true as const, errors: {} };
+        return { ok: true as const, errors: {}, source };
       } catch (error: unknown) {
         handleError(error, "Failed to update balance source", true);
         return { ok: false as const, errors: getFieldErrors(error) };
