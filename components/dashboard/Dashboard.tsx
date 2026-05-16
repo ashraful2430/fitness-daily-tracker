@@ -28,6 +28,7 @@ import {
 } from "recharts";
 import DashboardSkeleton from "./DashboardSkeleton";
 import { useDashboard } from "@/hooks/useDashboard";
+import SmartDatePicker from "@/components/ui/SmartDatePicker";
 import type { TrendDirection } from "@/types/dashboard";
 import {
   detectCurrencyCode,
@@ -163,7 +164,6 @@ export default function Dashboard() {
     dashboard,
     monthlyOverview,
     monthlyHistory,
-    monthOptions,
     selectedMonth,
     setSelectedMonth,
     weeklyInsight,
@@ -562,17 +562,15 @@ export default function Dashboard() {
             <p className="text-lg font-black text-slate-900 dark:text-white">Monthly Overview</p>
             <p className="text-sm text-slate-500">{monthlyOverview.selectedMonth.label}</p>
           </div>
-          <select
+          <SmartDatePicker
             value={selectedMonth}
-            onChange={(e) => {
-              void setSelectedMonth(e.target.value);
+            mode="month"
+            onChange={(value) => {
+              void setSelectedMonth(value);
             }}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-cyan-400 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-          >
-            {monthOptions.map((month) => (
-              <option key={month.value} value={month.value}>{month.label}</option>
-            ))}
-          </select>
+            className="w-full sm:w-64"
+            buttonClassName="rounded-xl py-2"
+          />
         </div>
 
         {overviewLoading ? (

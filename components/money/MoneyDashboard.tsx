@@ -5,7 +5,6 @@ import {
   Banknote,
   Calendar,
   CalendarRange,
-  ChevronDown,
   Coins,
   CreditCard,
   Eye,
@@ -36,6 +35,7 @@ import {
 } from "recharts";
 import { useMoneyDashboard } from "@/hooks/useMoneyDashboard";
 import PremiumModal from "@/components/ui/PremiumModal";
+import SmartDatePicker from "@/components/ui/SmartDatePicker";
 import type { BalanceSource, MoneyExpense } from "@/types/money";
 import {
   detectCurrencyCode,
@@ -137,25 +137,6 @@ function emptyExpenseForm(defaultCategory = ""): ExpenseFormState {
     category: defaultCategory,
     date: getToday(),
   };
-}
-
-function generateMonthOptions() {
-  const options: { value: string; label: string }[] = [];
-  const now = new Date();
-
-  for (let i = 0; i < 24; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
-    const value = `${year}-${String(month).padStart(2, "0")}`;
-    const label =
-      i === 0
-        ? `${d.toLocaleDateString("en-US", { month: "long", year: "numeric" })} (Current)`
-        : d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-    options.push({ value, label });
-  }
-
-  return options;
 }
 
 function getMonthlyTotalForMonth(
@@ -342,7 +323,6 @@ export default function MoneyDashboard() {
     balanceTotal,
     monthlyExpenseSummary,
     monthlyIncome,
-    monthlyIncomeHistory,
     summary,
     insights,
     categories,
@@ -466,16 +446,6 @@ export default function MoneyDashboard() {
       })),
     [effectiveTopCategories],
   );
-
-  const monthOptions = useMemo(() => {
-    if (monthlyIncomeHistory.length > 0) {
-      return monthlyIncomeHistory.map((item) => ({
-        value: `${item.year}-${String(item.month).padStart(2, "0")}`,
-        label: item.label,
-      }));
-    }
-    return generateMonthOptions();
-  }, [monthlyIncomeHistory]);
 
   const selectedMonthLabel = useMemo(() => {
     const [yearStr, monthStr] = selectedMonth.split("-");
@@ -1055,20 +1025,13 @@ export default function MoneyDashboard() {
                 </div>
               )}
 
-              <div className="relative">
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => void changeSelectedMonth(e.target.value)}
-                  className="w-full appearance-none rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-10 text-sm font-bold text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 dark:border-white/[0.08] dark:bg-slate-950/90 dark:text-slate-100 sm:w-auto"
-                >
-                  {monthOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              </div>
+              <SmartDatePicker
+                value={selectedMonth}
+                mode="month"
+                onChange={(value) => void changeSelectedMonth(value)}
+                className="sm:w-64"
+                accentClassName="text-emerald-600 dark:text-emerald-300"
+              />
             </div>
           </div>
         </section>

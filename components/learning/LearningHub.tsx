@@ -11,8 +11,6 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Clock3,
   GraduationCap,
   Loader2,
@@ -72,6 +70,7 @@ import {
 } from "@/lib/learningApi";
 import { useAuth } from "@/hooks/useAuth";
 import { emitFeedbackEffect } from "@/lib/feedbackEvents";
+import SmartDatePicker from "@/components/ui/SmartDatePicker";
 import type {
   LearnerMode,
   LearningDifficulty,
@@ -218,24 +217,6 @@ function getCurrentMonthKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function generateMonthOptions() {
-  const options: { value: string; label: string }[] = [];
-  const now = new Date();
-
-  for (let i = 0; i < 24; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const label = date.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric",
-    });
-
-    options.push({ value, label: i === 0 ? `${label} (Current)` : label });
-  }
-
-  return options;
-}
-
 function formatMinutes(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 }
@@ -289,27 +270,6 @@ function sessionToForm(session: LearningSession): SessionFormState {
     tags: session.tags?.join(", ") ?? "",
     notes: session.notes ?? "",
   };
-}
-
-function parseDateValue(value: string) {
-  if (!value) return null;
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-
-  const parsed = new Date(year, month - 1, day);
-  if (
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return parsed;
-}
-
-function addMonths(date: Date, amount: number) {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
 }
 
 function sameDateValue(a: string, b: string) {
@@ -1434,10 +1394,15 @@ export default function LearningHub() {
     startableSessions.find((session) => session._id === selectedSession?._id) ??
     startableSessions[0] ??
     null;
-  const subjectMixMonthOptions = useMemo(() => generateMonthOptions(), []);
-  const subjectMixMonthLabel =
-    subjectMixMonthOptions.find((option) => option.value === subjectMixMonth)?.label ??
-    subjectMixMonth;
+  const subjectMixMonthLabel = useMemo(() => {
+    const [year, month] = subjectMixMonth.split("-").map(Number);
+    if (!year || !month) return subjectMixMonth;
+
+    return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
+  }, [subjectMixMonth]);
   const chartData = useMemo(() => {
     const bySubject = new Map<string, number>();
     sessions.forEach((session) => {
@@ -1864,7 +1829,7 @@ export default function LearningHub() {
                     <input className={inputClass} type="number" min="1" value={form.plannedMinutes} onChange={(e) => patchForm({ plannedMinutes: e.target.value })} />
                   </Field>
                   <Field label="Study date" error={errors.date}>
-                    <DatePickerField value={form.date} onChange={(value) => patchForm({ date: value })} />
+                    <SmartDatePicker value={form.date} onChange={(value) => patchForm({ date: value })} />
                   </Field>
                 </div>
 
@@ -2211,17 +2176,13 @@ export default function LearningHub() {
                   <h2 className="mt-2 text-2xl font-black">Where your learning time goes</h2>
                   <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">{subjectMixMonthLabel}</p>
                 </div>
-                <select
-                  className={`${inputClass} sm:w-56`}
+                <SmartDatePicker
+                  className="sm:w-56"
+                  buttonClassName="rounded-xl"
+                  mode="month"
                   value={subjectMixMonth}
-                  onChange={(event) => setSubjectMixMonth(event.target.value)}
-                >
-                  {subjectMixMonthOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSubjectMixMonth}
+                />
               </div>
               <div className="mt-6 h-72 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60">
                 {chartData.length > 0 ? (
@@ -2364,134 +2325,6 @@ function SelectField({
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
     </label>
-  );
-}
-
-function DatePickerField({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selectedDate = parseDateValue(value) ?? new Date();
-  const [viewMonth, setViewMonth] = useState(
-    () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
-  );
-  const today = getToday();
-  const firstDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
-  const startOffset = firstDay.getDay();
-  const daysInMonth = new Date(
-    viewMonth.getFullYear(),
-    viewMonth.getMonth() + 1,
-    0,
-  ).getDate();
-  const cells = Array.from({ length: startOffset + daysInMonth }, (_, index) => {
-    const day = index - startOffset + 1;
-    return day > 0 ? day : null;
-  });
-
-  const selectDate = (day: number) => {
-    const next = toLocalDateInputValue(
-      new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day),
-    );
-    onChange(next);
-    setOpen(false);
-  };
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={`${inputClass} flex cursor-pointer items-center justify-between gap-3 text-left`}
-        aria-expanded={open}
-      >
-        <span>{value ? formatDate(value) : "Choose date"}</span>
-        <CalendarDays className="h-4 w-4 shrink-0 text-cyan-600 dark:text-cyan-300" />
-      </button>
-
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-full min-w-[18rem] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80 dark:border-cyan-300/10 dark:bg-[#07101e] dark:shadow-black/40">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setViewMonth((current) => addMonths(current, -1))}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-cyan-300/10 dark:text-cyan-200 dark:hover:bg-cyan-400/10"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <p className="text-sm font-black text-slate-900 dark:text-white">
-              {viewMonth.toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
-            <button
-              type="button"
-              onClick={() => setViewMonth((current) => addMonths(current, 1))}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-cyan-300/10 dark:text-cyan-200 dark:hover:bg-cyan-400/10"
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <span key={day}>{day}</span>
-            ))}
-          </div>
-          <div className="mt-2 grid grid-cols-7 gap-1">
-            {cells.map((day, index) => {
-              const dateValue = day
-                ? toLocalDateInputValue(
-                    new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day),
-                  )
-                : "";
-              const selected = dateValue === value;
-              const isToday = dateValue === today;
-
-              return day ? (
-                <button
-                  key={dateValue}
-                  type="button"
-                  onClick={() => selectDate(day)}
-                  className={`flex h-9 cursor-pointer items-center justify-center rounded-xl text-sm font-black transition ${
-                    selected
-                      ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 dark:bg-cyan-300 dark:text-slate-950"
-                      : isToday
-                        ? "border border-cyan-300 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 dark:border-cyan-300/35 dark:bg-cyan-400/10 dark:text-cyan-200"
-                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-cyan-400/10"
-                  }`}
-                >
-                  {day}
-                </button>
-              ) : (
-                <span key={`empty-${index}`} />
-              );
-            })}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                onChange(today);
-                setViewMonth(parseDateValue(today) ?? new Date());
-                setOpen(false);
-              }}
-              className={secondaryButton}
-            >
-              Today
-            </button>
-            <button type="button" onClick={() => setOpen(false)} className={secondaryButton}>
-              Close
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -2741,7 +2574,7 @@ function RescheduleSessionModal({
         </div>
         <label className="mt-5 block space-y-2">
           <span className="text-sm font-bold text-slate-600 dark:text-slate-300">New study date</span>
-          <DatePickerField value={studyDate} onChange={setStudyDate} />
+          <SmartDatePicker value={studyDate} onChange={setStudyDate} />
         </label>
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={onClose} className={secondaryButton}>Cancel</button>
