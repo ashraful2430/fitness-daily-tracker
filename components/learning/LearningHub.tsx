@@ -11,6 +11,8 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   GraduationCap,
   Loader2,
@@ -257,13 +259,38 @@ function sessionToForm(session: LearningSession): SessionFormState {
     subject: session.subject,
     goal: session.goal ?? "",
     plannedMinutes: String(session.plannedMinutes),
-    date: session.date.slice(0, 10),
+    date: (session.studyDate ?? session.date ?? getToday()).slice(0, 10),
     learningType: session.learningType ?? "reading",
     difficulty: session.difficulty ?? "medium",
     priority: session.priority ?? "medium",
     tags: session.tags?.join(", ") ?? "",
     notes: session.notes ?? "",
   };
+}
+
+function parseDateValue(value: string) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function sameDateValue(a: string, b: string) {
+  return a.slice(0, 10) === b.slice(0, 10);
 }
 
 function parseTags(value: string) {
@@ -722,14 +749,36 @@ export default function LearningHub() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateLearningSession>[1] }) =>
       updateLearningSession(id, payload),
-    onSuccess: async (session) => {
-      upsertSessionInCache(session);
-      if (activeTimerState?.session._id === session._id) {
+    onSuccess: async (session, variables) => {
+      const payload = variables.payload;
+      const displaySession: LearningSession = {
+        ...session,
+        title: payload.title ?? session.title,
+        subject: payload.subject ?? session.subject,
+        goal: payload.goal ?? session.goal,
+        plannedMinutes: payload.plannedMinutes ?? session.plannedMinutes,
+        actualMinutes: payload.actualMinutes ?? session.actualMinutes,
+        studyDate: payload.studyDate ?? session.studyDate,
+        date: payload.date ?? payload.studyDate ?? session.date,
+        learnerMode: payload.learnerMode ?? session.learnerMode,
+        learningType: payload.learningType ?? session.learningType,
+        difficulty: payload.difficulty ?? session.difficulty,
+        priority: payload.priority ?? session.priority,
+        tags: payload.tags ?? session.tags,
+        notes: payload.notes ?? session.notes,
+        status: payload.status ?? session.status,
+        startedAt: payload.startedAt !== undefined ? payload.startedAt : session.startedAt,
+        completedAt:
+          payload.completedAt !== undefined ? payload.completedAt : session.completedAt,
+      };
+
+      upsertSessionInCache(displaySession);
+      if (activeTimerState?.session._id === displaySession._id) {
         setActiveTimerState((current) =>
           current
             ? {
                 ...current,
-                session: { ...current.session, ...session },
+                session: { ...current.session, ...displaySession },
               }
             : current,
         );
@@ -1284,6 +1333,10 @@ export default function LearningHub() {
       ),
     [sessions],
   );
+  const editingSession = useMemo(
+    () => sessions.find((session) => session._id === editingSessionId) ?? null,
+    [editingSessionId, sessions],
+  );
   const selectedTimerSession =
     startableSessions.find((session) => session._id === timerSessionId) ??
     startableSessions.find((session) => session._id === selectedSession?._id) ??
@@ -1357,9 +1410,26 @@ export default function LearningHub() {
     notes: form.notes,
   });
 
+  const buildUpdatePayload = () => {
+    const payload = buildPayload();
+    if (!editingSession) return payload;
+
+    const originalDate = (editingSession.studyDate ?? editingSession.date ?? "").slice(0, 10);
+    const dateChanged = Boolean(form.date) && !sameDateValue(form.date, originalDate);
+    if (!dateChanged || editingSession.status === "active") return payload;
+
+    return {
+      ...payload,
+      status: "planned" as LearningSessionStatus,
+      actualMinutes: 0,
+      startedAt: null,
+      completedAt: null,
+    };
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const payload = buildPayload();
+    const payload = editingSessionId ? buildUpdatePayload() : buildPayload();
     const result = editingSessionId
       ? await updateSession(editingSessionId, payload)
       : await createSession(payload);
@@ -1376,6 +1446,23 @@ export default function LearningHub() {
     requestAnimationFrame(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  };
+
+  const handleReuse = (session: LearningSession) => {
+    setEditingSessionId(null);
+    setSelectedSession(session);
+    setDetailsSession(null);
+    setSelectedTemplate("");
+    setErrors({});
+    setLearnerMode(session.learnerMode ?? learnerMode);
+    setForm({
+      ...sessionToForm(session),
+      date: getToday(),
+    });
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    toast.success("Session copied into the form. Review it, then create.");
   };
 
   const handleCompleteSession = async (session: LearningSession) => {
@@ -1677,7 +1764,7 @@ export default function LearningHub() {
                     <input className={inputClass} type="number" min="1" value={form.plannedMinutes} onChange={(e) => patchForm({ plannedMinutes: e.target.value })} />
                   </Field>
                   <Field label="Study date" error={errors.date}>
-                    <input className={inputClass} type="date" value={form.date} onChange={(e) => patchForm({ date: e.target.value })} />
+                    <DatePickerField value={form.date} onChange={(value) => patchForm({ date: value })} />
                   </Field>
                 </div>
 
@@ -1959,6 +2046,7 @@ export default function LearningHub() {
                       onPause={() => void pauseSessionTimer()}
                       onResume={() => { setSelectedSession(session); void startSessionTimer(session); }}
                       onEdit={() => handleEdit(session)}
+                      onReuse={() => handleReuse(session)}
                       onComplete={() => void handleCompleteSession(session)}
                       onReschedule={() => openRescheduleModal(session)}
                       onCancel={() => void lifecycleMutation.mutateAsync({ action: "cancel", session })}
@@ -2040,7 +2128,12 @@ export default function LearningHub() {
       </div>
 
       {detailsSession ? (
-        <SessionDetailsModal session={detailsSession} onClose={() => setDetailsSession(null)} onEdit={handleEdit} />
+        <SessionDetailsModal
+          session={detailsSession}
+          onClose={() => setDetailsSession(null)}
+          onEdit={handleEdit}
+          onReuse={handleReuse}
+        />
       ) : null}
       {completeTarget ? (
         <CompleteSessionModal
@@ -2133,6 +2226,134 @@ function SelectField({
   );
 }
 
+function DatePickerField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedDate = parseDateValue(value) ?? new Date();
+  const [viewMonth, setViewMonth] = useState(
+    () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
+  );
+  const today = getToday();
+  const firstDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+  const startOffset = firstDay.getDay();
+  const daysInMonth = new Date(
+    viewMonth.getFullYear(),
+    viewMonth.getMonth() + 1,
+    0,
+  ).getDate();
+  const cells = Array.from({ length: startOffset + daysInMonth }, (_, index) => {
+    const day = index - startOffset + 1;
+    return day > 0 ? day : null;
+  });
+
+  const selectDate = (day: number) => {
+    const next = toLocalDateInputValue(
+      new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day),
+    );
+    onChange(next);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={`${inputClass} flex cursor-pointer items-center justify-between gap-3 text-left`}
+        aria-expanded={open}
+      >
+        <span>{value ? formatDate(value) : "Choose date"}</span>
+        <CalendarDays className="h-4 w-4 shrink-0 text-cyan-600 dark:text-cyan-300" />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-full min-w-[18rem] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80 dark:border-cyan-300/10 dark:bg-[#07101e] dark:shadow-black/40">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMonth((current) => addMonths(current, -1))}
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-cyan-300/10 dark:text-cyan-200 dark:hover:bg-cyan-400/10"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <p className="text-sm font-black text-slate-900 dark:text-white">
+              {viewMonth.toLocaleDateString("en-US", {
+                month: "long",
+                year: "numeric",
+              })}
+            </p>
+            <button
+              type="button"
+              onClick={() => setViewMonth((current) => addMonths(current, 1))}
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-100 dark:border-cyan-300/10 dark:text-cyan-200 dark:hover:bg-cyan-400/10"
+              aria-label="Next month"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
+          <div className="mt-2 grid grid-cols-7 gap-1">
+            {cells.map((day, index) => {
+              const dateValue = day
+                ? toLocalDateInputValue(
+                    new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day),
+                  )
+                : "";
+              const selected = dateValue === value;
+              const isToday = dateValue === today;
+
+              return day ? (
+                <button
+                  key={dateValue}
+                  type="button"
+                  onClick={() => selectDate(day)}
+                  className={`flex h-9 cursor-pointer items-center justify-center rounded-xl text-sm font-black transition ${
+                    selected
+                      ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 dark:bg-cyan-300 dark:text-slate-950"
+                      : isToday
+                        ? "border border-cyan-300 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 dark:border-cyan-300/35 dark:bg-cyan-400/10 dark:text-cyan-200"
+                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-cyan-400/10"
+                  }`}
+                >
+                  {day}
+                </button>
+              ) : (
+                <span key={`empty-${index}`} />
+              );
+            })}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onChange(today);
+                setViewMonth(parseDateValue(today) ?? new Date());
+                setOpen(false);
+              }}
+              className={secondaryButton}
+            >
+              Today
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className={secondaryButton}>
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ChildControls({
   controls,
   setControls,
@@ -2174,6 +2395,7 @@ function SessionQueueCard({
   onPause,
   onResume,
   onEdit,
+  onReuse,
   onComplete,
   onReschedule,
   onCancel,
@@ -2187,6 +2409,7 @@ function SessionQueueCard({
   onPause: () => void;
   onResume: () => void;
   onEdit: () => void;
+  onReuse: () => void;
   onComplete: () => void;
   onReschedule: () => void;
   onCancel: () => void;
@@ -2235,6 +2458,7 @@ function SessionQueueCard({
             <CommandButton label="Start" onClick={onStart} disabled={Boolean(activeTimer)} icon={<Play className="h-4 w-4" />} primary />
           ) : null}
           <CommandButton label="Edit" onClick={onEdit} icon={<PencilLine className="h-4 w-4" />} />
+          <CommandButton label="Reuse" onClick={onReuse} icon={<RefreshCcw className="h-4 w-4" />} showLabel />
           <CommandButton label="Complete" onClick={onComplete} disabled={isDone} icon={<CheckCircle2 className="h-4 w-4" />} />
           <CommandButton label="Move" onClick={onReschedule} disabled={isLocked} icon={<CalendarClock className="h-4 w-4" />} showLabel />
           <CommandButton label="Cancel" onClick={onCancel} disabled={isLocked} icon={<X className="h-4 w-4" />} />
@@ -2376,7 +2600,7 @@ function RescheduleSessionModal({
         </div>
         <label className="mt-5 block space-y-2">
           <span className="text-sm font-bold text-slate-600 dark:text-slate-300">New study date</span>
-          <input className={inputClass} type="date" value={studyDate} onChange={(event) => setStudyDate(event.target.value)} />
+          <DatePickerField value={studyDate} onChange={setStudyDate} />
         </label>
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button type="button" onClick={onClose} className={secondaryButton}>Cancel</button>
@@ -2441,10 +2665,12 @@ function SessionDetailsModal({
   session,
   onClose,
   onEdit,
+  onReuse,
 }: {
   session: LearningSession;
   onClose: () => void;
   onEdit: (session: LearningSession) => void;
+  onReuse: (session: LearningSession) => void;
 }) {
   const rows = [
     ["Title", session.title],
@@ -2492,6 +2718,10 @@ function SessionDetailsModal({
           <button type="button" onClick={() => onEdit(session)} className={secondaryButton}>
             <PencilLine className="h-4 w-4" />
             Edit session
+          </button>
+          <button type="button" onClick={() => onReuse(session)} className={secondaryButton}>
+            <RefreshCcw className="h-4 w-4" />
+            Reuse session
           </button>
           <button type="button" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-black text-slate-950">
             Close
