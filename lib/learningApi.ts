@@ -15,7 +15,7 @@ import type {
 } from "@/types/learning";
 import { emitFeedbackEffect } from "@/lib/feedbackEvents";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API_BASE_URL = "";
 const LEARNING_BASE = "/api/learning";
 
 type RequestOptions = RequestInit & { silent?: boolean; feedbackEventKey?: string };

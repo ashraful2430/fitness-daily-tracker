@@ -67,7 +67,7 @@ import toast from "react-hot-toast";
 // Empty string → relative URLs → all requests go to the same Next.js app.
 // Money/learning/score-sections routes are proxied to the external backend
 // via next.config.ts rewrites (server-side, no CORS).
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API_BASE_URL = "";
 
 export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 export const AUTH_FORBIDDEN_EVENT = "auth:forbidden";

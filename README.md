@@ -29,7 +29,7 @@ The app is designed for personal use: compact, fast, friendly, and a little sava
 - Lending workflows for people you lend to or borrow from.
 - Learning dashboard for tracking study sessions and progress.
 - Fitness, habits, focus, reports, categories, settings, and admin screens.
-- Authentication flow with local app session handling.
+- Authentication flow backed by the external API through frontend proxy routes.
 - Backend-powered success and error messages with friendly product copy.
 - Paginated list handling and client-side caching for read-heavy screens.
 - Responsive dashboard UI for desktop and mobile.
@@ -46,7 +46,6 @@ The app is designed for personal use: compact, fast, friendly, and a little sava
 | Charts         | Recharts                 |
 | Notifications  | React Hot Toast          |
 | Language       | TypeScript               |
-| Auth utilities | JSON Web Token, bcryptjs |
 | Data proxy     | Next.js route handlers   |
 
 ## Project Structure
@@ -60,7 +59,7 @@ The app is designed for personal use: compact, fast, friendly, and a little sava
 |   +-- page.tsx          # Public entry page
 +-- components/           # Feature and shared UI components
 +-- hooks/                # Data and state hooks used by dashboard modules
-+-- lib/                  # API client, auth helpers, proxy, database helpers
++-- lib/                  # API clients and proxy helpers
 +-- types/                # Shared TypeScript types
 +-- public/               # Static assets
 +-- package.json          # Scripts and dependencies
@@ -82,7 +81,13 @@ npm install
 
 ### Run Locally With a Local Backend
 
-The default development command points the proxy to a backend running on port `5000`.
+Create `.env.local` with the local backend URL:
+
+```env
+EXTERNAL_API_URL=http://127.0.0.1:5000
+```
+
+Then start the frontend:
 
 ```bash
 npm run dev
@@ -100,27 +105,19 @@ http://localhost:3000
 npm run prod
 ```
 
-This starts the Next.js development server while pointing `EXTERNAL_API_URL` to the deployed backend configured in `package.json`.
+This starts the Next.js development server while pointing `EXTERNAL_API_URL` to the EC2 backend URL configured in `package.json`.
 
 ## Environment Variables
 
-Create a `.env.local` file when you need to override defaults.
+Frontend environment files should only contain frontend-safe values. The backend owns MongoDB, JWT, auth cookies, and protected API logic.
 
 ```env
-EXTERNAL_API_URL=http://localhost:5000
-NEXT_PUBLIC_API_URL=
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-MONGODB_URI=mongodb://localhost:27017/planify-life
-JWT_SECRET=replace-with-a-strong-secret
+EXTERNAL_API_URL=http://127.0.0.1:5000
 ```
 
-| Variable               | Required                                | Purpose                                                      |
-| ---------------------- | --------------------------------------- | ------------------------------------------------------------ |
-| `EXTERNAL_API_URL`     | Recommended                             | Backend base URL used by the Next.js proxy routes.           |
-| `NEXT_PUBLIC_API_URL`  | Optional                                | Public API base URL for direct client requests when enabled. |
-| `NEXT_PUBLIC_SITE_URL` | Optional                                | Site URL used by public app metadata or redirects.           |
-| `MONGODB_URI`          | Required for local auth/database routes | MongoDB connection string.                                   |
-| `JWT_SECRET`           | Required for auth                       | Secret used to sign and verify app tokens.                   |
+| Variable           | Required | Purpose                                            |
+| ------------------ | -------- | -------------------------------------------------- |
+| `EXTERNAL_API_URL` | Yes      | Backend base URL used by frontend API proxy routes. |
 
 ## Available Scripts
 
@@ -128,13 +125,13 @@ JWT_SECRET=replace-with-a-strong-secret
 npm run dev
 ```
 
-Starts the app in development mode with `EXTERNAL_API_URL=http://localhost:5000`.
+Starts the app in development mode. Local proxy routes use `EXTERNAL_API_URL` from `.env.local`.
 
 ```bash
 npm run prod
 ```
 
-Starts the app in development mode against the deployed backend URL.
+Starts the app in development mode against the EC2 backend URL from the script.
 
 ```bash
 npm run build
@@ -146,7 +143,7 @@ Creates a production build.
 npm run start
 ```
 
-Runs the production build.
+Runs the production build on `0.0.0.0:3000`.
 
 ```bash
 npm run lint
@@ -213,9 +210,9 @@ Important backend behaviors reflected in the UI:
 
 ## Authentication
 
-The app includes login and registration screens under `/auth`. Auth utilities live in `lib/auth.ts`, and app API routes can use cookies and JWT helpers for session-aware behavior.
+The app includes login and registration screens under `/auth`. Browser code calls relative frontend API routes such as `/api/auth/login`, `/api/auth/me`, and `/api/auth/logout`.
 
-For production, use a strong `JWT_SECRET` and serve the app over HTTPS so secure cookie behavior works as expected.
+The backend owns MongoDB, JWT signing, auth cookies, and protected API logic. Frontend API routes forward browser cookies to the backend and forward backend `Set-Cookie` headers back to the browser.
 
 ## Performance Notes
 
@@ -250,13 +247,13 @@ For UI-heavy changes, also verify the main app routes manually in desktop and mo
 
 The app can be deployed to any platform that supports Next.js, such as Vercel, Netlify, or a Node.js server.
 
-Production checklist:
+EC2 checklist:
 
-- Set `EXTERNAL_API_URL` to the production backend URL.
-- Set `NEXT_PUBLIC_SITE_URL` to the deployed frontend URL.
-- Set `MONGODB_URI` if local frontend API routes need database access.
-- Set a strong `JWT_SECRET`.
-- Run `npm run build` successfully before deployment.
+- Keep `.env.production` or the server environment set to `EXTERNAL_API_URL=http://127.0.0.1:5000` when frontend and backend run on the same EC2 server.
+- Run `git pull origin master`.
+- Run `npm ci`.
+- Run `npm run build`.
+- Run `npm start`.
 
 ## Troubleshooting
 
@@ -265,12 +262,12 @@ Production checklist:
 Check that the backend is running and that `EXTERNAL_API_URL` points to the correct backend origin.
 
 ```env
-EXTERNAL_API_URL=http://localhost:5000
+EXTERNAL_API_URL=http://127.0.0.1:5000
 ```
 
 ### Auth Does Not Persist
 
-Confirm `JWT_SECRET` is set and that browser cookies are not blocked. In production, make sure the app is served over HTTPS.
+Confirm the backend login/register endpoints set the `token` httpOnly cookie and that the frontend proxy forwards `Set-Cookie`. Browser requests should use relative `/api/*` URLs with `credentials: "include"`.
 
 ### Build Fails on Types
 
@@ -284,7 +281,7 @@ Fix the first TypeScript error reported, then run the command again.
 
 ### Deployed App Still Calls Localhost
 
-Check deployment environment variables. `EXTERNAL_API_URL` must be set in the hosting provider, not only in `.env.local`.
+Check the EC2 frontend environment. When frontend and backend are on the same server, `EXTERNAL_API_URL` should be `http://127.0.0.1:5000`.
 
 ## License
 

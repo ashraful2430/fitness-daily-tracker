@@ -1,19 +1,38 @@
 import { redirect } from "next/navigation";
-import { connectDB } from "@/lib/mongodb";
-import { getCurrentUserId } from "@/lib/auth";
-import User from "@/models/Users";
+import { cookies } from "next/headers";
+
+const EXTERNAL_API =
+  process.env.EXTERNAL_API_URL ||
+  "https://fitness-daily-tracker-backend-main.vercel.app";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await connectDB();
-  const userId = await getCurrentUserId();
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
 
-  if (!userId) {
+  if (!token) {
     redirect("/auth");
   }
 
-  const user = await User.findById(userId).select("role");
+  const response = await fetch(`${EXTERNAL_API}/api/auth/me`, {
+    headers: {
+      Cookie: `token=${token}`,
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  }).catch(() => null);
 
-  if (!user || user.role !== "admin") {
+  if (!response?.ok) {
+    redirect("/auth");
+  }
+
+  const body = (await response.json().catch(() => null)) as {
+    data?: { role?: string };
+    user?: { role?: string };
+  } | null;
+
+  const role = body?.data?.role ?? body?.user?.role;
+
+  if (role !== "admin") {
     redirect("/dashboard");
   }
 

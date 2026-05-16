@@ -1,22 +1,6 @@
-import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/mongodb";
+import type { NextRequest } from "next/server";
+import { proxyToExternal } from "@/lib/proxy";
 
-export async function GET() {
-  try {
-    await connectDB();
-
-    return NextResponse.json({
-      success: true,
-      message: "MongoDB connected successfully.",
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: "MongoDB connection failed.",
-        error,
-      },
-      { status: 500 },
-    );
-  }
+export async function GET(req: NextRequest) {
+  return proxyToExternal(req, "/api/test-db");
 }

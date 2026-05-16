@@ -1,19 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
-const EXTERNAL_API =
-  process.env.EXTERNAL_API_URL ||
-  "https://fitness-daily-tracker-backend-main.vercel.app";
+const EXTERNAL_API = (
+  process.env.EXTERNAL_API_URL || "http://127.0.0.1:5000"
+).replace(/\/$/, "");
 
 export async function proxyToExternal(
   req: NextRequest,
   path: string,
 ): Promise<NextResponse> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-
   const url = `${EXTERNAL_API}${path}${req.nextUrl.search}`;
   const contentType = req.headers.get("content-type");
+  const cookie = req.headers.get("cookie");
+  const authorization = req.headers.get("authorization");
 
   const headers: Record<string, string> = {};
 
@@ -21,9 +19,12 @@ export async function proxyToExternal(
     headers["Content-Type"] = contentType;
   }
 
-  if (token) {
-    headers["Cookie"] = `token=${token}`;
-    headers["Authorization"] = `Bearer ${token}`;
+  if (cookie) {
+    headers["Cookie"] = cookie;
+  }
+
+  if (authorization) {
+    headers["Authorization"] = authorization;
   }
 
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
@@ -63,5 +64,20 @@ export async function proxyToExternal(
     }
   }
 
-  return NextResponse.json(data, { status: response.status });
+  const proxiedResponse = NextResponse.json(data, { status: response.status });
+  const getSetCookie = (
+    response.headers as Headers & { getSetCookie?: () => string[] }
+  ).getSetCookie;
+  const setCookieHeaders = getSetCookie?.call(response.headers) ?? [];
+  const singleSetCookie = response.headers.get("set-cookie");
+
+  for (const cookie of setCookieHeaders.length
+    ? setCookieHeaders
+    : singleSetCookie
+      ? [singleSetCookie]
+      : []) {
+    proxiedResponse.headers.append("Set-Cookie", cookie);
+  }
+
+  return proxiedResponse;
 }
