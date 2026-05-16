@@ -73,12 +73,21 @@ const buttonSecondary =
 const buttonDanger =
   "inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 sm:w-auto";
 
+const balanceRecordAmountStorageKey = "money.balanceRecordOriginalAmounts";
+
 function formatAmount(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) return "0";
 
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatPlainAmount(value: number | null | undefined) {
+  const safeValue = Number(value ?? 0);
+  if (!Number.isFinite(safeValue)) return "0";
+
+  return safeValue.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function formatDate(value: string) {
@@ -105,6 +114,11 @@ function formatCategoryLabel(value: string) {
 
 function getToday() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function expenseToForm(expense: MoneyExpense): ExpenseFormState {
@@ -156,6 +170,63 @@ function getMonthlyTotalForMonth(
   );
 
   return match ? match.total : null;
+}
+
+function isDateInMonth(value: string | undefined, monthKey: string) {
+  if (!value) return monthKey === getCurrentMonthKey();
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return false;
+
+  const recordMonthKey = `${parsed.getFullYear()}-${String(
+    parsed.getMonth() + 1,
+  ).padStart(2, "0")}`;
+
+  return recordMonthKey === monthKey;
+}
+
+function readSavedBalanceRecordAmounts() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(balanceRecordAmountStorageKey) ?? "{}",
+    );
+
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as Record<string, number>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSavedBalanceRecordAmounts(values: Record<string, number>) {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(
+    balanceRecordAmountStorageKey,
+    JSON.stringify(values),
+  );
+}
+
+function getBalanceSourceDisplayAmount(
+  source: BalanceSource,
+  savedAmounts: Record<string, number>,
+) {
+  const sourceWithOriginal = source as BalanceSource & {
+    addedAmount?: number;
+    initialAmount?: number;
+    originalAmount?: number;
+  };
+
+  return (
+    savedAmounts[source._id] ??
+    sourceWithOriginal.addedAmount ??
+    sourceWithOriginal.initialAmount ??
+    sourceWithOriginal.originalAmount ??
+    source.amount
+  );
 }
 
 function shortenChartLabel(value: unknown) {
@@ -332,6 +403,9 @@ export default function MoneyDashboard() {
     type: "BANK",
     amount: "",
   });
+  const [savedBalanceRecordAmounts, setSavedBalanceRecordAmounts] = useState<
+    Record<string, number>
+  >(readSavedBalanceRecordAmounts);
 
   const [balanceErrors, setBalanceErrors] = useState<FormErrors>({});
   const [editingBalanceId, setEditingBalanceId] = useState<string | null>(null);
@@ -483,6 +557,13 @@ export default function MoneyDashboard() {
   const totalBalance =
     balanceTotal ||
     balanceSources.reduce((sum, source) => sum + source.amount, 0);
+  const visibleBalanceSources = useMemo(
+    () =>
+      balanceSources.filter((source) =>
+        isDateInMonth(source.createdAt, selectedMonth),
+      ),
+    [balanceSources, selectedMonth],
+  );
 
   const salaryIncome = monthlyIncome?.salaryIncome ?? 0;
   const externalIncome = monthlyIncome?.externalIncome ?? 0;
@@ -541,6 +622,8 @@ export default function MoneyDashboard() {
     setBalanceErrors(result.errors || {});
 
     if (result.ok) {
+      const savedId = editingBalanceId ?? result.source?._id;
+      if (savedId) rememberBalanceRecordAmount(savedId, balanceForm.amount);
       setBalanceForm({ type: "BANK", amount: "" });
       setEditingBalanceId(null);
     }
@@ -552,10 +635,37 @@ export default function MoneyDashboard() {
     setBalanceErrors({});
   };
 
+  const rememberBalanceRecordAmount = (id: string, amount: string) => {
+    const numericAmount = Number(amount);
+    if (!id || !Number.isFinite(numericAmount)) return;
+
+    setSavedBalanceRecordAmounts((current) => {
+      const next = { ...current, [id]: numericAmount };
+      writeSavedBalanceRecordAmounts(next);
+      return next;
+    });
+  };
+
+  const forgetBalanceRecordAmount = (id: string) => {
+    setSavedBalanceRecordAmounts((current) => {
+      if (!(id in current)) return current;
+
+      const next = { ...current };
+      delete next[id];
+      writeSavedBalanceRecordAmounts(next);
+      return next;
+    });
+  };
+
   const handleEditBalanceSource = (source: BalanceSource) => {
     setEditingBalanceId(source._id);
     setBalanceErrors({});
-    setBalanceForm({ type: source.type, amount: String(source.amount) });
+    setBalanceForm({
+      type: source.type,
+      amount: String(
+        getBalanceSourceDisplayAmount(source, savedBalanceRecordAmounts),
+      ),
+    });
 
     requestAnimationFrame(() => {
       document
@@ -577,6 +687,10 @@ export default function MoneyDashboard() {
 
         if (ok && editingBalanceId === source._id) {
           handleBalanceCancel();
+        }
+
+        if (ok) {
+          forgetBalanceRecordAmount(source._id);
         }
       },
     });
@@ -779,29 +893,29 @@ export default function MoneyDashboard() {
               </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
+                <div className="min-w-0 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                     Savings
                   </p>
-                  <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+                  <p className="mt-2 break-words text-[1.35rem] font-black leading-tight text-slate-950 dark:text-white sm:text-[1.45rem] lg:text-2xl">
                     {formatMoney(totalBalance)}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
+                <div className="min-w-0 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                     Month Spent
                   </p>
-                  <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+                  <p className="mt-2 break-words text-[1.35rem] font-black leading-tight text-slate-950 dark:text-white sm:text-[1.45rem] lg:text-2xl">
                     {formatMoney(displayStats.monthSpent)}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
+                <div className="min-w-0 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/[0.08] dark:bg-white/[0.05]">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
                     Monthly Earned
                   </p>
-                  <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+                  <p className="mt-2 break-words text-[1.35rem] font-black leading-tight text-slate-950 dark:text-white sm:text-[1.45rem] lg:text-2xl">
                     {formatMoney(monthlyEarned)}
                   </p>
                 </div>
@@ -1011,7 +1125,7 @@ export default function MoneyDashboard() {
                       step="0.01"
                       value={salaryAmount}
                       placeholder={
-                        salaryDisplay ? String(salaryDisplay) : "50000"
+                        salaryDisplay ? formatPlainAmount(salaryDisplay) : "50000"
                       }
                       onChange={(event) => {
                         setSalaryAmount(event.target.value);
@@ -1111,7 +1225,7 @@ export default function MoneyDashboard() {
                       min="0"
                       step="0.01"
                       value={balanceForm.amount}
-                      placeholder={String(totalBalance || 0)}
+                      placeholder={formatPlainAmount(totalBalance)}
                       onChange={(event) => {
                         setBalanceForm((current) => ({
                           ...current,
@@ -1275,9 +1389,9 @@ export default function MoneyDashboard() {
               />
 
               <div className="flex-1 overflow-y-auto pr-1">
-                {balanceSources.length > 0 ? (
+                {visibleBalanceSources.length > 0 ? (
                   <div className="space-y-3">
-                    {balanceSources.map((source) => (
+                    {visibleBalanceSources.map((source) => (
                       <div
                         key={source._id}
                         className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.04] sm:grid-cols-[1fr_1fr_auto] sm:items-center"
@@ -1287,7 +1401,12 @@ export default function MoneyDashboard() {
                             {source.type}
                           </p>
                           <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
-                            {formatAmount(source.amount)}
+                            {formatAmount(
+                              getBalanceSourceDisplayAmount(
+                                source,
+                                savedBalanceRecordAmounts,
+                              ),
+                            )}
                           </p>
                         </div>
 
@@ -1327,7 +1446,7 @@ export default function MoneyDashboard() {
                   </div>
                 ) : (
                   <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-slate-400">
-                    No balance records found.
+                    No balance records found for {selectedMonthLabel}.
                   </div>
                 )}
               </div>
