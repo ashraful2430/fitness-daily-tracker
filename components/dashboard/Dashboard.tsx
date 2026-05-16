@@ -654,53 +654,75 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="relative z-10 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
-        <div className="mb-4">
-          <p className="text-lg font-black text-slate-900 dark:text-white">Monthly History</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jump to a month and compare money, learning, focus, workouts, and score at a glance.</p>
+      <section className="relative z-10 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 bg-slate-50/80 p-5 dark:border-slate-700/80 dark:bg-slate-950/45">
+          <div>
+            <p className="text-lg font-black text-slate-900 dark:text-white">Monthly History</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Current month is shown by default. Pick another month to load that snapshot.
+            </p>
+          </div>
+          <SmartDatePicker
+            value={selectedMonth}
+            mode="month"
+            onChange={(value) => {
+              void setSelectedMonth(value);
+            }}
+            className="w-full sm:w-64"
+            buttonClassName="rounded-xl py-2"
+          />
         </div>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {monthlyHistory.map((month) => {
-            const monthKey = monthKeyFromParts(month.month, month.year);
-            const monthHasActivity = hasTrackedActivity(month);
-            const monthScore = monthHasActivity ? month.averageDailyScore : 0;
-            const monthSavings =
-              monthKey === currentMonthKey ? displayBalance : month.savings;
-            return (
-              <button
-                key={`${month.year}-${month.month}`}
-                onClick={() => void setSelectedMonth(monthKey)}
-                className="group rounded-2xl border border-slate-200/80 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-white hover:shadow-[0_16px_34px_rgba(14,165,233,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 dark:border-slate-700 dark:bg-slate-950/50 dark:hover:border-cyan-500/40 dark:hover:bg-slate-950"
-              >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-black text-slate-900 dark:text-white">{month.label}</p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Monthly snapshot</p>
-                  </div>
-                  <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700 dark:border-cyan-400/25 dark:bg-cyan-400/10 dark:text-cyan-200">
-                    Score {monthScore}%
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <HistoryStat label="Income" value={formatCurrency(month.income)} tone="positive" />
-                  <HistoryStat label="Expense" value={formatCurrency(month.expense)} tone="danger" />
-                  <HistoryStat label="Savings" value={formatCurrency(monthSavings)} tone="neutral" />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <HistoryStat label="Focus" value={`${month.totalFocusMinutes}m`} />
-                  <HistoryStat label="Learning" value={`${month.totalLearningMinutes}m`} />
-                  <HistoryStat label="Sessions" value={`${month.completedLearningSessions}/${month.totalLearningSessions}`} />
-                  <HistoryStat label="Workouts" value={`${month.totalWorkouts}`} />
-                </div>
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-300 transition-all group-hover:from-cyan-300 group-hover:to-amber-200"
-                    style={{ width: `${Math.max(0, Math.min(monthScore, 100))}%` }}
-                  />
-                </div>
-              </button>
-            );
-          })}
+
+        <div className="p-5">
+          {overviewLoading ? (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-200/70 bg-cyan-50 p-3 text-sm font-semibold text-cyan-700 dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-200">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading selected month...
+            </div>
+          ) : null}
+
+          <article className="rounded-2xl border border-slate-200/80 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+                  {monthlyOverview.selectedMonth.label}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  {isSelectedCurrentMonth ? "Current month snapshot" : "Filtered monthly snapshot"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-4 py-3 text-right dark:border-cyan-400/25 dark:bg-cyan-400/10">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-200">Score</p>
+                <p className="mt-1 text-2xl font-black text-slate-950 dark:text-white">{displayAverageDailyScore}%</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <HistoryStat label="Income" value={formatCurrency(monthlyOverview.money.income)} tone="positive" />
+              <HistoryStat label="Expense" value={formatCurrency(monthlyOverview.money.expense)} tone="danger" />
+              <HistoryStat label="Savings" value={formatCurrency(monthlySavings)} tone="neutral" />
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <HistoryStat label="Focus" value={`${monthlyFocusTotal}m`} />
+              <HistoryStat label="Learning" value={`${monthlyLearningTotal}m`} />
+              <HistoryStat label="Sessions" value={`${monthlyCompletedLearningSessions}/${monthlyLearningSessions}`} />
+              <HistoryStat label="Workouts" value={`${monthlyOverview.productivity.totalWorkouts}`} />
+            </div>
+
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                <span>Monthly score progress</span>
+                <span>{displayAverageDailyScore}/100</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-300"
+                  style={{ width: `${Math.max(0, Math.min(displayAverageDailyScore, 100))}%` }}
+                />
+              </div>
+            </div>
+          </article>
         </div>
       </section>
     </main>
